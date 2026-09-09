@@ -49,3 +49,14 @@
   --bad: #ff3d68; --warn: #ffa93d;
   --lamp: radial-gradient(120% 62% at 50% -12%, rgba(20,224,163,0.16), transparent 70%);
 }
+[data-theme="animals"] {
+  --bg: #0d0f0a; --bg2: #12160e;
+  --panel: #1c2216; --panel2: #28301e; --edge: #38432a;
+  --ink: #f4f6ea; --dim: #96a186; --scrim: rgba(6,8,4,0.78);
+  --accent: #c9a227; --accent2: #e8c65a; --onAccent: #16150a;
+  --glow: rgba(201,162,39,0.28);
+  --gold: #ffd95c; --gold2: #fff0b0; --goldSoft: rgba(255,217,92,0.20);
+  --learn: #e08a3c; --known: #5aa7d8; --fastc: #58b364;
+  --bad: #d9503f; --warn: #e0a63c;
+  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(201,162,39,0.15), transparent 70%);
+}

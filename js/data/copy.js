@@ -171,7 +171,8 @@ D.copy = (function () {
       states: { learning: 'Learning', known: 'Known', fast: 'Fast', auto: 'Gold' },
     },
 
-    /* ---- shop (PLAN §7.1) ---- */
+    /* ---- shop (PLAN §7.1). Plain nouns. Nothing here changes how the game
+       plays, and nothing here is a joke. ---- */
     shop: {
       title: 'Shop',
       sparks: n => num(n) + ' sparks',
@@ -181,6 +182,21 @@ D.copy = (function () {
       levelNeeded: n => 'Level ' + n,
       buy: 'Buy',
       equip: 'Wear',
+      groups: { theme: 'Colours', skin: 'Card', ring: 'Ring', combo: 'Combo',
+                sound: 'Sound', mark: 'Mark' },
+      names: {
+        'theme:dojo': 'Dojo',
+        'theme:space': 'Space', 'theme:animals': 'Animals', 'theme:neon': 'Neon',
+        'theme:paper': 'Paper',
+        'skin:mat': 'Mat', 'skin:weave': 'Weave', 'skin:carbon': 'Carbon',
+        'skin:wave': 'Wave', 'skin:sun': 'Sun',
+        'ring:gold': 'Gold', 'ring:ice': 'Ice', 'ring:split': 'Split', 'ring:mono': 'Mono',
+        'combo:bar': 'Bar', 'combo:ladder': 'Ladder', 'combo:halo': 'Halo',
+        'sound:bell': 'Bell', 'sound:wood': 'Wood', 'sound:glass': 'Glass', 'sound:deep': 'Deep',
+        'mark:circle': 'Circle', 'mark:triangle': 'Triangle', 'mark:square': 'Square',
+        'mark:diamond': 'Diamond', 'mark:hex': 'Hexagon', 'mark:star': 'Star',
+        'mark:ring': 'Ring', 'mark:cross': 'Cross',
+      },
     },
 
     /* ---- weekly recap (PLAN §7.1) ---- */

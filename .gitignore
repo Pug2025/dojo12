@@ -7,6 +7,7 @@ qa/
 # decision. The app itself never ships a name; the player types one on their own
 # phone and it is stored only in that phone's localStorage.
 PLAN.md
+ART.md
 CHANGELOG.md
 AUDIT_*.md
 HANDOFF_*.md

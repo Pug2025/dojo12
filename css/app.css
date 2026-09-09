@@ -275,3 +275,77 @@ td.dotted::after { content: ""; position: absolute; right: 2px; top: 2px; width:
 .install { gap: 18px; }
 .install .shot { border: 1px solid var(--edge); border-radius: 20px; padding: 20px; background: var(--panel);
                  box-shadow: 0 10px 24px rgba(0,0,0,0.35); }
+
+/* ---- shop stock. Every one of these is a look and nothing else. ---- */
+[data-skin="mat"] .card {
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.028) 0 8px, transparent 8px 16px);
+}
+[data-skin="weave"] .card {
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0 2px, transparent 2px 13px),
+                    repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 2px, transparent 2px 13px);
+}
+[data-skin="carbon"] .card {
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 5px),
+                    repeating-linear-gradient(45deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 5px);
+}
+[data-skin="wave"] .card {
+  background-image: radial-gradient(140% 60% at 50% 118%, var(--glow), transparent 62%);
+}
+[data-skin="sun"] .card {
+  background-image: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0.035) 0deg 9deg, transparent 9deg 18deg);
+}
+[data-ring="gold"] .ring .arc { stroke: var(--gold); filter: drop-shadow(0 0 6px var(--goldSoft)); }
+[data-ring="ice"] .ring .arc { stroke: #5ec8ff; filter: drop-shadow(0 0 6px rgba(94,200,255,0.4)); }
+[data-ring="mono"] .ring .arc { stroke: var(--ink); filter: none; }
+[data-ring="split"] .ring .arc { stroke-dashoffset: 0; stroke-linecap: butt; }
+[data-ring="split"] .ring .track { stroke-dasharray: 2 2; }
+[data-combo="bar"] .combo { font-size: 0; position: relative; }
+[data-combo="bar"] .combo::after {
+  content: ""; display: inline-block; height: 9px; border-radius: 5px; background: currentColor;
+  width: 0; transition: width 200ms ease; vertical-align: middle;
+}
+[data-combo="bar"] .combo.t1::after { width: 22px; }
+[data-combo="bar"] .combo.t2::after { width: 40px; }
+[data-combo="bar"] .combo.t3::after { width: 58px; }
+[data-combo="ladder"] .combo { letter-spacing: 3px; }
+[data-combo="halo"] .combo.t2, [data-combo="halo"] .combo.t3 {
+  text-shadow: 0 0 6px currentColor, 0 0 20px currentColor;
+}
+
+.shoplabel { margin: 12px 0 3px; }
+.shopitem.dim { opacity: 0.45; }
+.shopitem.on { border-color: var(--accent); }
+.swatch { width: 26px; height: 26px; border-radius: 8px; flex: none; display: inline-block;
+          background: var(--panel2); border: 1px solid var(--edge); }
+.swatch.v-space { background: linear-gradient(135deg, #6f8cff, #121a30); }
+.swatch.v-animals { background: linear-gradient(135deg, #c9a227, #1c2216); }
+.swatch.v-neon { background: linear-gradient(135deg, #14e0a3, #14142a); }
+.swatch.v-paper { background: linear-gradient(135deg, #fffdf6, #c14a24); }
+.sw-skin.v-mat { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 3px, transparent 3px 6px); }
+.sw-skin.v-weave { background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.2) 0 1px, transparent 1px 5px),
+                                     repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0 1px, transparent 1px 5px); }
+.sw-skin.v-carbon { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.22) 0 1px, transparent 1px 3px),
+                                      repeating-linear-gradient(45deg, rgba(0,0,0,0.4) 0 1px, transparent 1px 3px); }
+.sw-skin.v-wave { background-image: radial-gradient(140% 70% at 50% 120%, var(--accent), transparent 60%); }
+.sw-skin.v-sun { background-image: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0.22) 0deg 12deg, transparent 12deg 24deg); }
+.sw-combo.v-bar { background: linear-gradient(90deg, var(--accent) 0 60%, transparent 60%); }
+.sw-combo.v-ladder { background-image: repeating-linear-gradient(0deg, var(--accent) 0 2px, transparent 2px 6px); }
+.sw-combo.v-halo { background: radial-gradient(circle at 50% 50%, var(--accent), transparent 62%); }
+.sw-sound.v-bell { background: radial-gradient(circle at 50% 30%, var(--gold), transparent 62%); }
+.sw-sound.v-wood { background: radial-gradient(circle at 50% 50%, #a97b42, transparent 62%); }
+.sw-sound.v-glass { background: radial-gradient(circle at 50% 50%, #7fd6ff, transparent 62%); }
+.sw-sound.v-deep { background: radial-gradient(circle at 50% 70%, #7a5cff, transparent 62%); }
+.sw-ring.v-gold { box-shadow: 0 0 0 3px var(--gold) inset; }
+.sw-ring.v-ice { box-shadow: 0 0 0 3px #5ec8ff inset; }
+.sw-ring.v-mono { box-shadow: 0 0 0 3px var(--ink) inset; }
+.sw-ring.v-split { box-shadow: 0 0 0 3px var(--dim) inset; border-style: dashed; }
+.sw-mark { background: var(--panel); }
+.big-swatch { width: 54px; height: 54px; border-radius: 15px; }
+.swatch.v-dojo { background: linear-gradient(135deg, #ff6a3d, #171b25); }
+.mark { width: 22px; height: 22px; flex: none; }
+.mark svg { width: 100%; height: 100%; display: block; }
+
+/* ---- tryout ---- */
+.flash { animation: flashred 320ms ease; }
+@keyframes flashred { 0% { box-shadow: 0 0 0 0 rgba(255,79,79,0.6) } 100% { box-shadow: 0 0 0 24px rgba(255,79,79,0) } }
+.testtop { display: flex; align-items: center; justify-content: space-between; }

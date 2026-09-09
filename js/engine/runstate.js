@@ -274,6 +274,7 @@ D.runstate = (function () {
       // Wrong once: the same step in a simpler form. Wrong twice: its value, typed.
       rc.retried = true;
       r.cardStepRetried = true;
+      D.scheduler.noteStepMiss(step.kind, r.day);
       if (!rc.sub && step.simpler && step.simpler.length) {
         rc.sub = step.simpler.slice(); rc.subAt = 0;
         return { kind: 'step', step: currentStep() };

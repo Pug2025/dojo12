@@ -67,11 +67,25 @@ D.audio = (function () {
     o.start(t0); o.stop(t0 + dur + 0.02);
   }
 
-  // A pentatonic tick that climbs with the combo, so a run has a rising line.
+  /* A pentatonic tick that climbs with the combo, so a run has a rising line.
+     The shop sells four other voices for it; none of them changes anything but
+     the sound. */
+  const VOICES = {
+    plain: { wave: 'triangle', vol: 0.15, len: 0.11, mult: 1 },
+    bell:  { wave: 'sine',     vol: 0.16, len: 0.30, mult: 2 },
+    wood:  { wave: 'square',   vol: 0.09, len: 0.07, mult: 0.5 },
+    glass: { wave: 'sine',     vol: 0.13, len: 0.18, mult: 3 },
+    deep:  { wave: 'sawtooth', vol: 0.10, len: 0.14, mult: 0.25 },
+  };
   const SCALE = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+  function voice() {
+    const worn = D.state && D.state.cosmetics ? D.state.cosmetics.equipped.sound : null;
+    return VOICES[worn] || VOICES.plain;
+  }
   function correct(combo) {
+    const v = voice();
     const i = Math.min(SCALE.length - 1, Math.max(0, (combo || 1) - 1));
-    tone(SCALE[i], 0.11, 'triangle', 0.15);
+    tone(SCALE[i] * v.mult, v.len, v.wave, v.vol);
   }
   function miss() { sweep(180, 70, 0.19, 'square', 0.11); }
   function gold() { tone(880, 0.1, 'triangle', 0.15); tone(1318.51, 0.22, 'triangle', 0.13, 0.09); }

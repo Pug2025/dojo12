@@ -30,7 +30,7 @@ D.save = (function () {
       pbs: { score: 0, byTable: {}, combo: 0, fastestFact: null },
       progress: { xp: 0, level: 1, sparks: 0, daysPlayed: 0, weekKey: D.u.weekKey(today),
                   weekDots: [], weekBonusPaid: false, lastRunDay: null, runsToday: 0,
-                  fullXpToday: 0, learnSlots: cfg.LEARN_START, fastWrongs7d: [],
+                  fullXpToday: 0, learnSlots: cfg.LEARN_START, fastWrongs7d: [], stepMisses: [],
                   daysBonusPaid: [] },
       cosmetics: { owned: [], equipped: {} },
       inRun: null,

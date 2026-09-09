@@ -88,6 +88,7 @@ D.scheduler = (function () {
     }
     for (const key of focusKeys()) refreshHot(key);
     updateBelts();
+    updateSafety();
     maybeOpenBeyondScouting();
   }
 
@@ -105,6 +106,58 @@ D.scheduler = (function () {
       t.hot.push(id);
     }
     return t.hot;
+  }
+
+  /* ---- the quiet lane (PLAN §6.8) ----
+     It turns on when the tryout probes say the multiplication strategies are
+     standing on sand, or when a rescue step in that arithmetic is missed twice
+     in a week. It turns off family by family at ninety per cent fast. It is
+     never labelled, never on the Grid, never in a summary. */
+  function activateSafety() {
+    const lane = D.state.lanes.addsub;
+    lane.active = true;
+    for (const famId of D.facts.familyIds()) {
+      if (!lane.families[famId]) lane.families[famId] = { active: true };
+    }
+  }
+  function activateSafetyFamily(famId) {
+    const lane = D.state.lanes.addsub;
+    lane.active = true;
+    lane.families[famId] = { active: true };
+  }
+  function updateSafety() {
+    const lane = D.state.lanes.addsub;
+    if (!lane.active) return;
+    let anyActive = false;
+    for (const famId of Object.keys(lane.families)) {
+      const st = lane.families[famId];
+      if (!st || !st.active) continue;
+      const fam = D.facts.family(famId);
+      if (!fam) { st.active = false; continue; }
+      const seen = fam.facts.filter(id => (M().peek(id) || {}).seen > 0);
+      // Small families cannot reach a flat minimum, so the bar is the whole
+      // family when the family is smaller than the minimum.
+      const need = Math.min(cfg.SAFETY_DEACTIVATE_MIN, fam.facts.length);
+      if (seen.length >= need) {
+        const fast = seen.filter(id => M().isFast(id)).length;
+        if (fast / seen.length >= cfg.SAFETY_DEACTIVATE_PCT) { st.active = false; continue; }
+      }
+      anyActive = true;
+    }
+    if (!anyActive) lane.active = false;
+  }
+  /* A rescue step in plain addition or subtraction, missed twice in a week, is
+     the other way in (PLAN §6.8). */
+  function noteStepMiss(kind, day) {
+    if (['add', 'sub', 'double', 'half', 'addUp'].indexOf(kind) < 0) return false;
+    const p = D.state.progress;
+    p.stepMisses = (p.stepMisses || []).filter(d => D.u.daysBetween(d, day) < cfg.FAST_WRONG_WINDOW_DAYS);
+    p.stepMisses.push(day);
+    if (p.stepMisses.length >= 2 && !D.state.lanes.addsub.active) {
+      activateSafety();
+      return true;
+    }
+    return false;
   }
 
   function updateBelts() {
@@ -476,5 +529,6 @@ D.scheduler = (function () {
   return { tableState, isOpen, openTables, focusKeys, prereqMet, nextUnopened, openTable,
            ensureProgression, refreshHot, updateBelts, testOpen, blackBelts, learningPool,
            promotePool, promoteWeight, duePool, maintenancePool, scoutPool, safetyPool, warmupPool,
-           plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card };
+           plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
+           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss };
 })();

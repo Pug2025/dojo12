@@ -28,6 +28,7 @@ const ENGINE = [
   "js/core/util.js", "js/core/cfg.js", "js/engine/facts.js", "js/engine/mastery.js",
   "js/core/save.js", "js/data/copy.js", "js/engine/scripts.js", "js/engine/diagnose.js",
   "js/engine/xp.js", "js/engine/scheduler.js", "js/engine/runstate.js",
+  "js/engine/tryout.js", "js/engine/belttest.js",
 ];
 for (const f of ENGINE) {
   try { vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f }); }
@@ -776,10 +777,19 @@ function inTables(id, keys) {
   const f = D.facts.get(id);
   return f.tables ? f.tables.some(k => keys.includes(k)) : false;
 }
+/* Where a bot starts on a safety-net fact. A child who needs the quiet lane is
+   not hopeless at adding, he is slow and shaky on the bigger ones. */
+function addSubStart(id, base) {
+  const f = D.facts.get(id);
+  if (!f || f.lane !== "addsub") return null;
+  const big = Math.max(f.a, f.b) > 10;
+  return big ? base * 0.6 : Math.min(0.9, base * 1.3);
+}
 const PROFILES = {
   novice: { floor: 0.25, gain: 0.16, loss: 0.05, decay: 0.012, fast: 1250, slow: 6000,
             onMiss: "rescue", stepP: 0.7,
-            start: id => (inTables(id, KNOWN_TABLES) ? 0.85 : 0.15) },
+            start: id => addSubStart(id, 0.45) !== null ? addSubStart(id, 0.45)
+                       : (inTables(id, KNOWN_TABLES) ? 0.85 : 0.15) },
   strong: { floor: 0.5, gain: 0.2, loss: 0.04, decay: 0.008, fast: 900, slow: 2600,
             onMiss: "rescue", stepP: 0.95, start: () => 0.9 },
   slowCorrect: { floor: 0.25, gain: 0.14, loss: 0.05, decay: 0.01, fast: 1300, slow: 5200,
@@ -967,6 +977,286 @@ h2("improving-learner bots");
     "median " + medianOf(kept).toFixed(2));
 }
 Math.random = mulberry(SEED);
+
+
+/* ================= 7. the tryout (PLAN §6.6) ================= */
+h2("tryout");
+/* A tryout player: correct with probability p, fast when correct with probability q. */
+function playTryout(p, q, opts) {
+  const o = opts || {};
+  const t = D.tryout.create();
+  const seen = [];
+  let guard = 0;
+  while (guard++ < 60) {
+    const card = t.next();
+    if (!card) break;
+    const f = D.facts.get(card.id);
+    const easy = f.op === "mul" && Math.min(f.a, f.b) <= 4;
+    const chance = o.easyP !== undefined && easy ? o.easyP : p;
+    const correct = card.kind === "filler" ? true : Math.random() < chance;
+    const fast = correct && Math.random() < q;
+    const rt = fast ? 900 : 4200;
+    const out = t.answer(correct ? f.ans : f.ans + 7, rt);
+    seen.push({ card: card, correct: out.correct, kind: card.kind, line: out.line, flash: out.flash });
+  }
+  return { t: t, seen: seen };
+}
+{
+  newState();
+  const r = playTryout(1, 1);
+  t("the tryout never runs past thirty placement cards", r.t.state.served <= D.cfg.TRYOUT_MAX,
+    "probes " + r.t.state.served);
+  const first4 = r.seen.slice(0, 4);
+  const openerOk = first4.every(x => {
+    const f = D.facts.get(x.card.id);
+    if (f.op !== "mul") return false;
+    const inEasyTable = f.tables.some(k => k === "2" || k === "10" || k === "5");
+    const other = f.tables.filter(k => k !== "sq").map(Number);
+    return inEasyTable && Math.min(f.a, f.b) <= 6 && Math.max(f.a, f.b) <= 10;
+  });
+  t("the tryout opens with four small twos, tens and fives", openerOk,
+    first4.map(x => x.card.id).join(" "));
+  t("the tryout ends on a win", r.seen[r.seen.length - 1].correct === true);
+  t("a perfect tryout starts Beyond scouting", (r.t.apply(), D.state.lanes.beyond.scouting === true));
+}
+{
+  // A weak recaller: the small facts mostly land, the sixes to nines mostly do not.
+  // Eight seeds, assertions on medians, because one lucky run is not a novice.
+  const lens = [], rates = [];
+  let adjacent = false, endedBadly = 0;
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    Math.random = mulberry(seed * 31);
+    newState();
+    const r = playTryout(0.22, 0.15, { easyP: 0.85 });
+    for (let i = 1; i < r.seen.length; i++) if (!r.seen[i].correct && !r.seen[i - 1].correct) adjacent = true;
+    if (r.seen[r.seen.length - 1].correct !== true) endedBadly++;
+    lens.push(r.seen.length);
+    rates.push(r.seen.filter(x => x.correct).length / r.seen.length);
+  }
+  Math.random = mulberry(SEED);
+  t("the tryout never serves two misses in a row", !adjacent);
+  t("the tryout always ends on a win", endedBadly === 0, endedBadly + " ended on a miss");
+  t("a novice wins most of the tryout", medianOf(rates) >= 0.5, medianOf(rates).toFixed(2));
+  t("a novice sees a short tryout", medianOf(lens) <= 20, "median cards " + medianOf(lens));
+}
+{
+  // A hard probe only ever follows a correct easy probe on that table.
+  newState();
+  const r = playTryout(0.6, 0.5, { easyP: 0.95 });
+  let bad = null;
+  const easyResult = {};
+  for (const x of r.seen) {
+    if (!x.card.table) continue;
+    if (x.card.kind === "opener" || x.card.kind === "easy") easyResult[x.card.table] = x.correct;
+    if (x.card.kind === "hard" && easyResult[x.card.table] !== true) bad = x.card.table;
+  }
+  t("a hard probe only follows a correct easy probe", bad === null, bad || "");
+}
+{
+  // Two tables in a row with a wrong easy probe stops the probing.
+  newState();
+  const r = playTryout(0.02, 0);
+  t("two wrong easy probes in a row stop the tryout", r.t.state.served <= 12,
+    "probes " + r.t.state.served);
+}
+{
+  // Slow but correct seeds the facts it got, and puts the table in focus.
+  newState();
+  const r = playTryout(1, 0);            // always right, never fast
+  r.t.apply();
+  const primary = D.state.focus.primary;
+  t("a slow but correct tryout leaves a table to work on", !!primary, String(primary));
+  const seeded = Object.keys(D.state.facts).filter(id => (D.state.facts[id] || {}).provisional);
+  t("the facts a slow player got right are seeded known", seeded.length > 0, "seeded " + seeded.length);
+  t("no fact carries a day out of the tryout",
+    Object.keys(D.state.facts).every(id => D.state.facts[id].days.length === 0));
+}
+{
+  // Missing the safety-net probes turns the quiet lane on, and it is never named.
+  newState();
+  const t2 = D.tryout.create();
+  let guard = 0;
+  while (guard++ < 60) {
+    const card = t2.next();
+    if (!card) break;
+    const f = D.facts.get(card.id);
+    const correct = card.kind !== "safety";
+    t2.answer(correct ? f.ans : f.ans + 7, 900);
+  }
+  t2.apply();
+  t("missing the addition probes turns the safety net on", D.state.lanes.addsub.active === true);
+  const planCards = D.scheduler.plan().cards;
+  t("the safety net serves addition cards", planCards.some(c => D.facts.get(c.id).lane === "addsub"));
+}
+
+
+{
+  // The quiet lane turns off, family by family, once the arithmetic is quick.
+  newState();
+  D.scheduler.activateSafety();
+  t("the safety net is on", D.state.lanes.addsub.active === true);
+  for (const famId of D.facts.familyIds()) {
+    for (const id of D.facts.family(famId).facts.slice(0, 14)) seedFast(id);
+  }
+  D.mastery.dirty();
+  D.scheduler.updateSafety();
+  t("the safety net turns itself off once the arithmetic is quick",
+    D.state.lanes.addsub.active === false);
+  const plan = D.scheduler.plan();
+  t("no addition card is served once it is off",
+    plan.cards.every(c => D.facts.get(c.id).lane !== "addsub"));
+}
+{
+  // Two missed arithmetic rescue steps in a week is the other way in.
+  newState();
+  t("the safety net starts off", D.state.lanes.addsub.active === false);
+  D.scheduler.noteStepMiss("add", "2026-09-09");
+  t("one missed step is not enough", D.state.lanes.addsub.active === false);
+  D.scheduler.noteStepMiss("double", "2026-09-10");
+  t("two missed steps in a week turn it on", D.state.lanes.addsub.active === true);
+  newState();
+  D.scheduler.noteStepMiss("mul", "2026-09-09");
+  D.scheduler.noteStepMiss("groups", "2026-09-10");
+  t("a missed multiplication step does not turn it on", D.state.lanes.addsub.active === false);
+}
+{
+  // The safety net is never named anywhere.
+  const copySrc = fs.readFileSync(path.join(ROOT, "js/data/copy.js"), "utf8");
+  const NAMES = ["safety net", "addition", "subtraction", "add and subtract", "adding", "catch up",
+                 "basics", "warm up", "warm-up"];
+  const hits = NAMES.filter(w => new RegExp(w, "i").test(copySrc));
+  t("the quiet lane has no name in the copy", hits.length === 0, hits.join(", "));
+}
+
+/* ================= 8. the Belt Test (PLAN §7.1) ================= */
+h2("belt test");
+function readyTable(key, pct) {
+  const items = D.mastery.activeItems(key);
+  const want = Math.ceil(items.length * (pct === undefined ? 1 : pct));
+  items.forEach((id, i) => { if (i < want) seedAuto(id); else seedFast(id); });
+  D.scheduler.ensureProgression();
+}
+function seedTableFast(key) {
+  for (const id of D.facts.table(key).items) seedFast(id);
+  D.mastery.dirty();
+  D.scheduler.ensureProgression();
+}
+{
+  newState();
+  seedTableFast("2");
+  t("a table at full speed offers its test", D.scheduler.testOpen("2") === true);
+  const test = D.belttest.create("2");
+  t("the attempt is stamped before a card is seen",
+    D.scheduler.tableState("2").testAttemptDay === D.u.gameDay());
+  const res = test.abandon();
+  t("walking away from a test is a fail", res.passed === false);
+  t("a failed test cannot be retried the same day", D.belttest.canAttempt("2") === false);
+}
+{
+  newState();
+  seedTableFast("2");
+  const test = D.belttest.create("2");
+  const xp0 = D.state.progress.xp;
+  let guard = 0;
+  while (!test.isDone() && guard++ < 40) {
+    const p = test.present();
+    if (!p) break;
+    test.submit(D.facts.get(p.card.id).ans, 800);
+  }
+  const res = test.result();
+  t("a clean test passes", res.passed === true, res.correct + " of " + res.total);
+  t("a pass makes the belt black", D.scheduler.tableState("2").belt === "black");
+  t("a pass pays its XP", D.state.progress.xp >= xp0 + D.cfg.XP_BLACK_BELT);
+  t("a new black belt is provisional", !!D.scheduler.tableState("2").provisionalUntil);
+}
+{
+  newState();
+  seedTableFast("2");
+  const test = D.belttest.create("2");
+  const xp0 = D.state.progress.xp;
+  let guard = 0, n = 0;
+  while (!test.isDone() && guard++ < 40) {
+    const p = test.present();
+    if (!p) break;
+    const f = D.facts.get(p.card.id);
+    n++;
+    test.submit(n <= 4 ? f.ans + 7 : f.ans, 800);   // four misses
+  }
+  const res = test.result();
+  t("four misses fail the test", res.passed === false, res.correct + " of " + res.total);
+  t("a failed test still pays for the cards it got right", D.state.progress.xp > xp0);
+  t("the misses become the hot set", D.scheduler.tableState("2").hot.length > 0);
+  t("a failed table comes back into focus",
+    D.state.focus.primary === "2" || D.state.focus.secondary === "2");
+}
+{
+  // Slow but correct is not a pass.
+  newState();
+  seedTableFast("2");
+  const test = D.belttest.create("2");
+  let guard = 0;
+  while (!test.isDone() && guard++ < 40) {
+    const p = test.present();
+    if (!p) break;
+    test.submit(D.facts.get(p.card.id).ans, 9000);
+  }
+  const res = test.result();
+  t("all correct but all slow does not pass", res.passed === false, res.correct + " correct, " + res.slow + " slow");
+  t("the fail line names the slow ones", /too slow/.test(D.belttest.failLine(res)));
+}
+{
+  // A provisional black belt reverts, silently, if the table falls back.
+  newState();
+  seedTableFast("2");
+  const t3 = D.scheduler.tableState("2");
+  t3.belt = "black";
+  t3.provisionalUntil = D.belttest.addDays(D.u.gameDay(), 3);
+  for (const id of D.mastery.activeItems("2").slice(0, 12)) {
+    const r = D.mastery.rec(id);
+    r.ewma = 9000; r.lastMiss = true; r.streak = 0;
+  }
+  D.mastery.dirty();
+  D.scheduler.updateBelts();
+  t("a provisional belt reverts when the table slips", D.scheduler.tableState("2").belt === "orange");
+}
+{
+  // A table the tryout seeded gets a second look inside the same day.
+  newState();
+  for (const id of D.facts.table("2").items) D.mastery.seedKnown(id);
+  for (const id of D.facts.table("2").items) seedFast(id);
+  for (const id of D.facts.table("2").items) D.mastery.rec(id).provisional = true;
+  D.mastery.dirty();
+  D.scheduler.ensureProgression();
+  const test = D.belttest.create("2");
+  test.abandon();
+  D.state.progress.runsToday++;
+  t("a seeded table gets one attempt per run until it first fails",
+    D.belttest.canAttempt("2") === false);
+}
+
+/* ================= 9. the shop (PLAN §7.1) ================= */
+h2("shop");
+{
+  newState();
+  const prices = D.cfg.SHOP.map(i => i.price);
+  t("every shop price is between fifty and a thousand",
+    Math.min.apply(null, prices) >= 50 && Math.max.apply(null, prices) <= 1000);
+  t("the shop has about thirty things in it", D.cfg.SHOP.length >= 24 && D.cfg.SHOP.length <= 36,
+    "items " + D.cfg.SHOP.length);
+  const missing = D.cfg.SHOP.filter(i => !D.copy.shop.names[i.id]);
+  t("every shop item has a name", missing.length === 0, missing.map(i => i.id).join(", "));
+  const kinds = new Set(D.cfg.SHOP.map(i => i.kind));
+  t("no shop item touches play",
+    Array.from(kinds).every(k => ["theme", "skin", "ring", "combo", "sound", "mark"].indexOf(k) >= 0),
+    Array.from(kinds).join(", "));
+  // Four to six things to want at every level up to twelve.
+  let thin = [];
+  for (let lvl = 1; lvl <= 12; lvl++) {
+    const n = D.cfg.SHOP.filter(i => i.level <= lvl).length;
+    if (n < 4) thin.push(lvl);
+  }
+  t("there is always something on the shelf", thin.length === 0, "thin at " + thin.join(", "));
+}
 
 /* ================= results ================= */
 console.log("\n" + passed + " passed, " + failed + " failed");

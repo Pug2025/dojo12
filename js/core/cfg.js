@@ -105,7 +105,51 @@ D.cfg = {
   SAFETY_DEACTIVATE_MIN: 12,  // ... measured over facts of that family the child has seen
 
   /* ---- tryout (PLAN §6.6) ---- */
-  TRYOUT_MAX: 30, TRYOUT_OPENERS: 4, TRYOUT_STOP_AFTER_WRONG: 2,
+  TRYOUT_MAX: 30,           // placement probes; fillers do not count
+  TRYOUT_MAX_CARDS: 34,     // cards of any kind: a valve, not the usual stop
+  TRYOUT_OPENERS: 4,
+  TRYOUT_STOP_AFTER_WRONG: 2,   // consecutive tables with a wrong easy probe
+  TRYOUT_STOP_AFTER_HARD: 2,    // consecutive wrong hard probes: the ceiling is found
+  TRYOUT_REPROBES: 1,           // suspicious easy misses given a second look
+
+  /* ---- shop (PLAN §7.1). Nothing here touches play. Prices are set so a
+     novice earning about ten sparks a run reaches the two big themes on day
+     four to six, and so there are four to six things to want at every level. ---- */
+  SHOP: [
+    { id: 'theme:space',   kind: 'theme',  value: 'space',   price: 260,  level: 2 },
+    { id: 'theme:animals', kind: 'theme',  value: 'animals', price: 300,  level: 3 },
+    { id: 'theme:neon',    kind: 'theme',  value: 'neon',    price: 620,  level: 6 },
+    { id: 'theme:paper',   kind: 'theme',  value: 'paper',   price: 900,  level: 9 },
+
+    { id: 'skin:mat',      kind: 'skin',   value: 'mat',     price: 60,   level: 1 },
+    { id: 'skin:weave',    kind: 'skin',   value: 'weave',   price: 140,  level: 2 },
+    { id: 'skin:carbon',   kind: 'skin',   value: 'carbon',  price: 240,  level: 4 },
+    { id: 'skin:wave',     kind: 'skin',   value: 'wave',    price: 420,  level: 6 },
+    { id: 'skin:sun',      kind: 'skin',   value: 'sun',     price: 780,  level: 10 },
+
+    { id: 'ring:gold',     kind: 'ring',   value: 'gold',    price: 90,   level: 1 },
+    { id: 'ring:ice',      kind: 'ring',   value: 'ice',     price: 200,  level: 3 },
+    { id: 'ring:split',    kind: 'ring',   value: 'split',   price: 380,  level: 5 },
+    { id: 'ring:mono',     kind: 'ring',   value: 'mono',    price: 700,  level: 8 },
+
+    { id: 'combo:bar',     kind: 'combo',  value: 'bar',     price: 80,   level: 1 },
+    { id: 'combo:ladder',  kind: 'combo',  value: 'ladder',  price: 220,  level: 4 },
+    { id: 'combo:halo',    kind: 'combo',  value: 'halo',    price: 560,  level: 7 },
+
+    { id: 'sound:bell',    kind: 'sound',  value: 'bell',    price: 70,   level: 1 },
+    { id: 'sound:wood',    kind: 'sound',  value: 'wood',    price: 170,  level: 2 },
+    { id: 'sound:glass',   kind: 'sound',  value: 'glass',   price: 340,  level: 5 },
+    { id: 'sound:deep',    kind: 'sound',  value: 'deep',    price: 640,  level: 8 },
+
+    { id: 'mark:circle',   kind: 'mark',   value: 'circle',  price: 50,   level: 1 },
+    { id: 'mark:triangle', kind: 'mark',   value: 'triangle',price: 50,   level: 1 },
+    { id: 'mark:square',   kind: 'mark',   value: 'square',  price: 110,  level: 2 },
+    { id: 'mark:diamond',  kind: 'mark',   value: 'diamond', price: 190,  level: 3 },
+    { id: 'mark:hex',      kind: 'mark',   value: 'hex',     price: 300,  level: 5 },
+    { id: 'mark:star',     kind: 'mark',   value: 'star',    price: 480,  level: 7 },
+    { id: 'mark:ring',     kind: 'mark',   value: 'ring',    price: 660,  level: 9 },
+    { id: 'mark:cross',    kind: 'mark',   value: 'cross',   price: 1000, level: 12 },
+  ],
 
   /* ---- misc ---- */
   RUNS_KEPT: 200,

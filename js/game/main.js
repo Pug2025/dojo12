@@ -17,14 +17,20 @@ D.main = (function () {
 
   function open(slug) {
     D.save.loadProfile(slug);
-    applyTheme();
+    D.shop.apply();
     D.save.touchDay();
+    // A Belt Test that was walked away from is a fail, and it stays stamped.
+    if (D.state.flags.testInProgress) {
+      const t = D.scheduler.tableState(D.state.flags.testInProgress);
+      t.testFailed = true;
+      D.state.flags.testInProgress = null;
+      D.save.commit();
+    }
     D.scheduler.ensureProgression();
+    if (!D.state.flags.tryoutDone) return tryoutIntro();
     home();
   }
-  function applyTheme() {
-    document.documentElement.setAttribute('data-theme', (D.state.profile && D.state.profile.theme) || 'dojo');
-  }
+  function applyTheme() { D.shop.apply(); }
 
   /* ---- first launch ---- */
   function firstLaunch() {
@@ -39,7 +45,7 @@ D.main = (function () {
       applyTheme();
       D.scheduler.ensureProgression();
       D.save.commitNow();
-      home();
+      themePick();
     });
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
@@ -48,6 +54,77 @@ D.main = (function () {
       u().el('div', { class: 'grow' }),
     ]));
     setTimeout(() => field.focus(), 120);
+  }
+
+  /* One theme, free, chosen before anything else. The rest are shop stock. */
+  function themePick() {
+    u().clear(root);
+    const list = u().el('div', { class: 'tiles' });
+    const themes = ['dojo'].concat(D.cfg.SHOP.filter(i => i.kind === 'theme').map(i => i.value));
+    for (const value of themes) {
+      const item = D.cfg.SHOP.find(i => i.kind === 'theme' && i.value === value);
+      const name = D.copy.shop.names['theme:' + value];
+      const b = u().el('button', { class: 'btn wide col centre', type: 'button',
+                                   style: { gap: '9px', padding: '17px' } }, [
+        u().el('i', { class: 'swatch big-swatch v-' + value }),
+        u().el('span', {}, name),
+      ]);
+      b.addEventListener('click', () => {
+        D.state.profile.theme = value;
+        D.state.cosmetics.equipped.theme = value;
+        if (item) D.state.cosmetics.owned.push(item.id);
+        D.shop.apply();
+        D.save.commitNow();
+        tryoutIntro();
+      });
+      list.appendChild(b);
+    }
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'big' }, D.copy.firstLaunch.themeTitle),
+      list,
+      u().el('div', { class: 'grow' }),
+    ]));
+  }
+
+  /* ---- the tryout (PLAN §6.6) ---- */
+  function tryoutIntro() {
+    u().clear(root);
+    const go = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.tryout.play);
+    go.addEventListener('click', runTryout);
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'big' }, D.copy.tryout.intro),
+      u().el('div', { class: 'grow' }),
+      go,
+    ]));
+  }
+  function runTryout() {
+    const t = D.tryout.create();
+    let pending = null;
+    D.cards.start(root, {
+      provide: () => { pending = t.next(); return pending; },
+      answer: (v, rt) => {
+        const out = t.answer(v, rt);
+        if (!out) return { correct: false, done: true };
+        return { correct: out.correct, line: out.line, flash: out.flash,
+                 done: false, streak: 1 };
+      },
+      onDone: () => tryoutEnd(t),
+    });
+  }
+  function tryoutEnd(t) {
+    const sum = t.apply();
+    u().clear(root);
+    const go = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.tryout.play);
+    go.addEventListener('click', () => { home(); startRun(); });
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'mid' }, D.copy.tryout.end(sum.open, sum.next)),
+      u().el('div', { class: 'grow' }),
+      go,
+    ]));
+    D.save.commitNow();
   }
 
   function profilePick(list) {
@@ -74,8 +151,12 @@ D.main = (function () {
     const p = D.state.progress;
     const lvl = D.xp.levelFor(p.xp);
 
+    const worn = D.shop.equipped('mark');
     const nameRow = u().el('div', { class: 'row between' }, [
-      u().el('div', { class: 'big' }, D.state.profile.name),
+      u().el('div', { class: 'row', style: { gap: '9px' } }, [
+        worn ? markGlyph(worn) : null,
+        u().el('div', { class: 'big' }, D.state.profile.name),
+      ]),
       u().el('div', { class: 'mid lvl' }, D.copy.home.level(lvl.level)),
     ]);
     const bar = u().el('div', { class: 'xpbar' }, [
@@ -116,6 +197,8 @@ D.main = (function () {
     play.addEventListener('click', startRun);
     const tiles = u().el('div', { class: 'tiles' }, [
       tile(D.copy.home.grid, () => D.grid.render(root, home)),
+      tile(D.copy.home.belts, () => D.belts.render(root, home, startTest)),
+      tile(D.copy.home.shop, () => D.shop.render(root, home)),
       tile(D.copy.home.settings, settings),
     ]);
 
@@ -205,6 +288,86 @@ D.main = (function () {
     return next ? D.copy.summary.nextTable(next) : null;
   }
 
+  /* A worn mark, drawn rather than shipped. */
+  const MARKS = {
+    circle: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+    triangle: 'M12 3 22 21H2z',
+    square: 'M4 4h16v16H4z',
+    diamond: 'M12 2 22 12 12 22 2 12z',
+    hex: 'M7 3h10l5 9-5 9H7l-5-9z',
+    star: 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
+    ring: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+    cross: 'M9 2h6v7h7v6h-7v7H9v-7H2V9h7z',
+  };
+  function markGlyph(value) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', MARKS[value] || MARKS.circle);
+    path.setAttribute('fill', 'var(--accent)');
+    path.setAttribute('fill-rule', 'evenodd');
+    svg.appendChild(path);
+    return u().el('span', { class: 'mark' }, [svg]);
+  }
+
+  /* ---- the Belt Test (PLAN §7.1) ---- */
+  function startTest(key) {
+    const test = D.belttest.create(key);
+    D.state.flags.testInProgress = key;
+    D.save.commitNow();
+    D.cards.start(root, {
+      total: D.cfg.TEST_CARDS,
+      leftValue: () => D.copy.num(test.raw.score),
+      ringInfo: () => {
+        const c = test.raw.cards[test.raw.i];
+        if (!c) return {};
+        const ms = D.mastery.ringMs(c.id, c.ringKind);
+        return { goldAt: D.u.clamp(1 - D.mastery.threshold(c.id) / ms, 0, 1) };
+      },
+      provide: () => {
+        const p = test.present();
+        if (!p) return null;
+        return { question: p.question, digits: p.digits, ringMs: p.ringMs, index: p.index };
+      },
+      answer: (v, rt) => {
+        const out = test.submit(v, rt);
+        return { correct: out.kind === 'correct', points: out.points, gold: out.gold,
+                 index: out.card ? test.raw.cards.indexOf(out.card) : -1,
+                 done: out.done, streak: test.raw.correct };
+      },
+      timeout: () => {
+        const out = test.timeout();
+        return { correct: false, index: out.card ? test.raw.cards.indexOf(out.card) : -1, done: out.done };
+      },
+      onDone: () => testResult(test.result()),
+    });
+  }
+  function testResult(res) {
+    D.state.flags.testInProgress = null;
+    D.save.commitNow();
+    u().clear(root);
+    const lines = u().el('div', { class: 'col lines' });
+    if (res.passed) {
+      D.audio.belt();
+      D.fx.shake(document.getElementById('app'));
+      lines.appendChild(u().el('div', { class: 'big' }, D.copy.belts.pass(res.key)));
+      if (res.grandmaster) lines.appendChild(u().el('div', { class: 'mid' }, D.copy.belts.grandmaster));
+    } else {
+      lines.appendChild(u().el('div', { class: 'mid' }, D.belttest.failLine(res)));
+    }
+    if (res.xp) lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.xp(res.xp)));
+    const back = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.summary.home);
+    back.addEventListener('click', home);
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'score' }, D.copy.num(res.score)),
+      lines,
+      u().el('div', { class: 'grow' }),
+      back,
+    ]));
+  }
+
   /* ---- settings ---- */
   function settings() {
     u().clear(root);
@@ -267,7 +430,7 @@ D.main = (function () {
     }).catch(() => {});
   }
 
-  return { boot, home, startRun, summary, settings, applyTheme };
+  return { boot, home, startRun, summary, settings, applyTheme, startTest, runTryout };
 })();
 
 document.addEventListener('DOMContentLoaded', D.main.boot);
