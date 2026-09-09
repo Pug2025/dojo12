@@ -1,0 +1,20 @@
+# Screenshots from the phone-viewport playthroughs. They show the player name.
+qa/
+
+# Planning documents. They stay on this Mac and are never pushed: they name the
+# two children and describe one child's difficulties with number facts, which
+# does not belong in a public repository. See CHANGELOG 2026-09-09 for the
+# decision. The app itself never ships a name; the player types one on their own
+# phone and it is stored only in that phone's localStorage.
+PLAN.md
+CHANGELOG.md
+AUDIT_*.md
+HANDOFF_*.md
+.PLAN.v1.bak
+
+# Junk
+.DS_Store
+node_modules/
+
+# local tooling
+.claude/
