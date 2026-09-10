@@ -28,7 +28,8 @@ const ENGINE = [
   "js/core/util.js", "js/core/cfg.js", "js/engine/facts.js", "js/engine/mastery.js",
   "js/core/save.js", "js/data/copy.js", "js/engine/scripts.js", "js/engine/diagnose.js",
   "js/engine/xp.js", "js/engine/scheduler.js", "js/engine/runstate.js",
-  "js/engine/tryout.js", "js/engine/belttest.js",
+  "js/engine/tryout.js", "js/engine/belttest.js", "js/engine/beyond.js",
+  "js/engine/share.js", "js/game/recap.js",
 ];
 for (const f of ENGINE) {
   try { vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f }); }
@@ -1256,6 +1257,193 @@ h2("shop");
     if (n < 4) thin.push(lvl);
   }
   t("there is always something on the shelf", thin.length === 0, "thin at " + thin.join(", "));
+}
+
+
+/* ================= 10. the Beyond lane (PLAN §6.9) ================= */
+h2("beyond");
+{
+  newState();
+  D.beyond.build();
+  const topics = D.beyond.topics();
+  t("there are eight Beyond topics in this release", topics.length === 8, "topics " + topics.length);
+  let bad = [];
+  for (const topic of topics) {
+    const ids = D.beyond.topicFacts(topic.id);
+    if (!ids.length) { bad.push(topic.id + " empty"); continue; }
+    for (const id of ids) {
+      const f = D.facts.get(id);
+      if (!f) { bad.push(id + " unregistered"); break; }
+      if (typeof f.ans !== "number" || !isFinite(f.ans)) { bad.push(id + " has no answer"); break; }
+      if (f.lane !== "beyond") { bad.push(id + " is not in the Beyond lane"); break; }
+      const q = D.facts.display(id, false);
+      if (!q || /undefined|NaN/.test(q)) { bad.push(id + " reads " + q); break; }
+    }
+  }
+  t("every Beyond fact has an answer and a readable question", bad.length === 0, bad.slice(0, 3).join(" | "));
+  t("every Beyond topic has a name", topics.every(x => !!D.copy.beyond.topics[x.id]));
+  t("a Beyond belt set is twenty-four items or fewer",
+    topics.every(x => D.beyond.beltSet(x.id).length <= D.cfg.TEST_CARDS));
+}
+{
+  // The answers that are not one whole number are checked properly.
+  newState();
+  D.beyond.build();
+  const rem = D.beyond.topicFacts("divrem")[0];
+  const f = D.facts.get(rem);
+  t("a remainder answer needs both halves", D.facts.check(rem, f.ans + "r" + f.ans2) === true);
+  t("the quotient alone is not the answer", D.facts.check(rem, String(f.ans)) === false);
+  t("the wrong remainder is wrong", D.facts.check(rem, f.ans + "r" + (f.ans2 + 1)) === false);
+  const yn = D.beyond.topicFacts("divis").find(id => D.facts.get(id).ans === 1);
+  t("yes is right when the answer is yes", D.facts.check(yn, "1") === true);
+  t("no is wrong when the answer is yes", D.facts.check(yn, "0") === false);
+  const pct = D.beyond.topicFacts("pct")[0];
+  t("a percentage answer checks as a number", D.facts.check(pct, String(D.facts.get(pct).ans)) === true);
+}
+{
+  // Every Beyond fact has a walkthrough that lands on its own answer.
+  newState();
+  D.beyond.build();
+  let bad = null;
+  for (const topic of D.beyond.topics()) {
+    for (const id of D.beyond.topicFacts(topic.id)) {
+      const sc = D.scripts.forFact(id);
+      if (!sc) { bad = id + " has no script"; break; }
+      if (!sc.steps.length) continue;            // a prime is a yes or a no, not a derivation
+      if (sc.steps.length > 3) { bad = id + " has " + sc.steps.length + " steps"; break; }
+      const last = sc.steps[sc.steps.length - 1];
+      const f = D.facts.get(id);
+      if (f.input === "yesno") {
+        // A yes or no is answered by the child; the steps show the evidence.
+        if (!sc.steps.every(st => isFinite(st.answer))) { bad = id + " has a broken step"; break; }
+      } else if (f.input === "remainder") {
+        // A leftover has two halves: the walkthrough must produce both.
+        const values = sc.steps.map(st => st.answer);
+        if (values.indexOf(f.ans) < 0 || last.answer !== f.ans2) {
+          bad = id + " does not produce " + f.ans + " and " + f.ans2; break;
+        }
+      } else if (last.answer !== f.ans) {
+        bad = id + " ends at " + last.answer + " not " + f.ans; break;
+      }
+      const wrong = sc.steps.find(st => typeof st.answer !== "number" || !isFinite(st.answer));
+      if (wrong) { bad = id + " step " + wrong.prompt; break; }
+    }
+    if (bad) break;
+  }
+  t("every Beyond walkthrough lands on its own answer", bad === null, bad || "");
+}
+{
+  // Beyond never shows a ring.
+  newState();
+  D.beyond.build();
+  const id = D.beyond.topicFacts("mul2x1")[0];
+  seedFast(id);
+  const c = D.scheduler.card(id, "beyond");
+  t("a Beyond card never shows a ring", c.ringKind === null);
+}
+{
+  // Scouting starts when the grid is open; the lane opens at six black belts.
+  newState();
+  for (const key of D.facts.TABLE_ORDER) D.scheduler.tableState(key).status = "open";
+  D.scheduler.ensureProgression();
+  t("Beyond is scouted once every table is open", D.state.lanes.beyond.scouting === true);
+  t("Beyond is not a lane yet", D.state.lanes.beyond.open === false);
+  const scouts = D.scheduler.scoutPool();
+  t("the scouts come from Beyond", scouts.length > 0 && D.facts.get(scouts[0]).lane === "beyond");
+  for (const key of D.facts.TABLE_ORDER.slice(0, 6)) D.scheduler.tableState(key).belt = "black";
+  D.scheduler.ensureProgression();
+  t("six black belts open the Beyond lane", D.state.lanes.beyond.open === true);
+  const plan = D.scheduler.plan();
+  const bey = plan.cards.filter(c => D.facts.get(c.id).lane === "beyond" && c.kind === "beyond");
+  t("Beyond takes about a quarter of the mixed slots", bey.length >= 3 && bey.length <= 6,
+    "cards " + bey.length);
+}
+
+
+/* ================= 11. backup, restore and the dashboard (PLAN §9.5) ================= */
+h2("backup and restore");
+{
+  newState("Tester");
+  D.beyond.build();
+  for (const id of Object.keys(D.facts.all()).filter(x => D.facts.get(x).lane === "muldiv")) {
+    const r = seedFast(id); r.days = ["2026-09-01", "2026-09-03"]; r.missDays = ["2026-09-02"];
+  }
+  for (let i = 0; i < 200; i++) {
+    D.state.runs.push({ day: D.u.gameDay(), table: "7", score: 1800 + i, correct: 18, cards: 20, medianRt: 1400 });
+  }
+  D.state.progress.xp = 4321;
+  const text = await D.share.encode(D.state);
+  const json = zlib.inflateRawSync(Buffer.from(D.share.fromB64(text))).toString("utf8");
+  t("the backup link inflates with plain zlib to the exact save", json === JSON.stringify(D.state));
+  const fromZlib = D.share.toB64(new Uint8Array(zlib.deflateRawSync(Buffer.from(JSON.stringify(D.state)))));
+  const back = await D.share.decode(fromZlib);
+  t("a link deflated by plain zlib decodes to the exact save", JSON.stringify(back) === JSON.stringify(D.state));
+  t("a full save fits in a short link", text.length < 12000, "chars " + text.length);
+}
+{
+  newState("Tester");
+  seedFast(mid(3, 4));
+  D.state.progress.xp = 500;
+  const older = JSON.parse(JSON.stringify(D.state));
+  older.lastSeenEpoch = D.state.lastSeenEpoch - 3600 * 1000;
+  older.progress.xp = 99999;
+  const res = D.share.apply(older);
+  t("a backup older than the phone's save is refused", res.ok === false && res.reason === "older");
+  t("a refused restore changes nothing", D.state.progress.xp === 500);
+}
+{
+  newState("Tester");
+  const payload = D.save.fresh({ name: "Tester", slug: "tester" });
+  payload.facts[mid(3, 4)] = D.mastery.blank();
+  payload.facts[mid(3, 4)].seen = 3;
+  payload.tables["2"] = { status: "focus", belt: "orange", testAttemptDay: null, hot: [] };
+  payload.lastSeenEpoch = D.u.now() - 60000;
+  payload.gameDay = "2026-09-01";
+  const res = D.share.apply(payload);
+  t("an empty phone accepts a backup", res.ok === true);
+  t("a restore stamps every table's test for today", D.state.tables["2"].testAttemptDay === D.u.gameDay());
+  t("a restore never moves the game-day backwards", D.state.gameDay >= "2026-09-09", D.state.gameDay);
+  t("a restore spends the day's full XP", D.state.progress.fullXpToday === D.cfg.XP_FULL_PER_DAY);
+  t("a restore logs itself for the dashboard", D.state.restores.length === 1);
+  t("a restored table cannot be tested again today", D.belttest.canAttempt("2") === false);
+}
+{
+  newState("Tester");
+  for (let a = 2; a <= 7; a++) { const r = seedFast(mid(a, 9)); r.seen = 20; r.ok = 18; }
+  for (let i = 0; i < 6; i++) D.state.runs.push({ day: D.u.gameDay(), correct: 18, cards: 20, score: 1500, medianRt: 1200 });
+  D.state.progress.xp = 6 * 18 * 10;
+  const honest = D.share.checks(D.state);
+  t("an honest save passes the dashboard checks", honest.length === 0, JSON.stringify(honest));
+  D.state.progress.xp = 5000000;
+  t("a save with impossible XP is flagged", D.share.checks(D.state).some(c => c.id === "xp"));
+  D.state.progress.xp = 1080;
+  const thin = seedFast(mid(4, 7)); thin.days = ["2026-09-01", "2026-09-02", "2026-09-03"]; thin.seen = 2; thin.ok = 2;
+  t("a settled fact with two answers is flagged", D.share.checks(D.state).some(c => c.id === "thin"));
+  const ahead = seedFast(mid(4, 8)); ahead.days = ["2027-01-01"];
+  t("a day dated after the phone's own day is flagged", D.share.checks(D.state).some(c => c.id === "ahead"));
+  t("every check has a name the dashboard can print",
+    ["thin", "ahead", "xp", "runs", "counts"].every(id => !/undefined/.test(D.copy.dash.checkLine(id, 1))));
+}
+
+/* ================= 12. the weekly recap (PLAN §7.1) ================= */
+h2("weekly recap");
+{
+  setTime(2026, 9, 9, 16, 0);
+  newState("Tester");
+  t("a quiet week has no recap", D.recap.lines().length < 2);
+  const id = mid(7, 8);
+  const r = seedFast(id, 4100);
+  D.state.progress.goldsThisWeek = 6;
+  D.save.rollWeek("2026-09-14");
+  r.ewma = 2000;
+  D.state.pbs.fastestFact = { id: mid(6, 7), ms: 1400 };
+  const lines = D.recap.lines();
+  t("the recap counts last week's golds", lines.some(l => l === "Gold: 6 facts."), lines.join(" | "));
+  t("the recap names the most improved fact", lines.some(l => l === "Most improved: 7 × 8, 4.1 s to 2.0 s."),
+    lines.join(" | "));
+  t("the recap names the fastest fact", lines.some(l => l === "Fastest fact: 6 × 7, 1.4 s."), lines.join(" | "));
+  t("the recap has at most three lines", lines.length <= 3);
+  t("the week roll keeps two snapshots at most", Object.keys(D.state.snapshots).length <= 2);
 }
 
 /* ================= results ================= */

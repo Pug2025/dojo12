@@ -40,6 +40,7 @@ D.xp = (function () {
     const r = D.mastery.rec(id);
     if (r.goldPaid) return 0;
     r.goldPaid = true;
+    D.state.progress.goldsThisWeek = (D.state.progress.goldsThisWeek || 0) + 1;
     addSparks(cfg.SPARKS_GOLD);
     return addXp(cfg.XP_GOLD);
   }

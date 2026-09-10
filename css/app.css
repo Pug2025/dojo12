@@ -180,7 +180,14 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .ignite { animation: ignite 620ms ease-out; }
 
 /* ---- keypad ---- */
-.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; padding-top: 4px; }
+.padwrap { display: flex; flex-direction: column; gap: 9px; padding-top: 4px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.keyrow { display: flex; gap: 9px; }
+.keyrow > .key { flex: 1; }
+.keyrow.big { gap: 12px; }
+.keyrow.big > .key { padding: 26px 0; font-size: 26px; }
+.key.no { background: linear-gradient(180deg, var(--panel2), var(--panel)); color: var(--ink);
+          border-color: var(--edge); box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 4px 0 rgba(0,0,0,0.32); }
 .key {
   background: linear-gradient(180deg, var(--panel2), var(--panel));
   border: 1px solid var(--edge); border-radius: 18px;
@@ -199,8 +206,8 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 }
 .key.fn { font-size: 22px; color: var(--dim); }
 /* Dead while the card is showing a result or waiting on Rescue or Skip. */
-.keypad.off { opacity: 0.32; }
-.keypad.off .key { box-shadow: none; }
+.padwrap.off { opacity: 0.32; }
+.padwrap.off .key { box-shadow: none; }
 
 /* ---- overlays ---- */
 .miss-buttons { display: flex; gap: 10px; align-items: stretch; }
@@ -349,3 +356,10 @@ td.dotted::after { content: ""; position: absolute; right: 2px; top: 2px; width:
 .flash { animation: flashred 320ms ease; }
 @keyframes flashred { 0% { box-shadow: 0 0 0 0 rgba(255,79,79,0.6) } 100% { box-shadow: 0 0 0 24px rgba(255,79,79,0) } }
 .testtop { display: flex; align-items: center; justify-content: space-between; }
+
+/* ---- the parent dashboard ---- */
+[data-page="dashboard"] body { user-select: text; -webkit-user-select: text; }
+.okline { color: var(--fastc); font-weight: 700; }
+.warnline { color: var(--warn); font-weight: 700; }
+.dash .plate .value { font-size: 18px; }
+.dash .gridwrap { margin: 0 -6px; }

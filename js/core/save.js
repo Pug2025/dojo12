@@ -26,11 +26,13 @@ D.save = (function () {
       scouts: {},
       rt: { muldiv: { d1: [], d2: [], d3: [] }, beyond: { d1: [], d2: [], d3: [], d4: [] } },
       runs: [],
+      tests: [],
       snapshots: {},
       pbs: { score: 0, byTable: {}, combo: 0, fastestFact: null },
       progress: { xp: 0, level: 1, sparks: 0, daysPlayed: 0, weekKey: D.u.weekKey(today),
                   weekDots: [], weekBonusPaid: false, lastRunDay: null, runsToday: 0,
                   fullXpToday: 0, learnSlots: cfg.LEARN_START, fastWrongs7d: [], stepMisses: [],
+                  goldsThisWeek: 0, goldsLastWeek: 0,
                   daysBonusPaid: [] },
       cosmetics: { owned: [], equipped: {} },
       inRun: null,
@@ -149,11 +151,22 @@ D.save = (function () {
   // Seven dots, one per game-day played this week, wiped every Monday.
   function rollWeek(day) {
     const s = D.state, wk = D.u.weekKey(day);
-    if (s.progress.weekKey !== wk) {
-      s.progress.weekKey = wk;
-      s.progress.weekDots = [];
-      s.progress.weekBonusPaid = false;
+    if (s.progress.weekKey === wk) return;
+    // A photograph of every fact's speed at the start of the week, so the recap
+    // can name what actually moved (PLAN §7.1).
+    const shot = {};
+    for (const id of Object.keys(s.facts)) {
+      const r = s.facts[id];
+      if (r && r.ewma !== null) shot[id] = r.ewma;
     }
+    s.snapshots[wk] = shot;
+    const keys = Object.keys(s.snapshots).sort();
+    while (keys.length > 2) delete s.snapshots[keys.shift()];
+    s.progress.goldsLastWeek = s.progress.goldsThisWeek || 0;
+    s.progress.goldsThisWeek = 0;
+    s.progress.weekKey = wk;
+    s.progress.weekDots = [];
+    s.progress.weekBonusPaid = false;
   }
   function trimFastWrongs(day) {
     const p = D.state.progress;

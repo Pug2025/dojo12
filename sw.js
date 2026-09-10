@@ -1,16 +1,16 @@
 /* Dojo 12 service worker. BUILD is rewritten by deploy.sh on every deploy. */
-const BUILD = '20260909-192324';
+const BUILD = '20260910-070404';
 const CACHE = 'dojo12-' + BUILD;
 const FILES = [
-  './', 'index.html', 'manifest.webmanifest',
+  './', 'index.html', 'dashboard.html', 'manifest.webmanifest',
   'css/app.css', 'css/themes.css',
   'js/core/util.js', 'js/core/cfg.js', 'js/core/save.js', 'js/core/install.js',
   'js/data/copy.js',
   'js/engine/facts.js', 'js/engine/mastery.js', 'js/engine/scripts.js', 'js/engine/diagnose.js',
   'js/engine/xp.js', 'js/engine/scheduler.js', 'js/engine/runstate.js',
-  'js/engine/tryout.js', 'js/engine/belttest.js',
+  'js/engine/tryout.js', 'js/engine/belttest.js', 'js/engine/beyond.js', 'js/engine/share.js',
   'js/game/audio.js', 'js/game/fx.js', 'js/game/keypad.js', 'js/game/run.js',
-  'js/game/cards.js', 'js/game/grid.js', 'js/game/belts.js', 'js/game/shop.js', 'js/game/main.js',
+  'js/game/cards.js', 'js/game/grid.js', 'js/game/belts.js', 'js/game/shop.js', 'js/game/recap.js', 'js/game/dashboard.js', 'js/game/main.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

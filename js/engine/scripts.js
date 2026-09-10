@@ -150,6 +150,7 @@ D.scripts = (function () {
   function forFact(id) {
     const f = D.facts.get(id);
     if (!f) return null;
+    if (f.lane === 'beyond') return D.beyond.script(id);
     if (f.op === 'mul') return forProduct(f.a, f.b);
     if (f.op === 'div') return forDivision(f.a, f.b);
     return forAddSub(f);

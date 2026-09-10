@@ -26,6 +26,14 @@ D.belttest = (function () {
 
   function build(key) {
     const t = D.facts.table(key);
+    // A Beyond topic's belt set is already twenty-four items.
+    if (key.indexOf('bey:') === 0) {
+      const cards = D.u.shuffle(t.items.slice(0, cfg.TEST_CARDS)).map((id, i) => {
+        const f = D.facts.get(id);
+        return { id: id, kind: 'test', flip: false, ringKind: null, slot: i };
+      });
+      return cards;
+    }
     const products = t.products.slice();
     const divisions = t.divisions.slice();
     const weakest = t.items.slice().sort((a, b) => score(a) - score(b)).slice(0, cfg.TEST_WILDCARDS);
@@ -64,7 +72,7 @@ D.belttest = (function () {
       const c = r.cards[r.i];
       if (!c) return null;
       const f = D.facts.get(c.id);
-      const correct = Number(value) === f.ans;
+      const correct = D.facts.check(c.id, value);
       const fast = correct && rt <= M().threshold(c.id);
       r.rts.push(rt);
       M().record(c.id, { correct: correct, rt: rt, helped: false, day: D.u.gameDay() });
@@ -117,6 +125,10 @@ D.belttest = (function () {
           D.state.focus.secondary = r.key;
         }
       }
+      D.state.tests.push({ day: D.u.gameDay(), key: r.key, passed: r.passed,
+                           correct: r.correct, total: r.cards.length,
+                           medianRt: D.u.median(r.rts) });
+      while (D.state.tests.length > 50) D.state.tests.shift();
       D.scheduler.updateBelts();
       D.save.commitNow();
       return result();

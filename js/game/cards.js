@@ -52,7 +52,8 @@ D.cards = (function () {
       dom.line.textContent = card.intro || '';
       dom.label.textContent = card.label || '';
       dom.question.textContent = card.question;
-      setSlots(card.digits);
+      pad.setMode(card.input || 'number');
+      setSlots(card.input && card.input !== 'number' ? 0 : card.digits);
       pad.setDigits(card.digits);
       if (opts.total) {
         Array.from(dom.pips.children).forEach((p, i) => {

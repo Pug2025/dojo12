@@ -6,6 +6,7 @@ D.main = (function () {
 
   function boot() {
     root = document.getElementById('app');
+    D.beyond.build();
     D.audio.install();
     registerWorker();
     if (D.install.needsInstall()) { D.install.render(root); return; }
@@ -122,6 +123,7 @@ D.main = (function () {
       u().el('div', { class: 'grow' }),
       u().el('div', { class: 'mid' }, D.copy.tryout.end(sum.open, sum.next)),
       u().el('div', { class: 'grow' }),
+      backupButton(),
       go,
     ]));
     D.save.commitNow();
@@ -228,7 +230,32 @@ D.main = (function () {
       : D.runstate.create(D.scheduler.plan());
     D.state.inRun = rs.snapshot();
     D.__rs = rs;                      // the run in progress, for the browser gate
-    D.run.start(root, { rs: rs, onDone: summary });
+    D.run.start(root, { rs: rs, onDone: afterRun });
+  }
+
+  /* The weekly recap comes first after the first run of a new week, and only
+     when it has at least two things to say (PLAN §7.1). */
+  function afterRun(sum) {
+    if (D.recap.due()) {
+      if (D.recap.lines().length >= 2) { D.recap.render(root, () => summary(sum)); return; }
+      D.recap.markShown();
+    }
+    summary(sum);
+  }
+
+  /* ---- backup (PLAN §9.5) ----
+     The link is built before the button is live, because Safari will not open
+     the share sheet across an awaited compression. */
+  function backupButton() {
+    const b = u().el('button', { class: 'btn wide', type: 'button', disabled: 'disabled' },
+                     D.copy.settings.backup);
+    D.share.precompute().then(() => b.removeAttribute('disabled')).catch(() => {});
+    b.addEventListener('click', () => {
+      if (D.share.shareNow()) return;
+      if (D.share.copyNow()) { D.fx.toast(D.copy.settings.copied, 1400); return; }
+      D.share.fileNow();
+    });
+    return b;
   }
 
   /* ---- run summary (PLAN §7.1) ---- */
@@ -353,6 +380,8 @@ D.main = (function () {
       D.fx.shake(document.getElementById('app'));
       lines.appendChild(u().el('div', { class: 'big' }, D.copy.belts.pass(res.key)));
       if (res.grandmaster) lines.appendChild(u().el('div', { class: 'mid' }, D.copy.belts.grandmaster));
+      lines.appendChild(u().el('div', { class: 'small' }, D.copy.settings.backupNudge));
+      lines.appendChild(backupButton());
     } else {
       lines.appendChild(u().el('div', { class: 'mid' }, D.belttest.failLine(res)));
     }
@@ -375,9 +404,19 @@ D.main = (function () {
     const rows = u().el('div', { class: 'col', style: { gap: '10px' } }, [
       toggle(D.copy.settings.sound, f.sound, v => { f.sound = v; D.save.commit(); }),
       toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }),
+      backupButton(),
+      u().el('div', { class: 'tiles' }, [
+        tile(D.copy.settings.copyLink, () => {
+          if (D.share.copyNow()) D.fx.toast(D.copy.settings.copied, 1400);
+        }),
+        tile(D.copy.settings.shareFile, () => D.share.fileNow()),
+      ]),
+      tile(D.copy.settings.dashboard, () => D.dashboard.render(root, { onBack: settings })),
     ]);
+    const restore = tile(D.copy.settings.restore, () => openRestore(rows));
     const reset = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.settings.reset);
     reset.addEventListener('click', () => {
+      if (rows.querySelector('.resetbox')) return;
       const field = u().el('input', { class: 'field', type: 'text', autocapitalize: 'characters' });
       const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.reset);
       go.addEventListener('click', () => {
@@ -385,7 +424,7 @@ D.main = (function () {
         D.save.reset();
         location.reload();
       });
-      rows.appendChild(u().el('div', { class: 'col', style: { gap: '8px' } }, [
+      rows.appendChild(u().el('div', { class: 'col resetbox', style: { gap: '8px' } }, [
         u().el('div', { class: 'small' }, D.copy.settings.resetAsk), field, go,
       ]));
     });
@@ -393,9 +432,49 @@ D.main = (function () {
     back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'big' }, D.copy.settings.title),
-      rows, u().el('div', { class: 'grow' }), reset, back,
+      rows, restore, u().el('div', { class: 'grow' }), reset, back,
     ]));
   }
+
+  /* ---- restore (PLAN §9.5): a pasted link or a saved file ---- */
+  function openRestore(container) {
+    if (container.querySelector('.restorebox')) return;
+    const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
+                                    placeholder: D.copy.dash.paste });
+    const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.restore);
+    go.addEventListener('click', () => restoreFromText(field.value));
+    const file = u().el('input', { type: 'file', accept: 'application/json,.json', class: 'hidden' });
+    file.addEventListener('change', () => { if (file.files && file.files[0]) restoreFromFile(file.files[0]); });
+    const pick = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.dash.openFile);
+    pick.addEventListener('click', () => file.click());
+    container.appendChild(u().el('div', { class: 'col restorebox', style: { gap: '8px' } },
+                                 [field, go, pick, file]));
+  }
+  function restoreFromText(text) {
+    const m = String(text || '').match(/s=([A-Za-z0-9_-]+)/);
+    const payload = m ? m[1] : String(text || '').trim();
+    if (!payload) return;
+    D.share.decode(payload).then(finishRestore).catch(() => {});
+  }
+  function restoreFromFile(fileObj) {
+    const reader = new FileReader();
+    reader.onload = () => { try { finishRestore(JSON.parse(reader.result)); } catch (e) { /* not a save */ } };
+    reader.readAsText(fileObj);
+  }
+  function finishRestore(payload) {
+    const res = D.share.apply(payload);
+    if (!res.ok) {
+      if (res.reason === 'older') D.fx.toast(D.copy.settings.restoreOlder, 2600);
+      return;
+    }
+    D.save.key = D.save.keyFor(D.state.profile.slug);
+    D.save.rememberProfile(D.state.profile);
+    D.save.commitNow();
+    D.shop.apply();
+    D.fx.toast(D.copy.settings.restoreDone, 2400);
+    home();
+  }
+
   function toggle(label, on, fn) {
     const knob = u().el('i', {});
     const sw = u().el('span', { class: 'sw' + (on ? ' on' : '') }, [knob]);

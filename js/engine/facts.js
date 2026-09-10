@@ -116,10 +116,49 @@ D.facts = (function () {
     }
   }
 
+  /* Beyond facts are generated at runtime by D.beyond and registered here, so
+     mastery, the scheduler and the save treat them like any other fact. */
+  function register(fact) {
+    if (FACTS[fact.id]) return FACTS[fact.id];
+    fact.digits = fact.input === 'yesno' ? 0 : D.u.digitsOf(fact.ans);
+    fact.tables = fact.tables || ['bey:' + fact.topic];
+    FACTS[fact.id] = fact;
+    return fact;
+  }
+
+  /* Is this answer right? Beyond asks for things that are not one integer, so
+     every comparison in the game goes through here. */
+  function check(id, value) {
+    const f = FACTS[id];
+    if (!f) return false;
+    if (value === null || value === undefined || value === '') return false;
+    if (f.input === 'yesno') return String(value) === String(f.ans);
+    if (f.input === 'remainder') {
+      const parts = String(value).split('r');
+      return Number(parts[0]) === f.ans && Number(parts[1]) === f.ans2;
+    }
+    return Math.abs(Number(value) - f.ans) < 1e-9;
+  }
+  function answerValue(id) {
+    const f = FACTS[id];
+    if (!f) return '';
+    if (f.input === 'remainder') return f.ans + 'r' + f.ans2;
+    return String(f.ans);
+  }
+
   /* ---------------- lookups ---------------- */
   function get(id) { return FACTS[id]; }
   function all() { return FACTS; }
-  function table(key) { return TABLES[key]; }
+  function table(key) {
+    if (TABLES[key]) return TABLES[key];
+    // Beyond topics are virtual tables: their belt runs over a fixed set of
+    // twenty-four items even though the topic generates far more (PLAN §6.9).
+    if (key && key.indexOf('bey:') === 0 && D.beyond) {
+      const ids = D.beyond.beltSet(key.slice(4));
+      return { key: key, order: 99, products: ids, divisions: [], items: ids };
+    }
+    return undefined;
+  }
   function tableKeys() { return TABLE_ORDER.slice(); }
   function family(id) { return FAMILIES[id]; }
   function familyIds() { return ADDSUB_DEFS.map(d => d.id); }
@@ -156,16 +195,21 @@ D.facts = (function () {
   function display(id, flip) {
     const f = FACTS[id];
     if (!f) return '';
+    if (f.lane === 'beyond') return D.copy.beyond.question(f);
     if (f.op === 'mul') return flip ? (f.b + ' × ' + f.a) : (f.a + ' × ' + f.b);
     if (f.op === 'div') return f.a + ' ÷ ' + f.b;
     if (f.op === 'add') return f.a + ' + ' + f.b;
     return f.a + ' − ' + f.b;
   }
   // The canonical written form used in summaries and rescue lines: 7 x 8 = 56.
-  function equation(id, flip) { return display(id, flip) + ' = ' + FACTS[id].ans; }
+  function equation(id, flip) {
+    const f = FACTS[id];
+    if (f.lane === 'beyond') return D.copy.beyond.equation(f);
+    return display(id, flip) + ' = ' + f.ans;
+  }
 
   build();
 
-  return { get, all, table, tableKeys, tableFacts, family, familyIds, addSubFacts,
+  return { get, all, table, tableKeys, tableFacts, family, familyIds, addSubFacts, register, check, answerValue,
            weight, display, equation, mulId, divId, addId, subId, TABLE_DEFS, TABLE_ORDER };
 })();

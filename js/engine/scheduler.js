@@ -160,8 +160,15 @@ D.scheduler = (function () {
     return false;
   }
 
+  function beltKeys() {
+    const out = openTables();
+    if (D.beyond && D.state.lanes.beyond.open) {
+      for (const tid of D.beyond.openTopics()) out.push(D.beyond.topicKey(tid));
+    }
+    return out;
+  }
   function updateBelts() {
-    for (const key of openTables()) {
+    for (const key of beltKeys()) {
       const t = tableState(key), pct = M().tableStats(key).fastPct;
       if (t.belt === 'black') {
         if (t.provisionalUntil && D.u.gameDay() >= t.provisionalUntil) t.provisionalUntil = null;
@@ -180,7 +187,11 @@ D.scheduler = (function () {
   function maybeOpenBeyondScouting() {
     const b = D.state.lanes.beyond;
     if (!b.scouting && D.facts.TABLE_ORDER.every(isOpen)) b.scouting = true;
-    if (!b.open && blackBelts() >= cfg.BEYOND_OPEN_BELTS) b.open = true;
+    if (!b.open && blackBelts() >= cfg.BEYOND_OPEN_BELTS) {
+      b.open = true;
+      if (D.beyond) D.beyond.openTopic(D.beyond.nextTopic() || 'sq');
+    }
+    if (D.beyond) D.beyond.ensure();
   }
 
   /* ---------------- pools ---------------- */
@@ -291,9 +302,12 @@ D.scheduler = (function () {
   function card(id, kind) {
     const f = D.facts.get(id);
     // No ring on a fact still being learned, warm-up or not: a child never sees
-    // a timer on something he has not got yet (PLAN §2, §6.5).
+    // a timer on something he has not got yet (PLAN §2, §6.5). Beyond never
+    // shows one at all: these take thinking, and a clock on thinking is the
+    // wrong instrument (PLAN §6.9).
     return { id: id, kind: kind, flip: f.op === 'mul' && Math.random() < 0.5,
-             ringKind: ringKindFor(id), bonus: false, last: false, replaced: false };
+             ringKind: f.lane === 'beyond' ? null : ringKindFor(id),
+             bonus: false, last: false, replaced: false };
   }
 
   function plan(opts) {
@@ -507,6 +521,8 @@ D.scheduler = (function () {
     const f = D.facts.get(id);
     const key = f.tables ? f.tables[0] : null;
     if (!key) return p;
+    // A Beyond scout only records; the lane itself opens on black belts.
+    if (f.lane === 'beyond') return p;
     if (!correct) {
       p.missRun = (p.missRun || 0) + 1;
       const misses = D.facts.table(key).items
@@ -530,5 +546,5 @@ D.scheduler = (function () {
            ensureProgression, refreshHot, updateBelts, testOpen, blackBelts, learningPool,
            promotePool, promoteWeight, duePool, maintenancePool, scoutPool, safetyPool, warmupPool,
            plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
-           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss };
+           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, beltKeys };
 })();

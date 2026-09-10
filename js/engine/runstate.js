@@ -108,8 +108,8 @@ D.runstate = (function () {
     function submit(value, rt) {
       if (r.phase !== 'card') return null;
       const c = card(), f = D.facts.get(c.id);
-      const given = value === '' || value === null || value === undefined ? null : Number(value);
-      const correct = given !== null && given === f.ans;
+      const given = value === '' || value === null || value === undefined ? null : value;
+      const correct = D.facts.check(c.id, value);
       r.served++;
       r.rts.push(rt);
       return correct ? onCorrect(c, f, rt) : onWrong(c, f, rt, given, false);
@@ -215,7 +215,7 @@ D.runstate = (function () {
       else if (fastWrong) { r.combo = 0; }
       else { dropCombo(); }
       r.cardMissed = true;
-      const diag = D.diagnose.read(c.id, given, { timeout: timedOut });
+      const diag = D.diagnose.read(c.id, given === null ? null : Number(given), { timeout: timedOut });
       r.cardDiagnosis = diag;
       if (timedOut && !r.outOfTimeShown) { r.outOfTimeShown = true; out.line = D.copy.run.outOfTime; }
       if (fastWrong && r.fastWrongs === 2) out.mandatory = true;
@@ -323,17 +323,20 @@ D.runstate = (function () {
       if (r.phase !== 'miss' && r.phase !== 'rescue') return null;
       const c = card();
       r.cardHelped = true;
-      r.combo = 0;
+      // A skip resets the combo. Being shown the answer because the fact has no
+      // walkthrough is not a skip: the miss already cost a tier.
+      if (!fromEmptyScript) r.combo = 0;
       r.phase = 'reveal';
       r.rescue = null;
+      const f = D.facts.get(c.id);
       return { kind: 'reveal', line: D.copy.rescue.showAnswer(c.id, c.flip),
-               answer: D.facts.get(c.id).ans, forced: !!fromEmptyScript };
+               answer: f.ans, input: f.input || 'number', forced: !!fromEmptyScript };
     }
     function typedAnswer(value) {
       if (r.phase !== 'reveal') return null;
       const c = card(), f = D.facts.get(c.id);
-      if (Number(value) !== f.ans) return { kind: 'reveal', again: true, answer: f.ans,
-                                           line: D.copy.rescue.showAnswer(c.id, c.flip) };
+      if (!D.facts.check(c.id, value)) return { kind: 'reveal', again: true, answer: f.ans,
+                                               line: D.copy.rescue.showAnswer(c.id, c.flip) };
       const rec = M().rec(c.id);
       rec.helpedLast = true;
       r.phase = 'card';

@@ -45,6 +45,10 @@ D.copy = (function () {
     andWhatMake: (x, total) => x + ' and what make ' + total + '?',
     typeTwice: n => 'Type ' + n + ' twice.',
     tensThenZero: n => 'Ten ' + plural(n) + '. ' + n + ', then 0.',
+    whatTimesUnder: (d, p) => 'How many ' + plural(d) + ' fit in ' + p + '?',
+    biggestInto: (a, b) => 'Biggest number that goes into ' + a + ' and ' + b + '?',
+    smallestBoth: (a, b) => 'Smallest number both ' + a + ' and ' + b + ' go into?',
+    howManyOver: (m, n) => 'How many ' + plural(m) + ' to pass ' + n + '?',
   };
 
   /* The plain arithmetic behind a step, used when a step has to be shown:
@@ -58,8 +62,22 @@ D.copy = (function () {
     addUnknown: x => x + ' + ?',
   };
 
+  /* A table or a Beyond topic, by name. */
+  function tableLabel(key) {
+    if (String(key).indexOf('bey:') === 0) return (D.copy.beyond.topics[String(key).slice(4)] || key);
+    return tableNameCap(key);
+  }
+  /* What each dashboard check means, in the words a parent would use. */
+  const CHECK_NAMES = {
+    thin: 'Settled facts with fewer than four answers',
+    ahead: "Days dated after the phone's own day",
+    xp: 'XP above what the answers could have paid',
+    runs: 'More runs in a day than a day holds',
+    counts: 'More right answers than answers',
+  };
+
   return {
-    word, plural, cap, tableName, tableNameCap, factText, factEquation, num, secs, step, label,
+    word, plural, cap, tableName, tableNameCap, tableLabel, factText, factEquation, num, secs, step, label,
 
     /* ---- install and first launch (PLAN §7.1) ---- */
     install: {
@@ -199,6 +217,43 @@ D.copy = (function () {
       },
     },
 
+    /* ---- the Beyond lane (PLAN §6.9). Grade 6 vocabulary, said plainly. ---- */
+    beyond: {
+      title: 'Beyond',
+      question(f) {
+        switch (f.kind) {
+          case 'square': return f.a + '²';
+          case 'cube': return f.a + '³';
+          case 'mul': return f.a + ' × ' + f.b;
+          case 'divrem': return f.a + ' ÷ ' + f.b;
+          case 'divis': return 'Is ' + f.a + ' a multiple of ' + f.b + '?';
+          case 'gcf': return 'Biggest number that goes into ' + f.a + ' and ' + f.b + '?';
+          case 'lcm': return 'Smallest number both ' + f.a + ' and ' + f.b + ' go into?';
+          case 'prime': return 'Is ' + f.a + ' prime?';
+          case 'next': return 'Next multiple of ' + f.b + ' after ' + f.a + '?';
+          case 'frac': return f.a + '/' + f.b + ' of ' + f.c + '?';
+          case 'pct': return f.a + ' % of ' + f.b + '?';
+          default: return String(f.a);
+        }
+      },
+      equation(f) {
+        const q = D.copy.beyond.question(f).replace(/\?$/, '');
+        if (f.input === 'yesno') return q + ' ' + (f.ans ? D.copy.beyond.yes : D.copy.beyond.no);
+        if (f.input === 'remainder') return q + ' = ' + f.ans + ' r ' + f.ans2;
+        return q + ' = ' + f.ans;
+      },
+      yes: 'Yes',
+      no: 'No',
+      remainder: 'r',
+      point: '.',
+      topics: {
+        sq: 'Squares and cubes', easy2d: 'Round numbers', mul2x1: 'Two digits by one',
+        divrem: 'Leftovers', divis: 'Multiples', factors: 'Factors',
+        frac: 'Fractions of', pct: 'Percentages', dec10: 'Tens and tenths',
+        mul2x2: 'Two by two', ops: 'In order',
+      },
+    },
+
     /* ---- weekly recap (PLAN §7.1) ---- */
     recap: {
       title: 'This week.',
@@ -254,6 +309,17 @@ D.copy = (function () {
       openFile: 'Open a file',
       noData: 'Nothing to show yet.',
       fastWrongs: 'Fast wrong answers, last 7 days',
+      runsThisWeek: 'Runs this week',
+      tests: 'Belt tests',
+      open: 'Open',
+      hot: ids => ids.map(id => factText(id, false)).join(', '),
+      checkLine: (id, n) => (CHECK_NAMES[id] || id) + ': ' + n + '.',
+      testRow: (key, correct, total, testMs, runMs) => tableLabel(key) + '. ' + correct + ' of ' + total +
+        (testMs ? ', ' + secs(testMs) + ' in the test' : '') +
+        (runMs ? ', ' + secs(runMs) + ' in runs that week.' : '.'),
+      clockAhead: mins => 'The phone clock is ' + mins + ' min ahead of this one.',
+      clockOk: 'The phone clock is not ahead of this one.',
+      lastPlayed: day => 'Last played ' + D.u.longDate(day) + '.',
     },
   };
 })();

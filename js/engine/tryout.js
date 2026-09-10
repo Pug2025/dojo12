@@ -178,7 +178,7 @@ D.tryout = (function () {
       const card = st.current;
       if (!card) return null;
       const f = D.facts.get(card.id);
-      const correct = Number(value) === f.ans;
+      const correct = D.facts.check(card.id, value);
       const fast = correct && rt <= M().threshold(card.id);
       const out = { correct: correct, fast: fast, line: null, flash: false, card: card };
 

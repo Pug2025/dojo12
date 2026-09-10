@@ -95,7 +95,9 @@ D.run = (function () {
     dom.label.textContent = c.last ? D.copy.run.lastCard : c.comeback ? D.copy.run.comebackLabel : '';
     if (c.comeback) dom.card.classList.add('gold');
     dom.question.textContent = c.question;
-    setSlots(c.digits);
+    const fact = D.facts.get(rs.raw.cards[rs.raw.i].id);
+    pad.setMode(fact.input || 'number');
+    setSlots(fact.input === 'number' || !fact.input ? c.digits : 0);
     pad.setDigits(c.digits);
     if (c.last) D.audio.lastCard();
 
@@ -261,6 +263,7 @@ D.run = (function () {
     pad.clear();
     dom.forced = false;
     u().clear(dom.slots);
+    pad.setMode('number');
     pad.setDigits(0);
     setStepPrompt(step.prompt);
   }
@@ -309,8 +312,10 @@ D.run = (function () {
     dom.line.textContent = out.line;
     dom.typed.textContent = '';
     pad.clear();
-    setSlots(D.u.digitsOf(out.answer));
-    pad.setDigits(D.u.digitsOf(out.answer));
+    pad.setMode(out.input || 'number');
+    const n = (out.input && out.input !== 'number') ? 0 : D.u.digitsOf(out.answer);
+    setSlots(n);
+    pad.setDigits(n);
   }
   function onReveal(v) {
     if (!pad.isLive()) return;
