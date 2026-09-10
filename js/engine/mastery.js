@@ -135,8 +135,13 @@ D.mastery = (function () {
     const day = o.day || D.u.gameDay();
     const out = { earnedDay: false, turnedGold: false, wasFast: false, lostDay: false };
     r.seen++;
-    r.window.push(o.correct ? 1 : 0);
-    while (r.window.length > cfg.ACC_WINDOW) r.window.shift();
+    // A slip stays out of the accuracy window. It is a typing error repaired by
+    // retrieval, and warm-ups serve settled facts so often that counting every
+    // fumble dragged real gold facts back to learning.
+    if (!o.slip) {
+      r.window.push(o.correct ? 1 : 0);
+      while (r.window.length > cfg.ACC_WINDOW) r.window.shift();
+    }
 
     if (o.correct) {
       r.ok++;
@@ -169,6 +174,12 @@ D.mastery = (function () {
         out.lostDay = true;
       }
       if (r.provisional) r.provisional = false;
+    } else if (o.slip) {
+      // A slip on a retrieved fact is on the record: it counts as a miss and no
+      // day can be earned on this fact today. It takes no day, because a slip is
+      // repaired by retrieval; a wrong re-serve is the full miss (PLAN §6.7.1).
+      r.miss++;
+      r.lastMissDay = day;
     } else {
       r.miss++;
       r.streak = 0;

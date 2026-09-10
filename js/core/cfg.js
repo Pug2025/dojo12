@@ -83,6 +83,7 @@ D.cfg = {
   WEIGHT_DIV_BONUS: 0.1,
   WEIGHT_ADDSUB: 0.6,
   WEIGHT_BEYOND: 1.5,
+  WEIGHT_BEYOND_YESNO: 0.5,   // guessable half the time (exploit review 2026-09-10)
 
   /* ---- XP, levels, sparks (PLAN §7.4) ---- */
   XP_PER_CORRECT: 10,       // x table weight
@@ -103,6 +104,9 @@ D.cfg = {
   SAFETY_TRIGGER_PROBES: 2, // misses out of the four tryout probes
   SAFETY_DEACTIVATE_PCT: 0.90,
   SAFETY_DEACTIVATE_MIN: 12,  // ... measured over facts of that family the child has seen
+  SAFETY_WORKING: 3,          // facts a family works at once, like a hot set
+  SAFETY_FAMILIES: 2,         // families served at once; the next ones wait their turn
+  SAFETY_SHARE: 0.5,          // never more than this share of the learning slots
 
   /* ---- tryout (PLAN §6.6) ---- */
   TRYOUT_MAX: 30,           // placement probes; fillers do not count

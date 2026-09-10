@@ -32,6 +32,12 @@ D.runstate = (function () {
     };
     // A run that was interrupted comes back exactly where it was (PLAN §7.2).
     if (o.resume) for (const k of Object.keys(o.resume)) r[k] = o.resume[k];
+    // A run saved mid-miss (closed at the buttons, in a rescue, or on the shown
+    // answer) comes back on the shown answer for nothing. Coming back clean handed
+    // the card out again with the answer already seen (exploit review 2026-09-10).
+    if (o.resume && (r.phase === 'miss' || r.phase === 'rescue' || r.phase === 'reveal')) {
+      r.phase = 'reveal'; r.cardHelped = true; r.rescue = null;
+    }
 
     /* ---- presentation ---- */
     function card() { return r.cards[r.i] || null; }
@@ -141,8 +147,11 @@ D.runstate = (function () {
                                      warmup: c.kind === 'warmup', comeback: c.kind === 'comeback' });
       r.correct++;
       if (!helped) { r.unaided++; }
-      r.combo++;
-      if (r.combo > r.bestCombo) r.bestCombo = r.combo;
+      // A slip's re-serve holds the combo where it was, as decided in step 1.
+      if (!c.slipRepair) {
+        r.combo++;
+        if (r.combo > r.bestCombo) r.bestCombo = r.combo;
+      }
       const pay = payCorrect(c, rt);
       out.points = pay.points; out.marks = pay.marks; out.sparks += pay.sparks;
       if (pay.sparks) gainSparks(pay.sparks);
@@ -152,8 +161,10 @@ D.runstate = (function () {
         gainXp(out.xp);
         creditSparkForAnswer();
         if (!r.fastestFact || rt < r.fastestFact.ms) r.fastestFact = { id: c.id, ms: rt };
+        // The ghost only pays inside the fast line, or answering slowly on purpose
+        // and shaving a little each time paid a spark nearly every card.
         if (beforeBest !== null && before && before.ok >= cfg.GHOST_MIN_ATTEMPTS &&
-            rt <= beforeBest - cfg.GHOST_BEAT_MS) {
+            rt <= beforeBest - cfg.GHOST_BEAT_MS && M().isFastRt(c.id, rt)) {
           out.marks.push('pb');
           gainSparks(cfg.SPARKS_GHOST);
           out.sparks += cfg.SPARKS_GHOST;
@@ -190,15 +201,20 @@ D.runstate = (function () {
       if (!r.slipUsed && !c.slipRepair && (st === 'fast' || st === 'auto') && !timedOut) {
         r.slipUsed = true;
         out.slip = true;
+        // A slip goes on the fact's record; only a second miss costs a day.
+        // The re-serve carries no bonus: a bonus card answered wrong has lost it
+        // (exploit review 2026-09-10).
+        M().record(c.id, { correct: false, rt: rt, day: r.day, slip: true });
         const again = D.scheduler.card(c.id, c.kind);
-        again.flip = c.flip; again.slipRepair = true; again.last = c.last; again.bonus = c.bonus;
+        again.flip = c.flip; again.slipRepair = true; again.last = c.last; again.bonus = false;
         again.slot = r.i;
         r.cards.splice(r.i + 1, 0, again);
-        // The re-serve takes a slot rather than lengthening the run.
+        // The re-serve takes a slot rather than lengthening the run, but never a
+        // comeback's: if nothing else can go, the run is one card longer
+        // (review 2026-09-10).
         let drop = -1;
         for (let j = r.i + 2; j < r.cards.length - 1; j++) if (replaceable(j, true)) { drop = j; break; }
-        if (drop < 0) drop = Math.max(r.i + 2, r.cards.length - 2);
-        if (drop < r.cards.length - 1) r.cards.splice(drop, 1);
+        if (drop >= 0) r.cards.splice(drop, 1);
         for (let j = 0; j < r.cards.length; j++) r.cards[j].slot = j;
         return advance(out);
       }
@@ -384,9 +400,18 @@ D.runstate = (function () {
       r.finished = true;
     }
 
+    function revealInfo() {
+      const c = card();
+      if (!c) return null;
+      const f = D.facts.get(c.id);
+      return { kind: 'reveal', line: D.copy.rescue.showAnswer(c.id, c.flip), answer: f.ans,
+               input: f.input || 'number' };
+    }
+
     return {
       raw: r,
       present: present,
+      revealInfo: revealInfo,
       submit: submit,
       timeout: timeout,
       chooseRescue: chooseRescue,
@@ -405,9 +430,15 @@ D.runstate = (function () {
   /* ---- what the summary screen and the save need ---- */
   function summarize(r) {
     const medianRt = D.u.median(r.rts.filter(x => typeof x === 'number'));
+    // The quiet lane never shows up in a summary (PLAN §6.8), and a fact won back
+    // twice in one run is named once.
+    const shown = ids => Array.from(new Set(ids)).filter(id => {
+      const f = D.facts.get(id);
+      return f && f.lane !== 'addsub';
+    });
     return {
       score: r.score, correct: r.correct, unaided: r.unaided, cards: r.served,
-      xp: r.xpGained, sparks: r.sparksGained, golds: r.golds.slice(), gotBack: r.gotBack.slice(),
+      xp: r.xpGained, sparks: r.sparksGained, golds: shown(r.golds), gotBack: shown(r.gotBack),
       missed: r.missed.slice(), bestCombo: r.bestCombo, medianRt: medianRt,
       fastestFact: r.fastestFact, day: r.day, table: r.table, fastWrongs: r.fastWrongs,
       counted: r.correct >= D.cfg.RUN_MIN_CORRECT,
@@ -431,6 +462,7 @@ D.runstate = (function () {
       extra.pbs = D.xp.checkPbs(sum);
     }
     D.scheduler.adaptLearnSlots();
+    D.scheduler.checkProvisional(sum);
     D.scheduler.ensureProgression();
     s.inRun = null;
     D.save.commit();
@@ -439,7 +471,10 @@ D.runstate = (function () {
   }
 
   function resume(snap, opts) {
-    return create({ cards: snap.cards, day: snap.day }, Object.assign({}, opts, { resume: snap }));
+    // A run left on Sunday and finished on Monday belongs to Monday. Credited to
+    // the old day it rolled the week backwards (review 2026-09-10).
+    const now = Object.assign({}, snap, { day: D.u.gameDay() });
+    return create({ cards: snap.cards, day: now.day }, Object.assign({}, opts, { resume: now }));
   }
 
   return { create: create, resume: resume, comboMult: comboMult, summarize: summarize,

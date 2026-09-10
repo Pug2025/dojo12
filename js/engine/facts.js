@@ -183,7 +183,8 @@ D.facts = (function () {
     const f = FACTS[id];
     if (!f) return 1;
     if (f.lane === 'addsub') return D.cfg.WEIGHT_ADDSUB;
-    if (f.lane === 'beyond') return D.cfg.WEIGHT_BEYOND;
+    // A yes or no is right half the time by tapping, so it pays like it.
+    if (f.lane === 'beyond') return f.input === 'yesno' ? D.cfg.WEIGHT_BEYOND_YESNO : D.cfg.WEIGHT_BEYOND;
     const w = D.cfg.WEIGHTS;
     if (f.op === 'div') return (w[String(f.b)] || 1) + D.cfg.WEIGHT_DIV_BONUS;
     let best = Infinity;

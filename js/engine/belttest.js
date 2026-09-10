@@ -94,6 +94,13 @@ D.belttest = (function () {
         r.missed.push(c.id);
       }
       r.i++;
+      // Every card is saved as it lands, so closing the app mid-test keeps the
+      // misses and the test's own record (exploit review 2026-09-10).
+      if (r.i < r.cards.length) {
+        D.state.flags.testProgress = { key: r.key, day: D.u.gameDay(), correct: r.correct,
+                                      served: r.i, total: r.cards.length, rts: r.rts.slice() };
+        D.save.commitNow();
+      }
       if (r.i >= r.cards.length) finish();
       out.next = present();
       out.done = r.finished;
@@ -110,6 +117,7 @@ D.belttest = (function () {
         t2.belt = 'black';
         t2.beltDay = D.u.gameDay();
         t2.provisionalUntil = addDays(D.u.gameDay(), cfg.PROVISIONAL_DAYS);
+        t2.provisionalDays = [];
         r.xp += D.xp.blackBeltXp();
         r.grandmaster = D.facts.TABLE_ORDER.every(k => D.scheduler.tableState(k).belt === 'black');
         if (r.grandmaster && !D.state.flags.grandmaster) {
@@ -128,7 +136,8 @@ D.belttest = (function () {
       D.state.tests.push({ day: D.u.gameDay(), key: r.key, passed: r.passed,
                            correct: r.correct, total: r.cards.length,
                            medianRt: D.u.median(r.rts) });
-      while (D.state.tests.length > 50) D.state.tests.shift();
+      while (D.state.tests.length > 100) D.state.tests.shift();
+      D.state.flags.testProgress = null;
       D.scheduler.updateBelts();
       D.save.commitNow();
       return result();

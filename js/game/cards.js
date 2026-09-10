@@ -29,7 +29,8 @@ D.cards = (function () {
       onChange: v => { dom.typed.textContent = v; paintSlots(v.length); },
       onSubmit: onSubmit,
     });
-    root.appendChild(u().el('div', { class: 'screen' }, [dom.head, dom.wrap, dom.line, pad.node]));
+    root.appendChild(u().el('div', { class: 'screen fit' }, [dom.head, dom.wrap, dom.line, pad.node]));
+    D.fx.watchFit(dom.wrap, dom.card);
     show(opts.provide());
 
     function paintSlots(n) {
@@ -52,6 +53,7 @@ D.cards = (function () {
       dom.line.textContent = card.intro || '';
       dom.label.textContent = card.label || '';
       dom.question.textContent = card.question;
+      dom.question.classList.toggle('words', /[a-z]{2,}/i.test(card.question));
       pad.setMode(card.input || 'number');
       setSlots(card.input && card.input !== 'number' ? 0 : card.digits);
       pad.setDigits(card.digits);

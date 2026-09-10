@@ -103,6 +103,9 @@ D.save = (function () {
   function commitNow() {
     if (!key) return;
     clearTimeout(timer);
+    // The high-water mark of the clock moves with every save, so a backup link
+    // copied before a Belt Test is older than the save after it.
+    if (D.state) D.state.lastSeenEpoch = Math.max(D.state.lastSeenEpoch || 0, D.u.now());
     try { localStorage.setItem(key, JSON.stringify(D.state)); }
     catch (e) { /* a full quota is not worth a crash mid-run */ }
   }
@@ -114,10 +117,12 @@ D.save = (function () {
 
   /* ---- the game-day (PLAN §5) ----
      A day credits when the calendar date changed, local time is past 04:00, and
-     at least six hours of real time passed since the last credit. Six hours lets
-     an evening run and a morning run count as two days; it does not let a clock
-     wound forward mint them. A clock wound *backward* freezes new days entirely
-     until real time catches up with the furthest point we have seen. */
+     at least six hours passed on the phone's clock since the last credit. Six
+     hours lets an evening run and a morning run count as two days. A clock wound
+     forward can still credit days, because the phone's clock is the only clock
+     there is; winding it back afterwards freezes new days until real time catches
+     up with the furthest point seen, so those days are repaid. The real guard is
+     the Screen Time passcode on each phone (PLAN §9.4). */
   function touchDay() {
     const s = D.state;
     const nowMs = D.u.now();
@@ -151,7 +156,8 @@ D.save = (function () {
   // Seven dots, one per game-day played this week, wiped every Monday.
   function rollWeek(day) {
     const s = D.state, wk = D.u.weekKey(day);
-    if (s.progress.weekKey === wk) return;
+    // Weeks only ever move forward.
+    if (s.progress.weekKey === wk || (s.progress.weekKey && wk < s.progress.weekKey)) return;
     // A photograph of every fact's speed at the start of the week, so the recap
     // can name what actually moved (PLAN §7.1).
     const shot = {};

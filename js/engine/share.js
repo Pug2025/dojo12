@@ -90,9 +90,23 @@ D.share = (function () {
      see it. */
   function isOlder(payload) {
     const local = D.state;
-    const empty = !local || !local.facts || Object.keys(local.facts).length === 0;
-    if (empty) return false;
-    return (payload.lastSeenEpoch || 0) < (local.lastSeenEpoch || 0);
+    // A phone that has not played a run or sat a test has nothing a backup could
+    // undo. Counting only an empty save as empty meant a new install, which has
+    // to take the tryout before it reaches Settings, could never restore
+    // (review 2026-09-10).
+    const played = !!local && ((local.runs || []).length > 0 || (local.tests || []).length > 0);
+    if (!played) return false;
+    // Not newer is older: a link taken just before a Belt Test carries the same
+    // clock as the save after it. And a backup can never have answered fewer cards
+    // than the save it replaces, whatever its clock says (exploit review 2026-09-10).
+    if ((payload.lastSeenEpoch || 0) <= (local.lastSeenEpoch || 0)) return true;
+    return answered(payload) < answered(local);
+  }
+  function answered(state) {
+    let n = 0;
+    const facts = (state && state.facts) || {};
+    for (const id of Object.keys(facts)) n += (facts[id] && facts[id].seen) || 0;
+    return n;
   }
   function apply(payload) {
     if (!payload || !payload.facts || !payload.profile) return { ok: false, reason: 'shape' };
@@ -107,6 +121,13 @@ D.share = (function () {
     if (local.gameDay && (!next.gameDay || local.gameDay > next.gameDay)) next.gameDay = local.gameDay;
     for (const key of Object.keys(next.tables || {})) {
       next.tables[key].testAttemptDay = next.gameDay;
+      next.tables[key].testFailed = true;          // no same-day retake through the seeded-table rule
+    }
+    // The phone's own record of Belt Tests is kept, whatever the backup says.
+    next.tests = next.tests || [];
+    const known = new Set(next.tests.map(t => t.day + '|' + t.key + '|' + t.correct));
+    for (const t of (local.tests || [])) {
+      if (!known.has(t.day + '|' + t.key + '|' + t.correct)) next.tests.push(t);
     }
     next.progress.fullXpToday = D.cfg.XP_FULL_PER_DAY;
     next.restores = (next.restores || []).concat([{ day: next.gameDay, fromEpoch: fromEpoch }]);
@@ -139,10 +160,16 @@ D.share = (function () {
     // Each fact counts its own correct answers for life, so their sum bounds the
     // answers that could ever have paid, even after the run history rolls over.
     // A belt can be won, lost to the provisional rule and won again, hence two.
-    const belts = D.facts.TABLE_ORDER.length + (D.beyond ? D.beyond.topics().length : 0);
+    // Bonuses count only when the save shows what earned them: gold facts, belts
+    // won, grandmaster. A flat allowance let a save with no answers carry 25,500 XP
+    // (exploit review 2026-09-10).
+    const tests = state.tests || [];
+    const blacks = Object.keys(state.tables || {}).filter(k => state.tables[k].belt === 'black');
+    const golds = Object.keys(facts).filter(id => facts[id].goldPaid).length;
+    const beltsWon = Math.max(tests.filter(t => t.passed).length, blacks.length);
     const ceiling = correct * D.cfg.XP_PER_CORRECT * D.cfg.WEIGHT_BEYOND
-      + Object.keys(facts).length * D.cfg.XP_GOLD
-      + 2 * belts * D.cfg.XP_BLACK_BELT + D.cfg.XP_GRANDMASTER + 500;
+      + golds * D.cfg.XP_GOLD + beltsWon * D.cfg.XP_BLACK_BELT
+      + (state.flags && state.flags.grandmaster ? D.cfg.XP_GRANDMASTER : 0) + 100;
     if ((state.progress.xp || 0) > ceiling) out.push({ id: 'xp', n: Math.round(state.progress.xp - ceiling) });
 
     // A run takes at least a minute and a half of real time.
@@ -151,10 +178,31 @@ D.share = (function () {
     const busiest = Object.keys(byDay).reduce((m, d) => Math.max(m, byDay[d]), 0);
     if (busiest > 16 * 60 / 1.5) out.push({ id: 'runs', n: busiest });
     if (correct > everSeen) out.push({ id: 'counts', n: correct - everSeen });
+
+    // Every black belt was won in a test on record.
+    const passedKeys = new Set(tests.filter(t => t.passed).map(t => t.key));
+    const unearned = blacks.filter(k => !passedKeys.has(k)).length;
+    if (unearned) out.push({ id: 'belts', n: unearned });
+    // Sparks held plus sparks spent cannot pass what the answers could have paid.
+    const cos = state.cosmetics || {};
+    const spent = (cos.owned || []).filter(id => id !== cos.free)
+      .map(id => (D.cfg.SHOP.find(i => i.id === id) || { price: 0 }).price).reduce((a, b) => a + b, 0);
+    const days = (state.progress && state.progress.daysPlayed) || 0;
+    const runsEver = Math.max(runs.length, days * 12);
+    const sparkCeiling = correct * 1.5 + golds + runsEver * 20
+      + beltsWon * 2 * D.cfg.SPARKS_BLACK_BELT + (days / 5 + 1) * D.cfg.SPARKS_WEEK
+      + 2 * D.cfg.SPARKS_DAYS + 100;
+    const sparks = (state.progress && state.progress.sparks) || 0;
+    if (sparks + spent > sparkCeiling) out.push({ id: 'sparks', n: Math.round(sparks + spent - sparkCeiling) });
+    // Days played cannot outrun the calendar since the save began.
+    if (state.profile && state.profile.created && state.gameDay) {
+      const span = D.u.daysBetween(state.profile.created, state.gameDay) + 1;
+      if (days > span) out.push({ id: 'days', n: days - span });
+    }
     return out;
   }
 
-  return { encode, decode, precompute, link, shareNow, copyNow, fileNow, apply, isOlder,
+  return { encode, decode, precompute, link, shareNow, copyNow, fileNow, apply, isOlder, answered,
            checks, toB64, fromB64, base,
            get cached() { return cached; } };
 })();

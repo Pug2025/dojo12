@@ -28,6 +28,13 @@ body::before {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 .screen { flex: 1; display: flex; flex-direction: column; padding: 16px 16px 12px; gap: 11px; }
+/* The run, tryout and Belt Test screens are exactly one phone tall, so the card
+   takes what the keypad leaves instead of pushing the keypad off the bottom. */
+.screen.fit {
+  flex: none; min-height: 0;
+  height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
 .grow { flex: 1; }
 .row { display: flex; align-items: center; gap: 10px; }
 .between { justify-content: space-between; }
@@ -116,7 +123,8 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .combo.t2 { color: var(--accent); text-shadow: 0 0 14px var(--glow); }
 .combo.t3 { color: var(--gold); text-shadow: 0 0 18px var(--goldSoft); transform: scale(1.16); }
 
-.cardwrap { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; min-height: 0; }
+.cardwrap { flex: 1 1 0px; display: flex; align-items: center; justify-content: center; position: relative;
+            min-height: 0; }
 .cardwrap::before {
   content: ""; position: absolute; width: 116%; aspect-ratio: 1; border-radius: 50%;
   background: radial-gradient(closest-side, var(--glow), transparent 70%);
@@ -124,6 +132,8 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 }
 .cardwrap.hot::before { opacity: 1; }
 .card {
+  /* A fallback only: D.fx.fitCard sets the real size from the space the screen
+     leaves, so a 667-point iPhone keeps its keypad on screen. */
   position: relative; width: 100%; max-width: 330px; aspect-ratio: 1;
   background: linear-gradient(168deg, var(--panel2) 0%, var(--panel) 46%, var(--bg2) 100%);
   border: 1px solid var(--edge); border-radius: 32px;
@@ -138,13 +148,19 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 }
 .question {
   font-size: clamp(44px, 15.5vw, 62px); font-weight: 800; letter-spacing: -1.5px;
+  font-size: clamp(28px, calc(var(--cs, 330px) * 0.19), 62px);
   text-shadow: 0 3px 10px rgba(0,0,0,0.4);
 }
+.question.words { font-size: clamp(16px, calc(var(--cs, 330px) * 0.09), 30px);
+                  letter-spacing: -0.3px; line-height: 1.22;
+                  text-align: center; padding: 0 22px; }
 .slots { display: flex; gap: 9px; height: 30px; align-items: flex-end; }
 .slot { width: 30px; height: 5px; border-radius: 3px; background: var(--panel2);
         box-shadow: 0 1px 2px rgba(0,0,0,0.4) inset; transition: background 120ms ease, box-shadow 120ms ease; }
 .slot.on { background: var(--accent); box-shadow: 0 0 9px var(--glow); }
-.typed { font-size: 42px; font-weight: 800; min-height: 48px; letter-spacing: 3px; color: var(--accent2); }
+.typed { font-size: 42px; font-weight: 800; min-height: 48px; letter-spacing: 3px; color: var(--accent2);
+         font-size: clamp(24px, calc(var(--cs, 330px) * 0.13), 42px);
+         min-height: clamp(28px, calc(var(--cs, 330px) * 0.15), 48px); }
 .cardlabel {
   font-size: 12px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; font-weight: 800;
   min-height: 15px;
@@ -163,13 +179,15 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
   38% { transform: translateX(8px) rotate(1.2deg) } 60% { transform: translateX(-5px) }
   80% { transform: translateX(3px) } 100% { transform: translateX(0) } }
 .card.cracked { animation: crack 280ms cubic-bezier(.36,.07,.19,.97); border-color: var(--bad); }
+/* A crack, not a cross: one thin line that jogs once, over a faint red wash. An X
+   over the question reads as a mark against the child; a crack reads as the card. */
 .card.cracked::after {
   content: ""; position: absolute; inset: 0; border-radius: 32px; pointer-events: none;
   background:
-    linear-gradient(104deg, transparent 46%, var(--bad) 48.4%, var(--bad) 51.6%, transparent 54%),
-    linear-gradient(62deg, transparent 62%, var(--bad) 63.4%, var(--bad) 65%, transparent 66.6%),
-    radial-gradient(closest-side, rgba(255,79,79,0.22), transparent 76%);
-  opacity: 0.85; animation: fade 620ms ease forwards;
+    linear-gradient(118deg, transparent 49.3%, var(--bad) 49.7%, var(--bad) 50.3%, transparent 50.7%) 0 0 / 100% 54% no-repeat,
+    linear-gradient(66deg, transparent 49.3%, var(--bad) 49.7%, var(--bad) 50.3%, transparent 50.7%) 0 100% / 100% 47% no-repeat,
+    radial-gradient(closest-side, rgba(255,79,79,0.16), transparent 76%);
+  opacity: 0.9; animation: fade 620ms ease forwards;
 }
 @keyframes fade { to { opacity: 0 } }
 @keyframes pop { 0% { transform: scale(1) } 42% { transform: scale(1.075) } 100% { transform: scale(1) } }
@@ -215,7 +233,10 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .miss-buttons .btn.ghost { flex: 1; font-size: 15px; color: var(--dim); border-color: var(--edge); }
 .stepline { font-size: 25px; font-weight: 800; text-align: center; padding: 0 12px; }
 .factline { font-size: 17px; color: var(--dim); text-align: center; }
-.diagline { font-size: 16px; color: var(--warn); text-align: center; min-height: 21px; font-weight: 600; }
+.diagline { font-size: 16px; color: var(--warn); text-align: center; min-height: 42px; font-weight: 600;
+            line-height: 21px; }
+/* The button row keeps its space when empty, so the card never changes size mid-card. */
+.miss-buttons.idle { visibility: hidden; }
 
 /* ---- grid ---- */
 .gridwrap { overflow: auto; -webkit-overflow-scrolling: touch; }

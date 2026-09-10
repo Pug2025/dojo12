@@ -3,6 +3,7 @@
 D.main = (function () {
   const u = () => D.u;
   let root = null;
+  let pendingReload = false;
 
   function boot() {
     root = document.getElementById('app');
@@ -22,10 +23,20 @@ D.main = (function () {
     D.save.touchDay();
     // A Belt Test that was walked away from is a fail, and it stays stamped.
     if (D.state.flags.testInProgress) {
-      const t = D.scheduler.tableState(D.state.flags.testInProgress);
+      const key = D.state.flags.testInProgress;
+      const t = D.scheduler.tableState(key);
       t.testFailed = true;
+      // It goes on the record like any failed test, with what was answered,
+      // so the dashboard still sees it (exploit review 2026-09-10).
+      const prog = D.state.flags.testProgress;
+      D.state.tests.push({ day: (prog && prog.day) || D.u.gameDay(), key: key, passed: false,
+                           abandoned: true, correct: prog ? prog.correct : 0,
+                           total: prog ? prog.total : D.cfg.TEST_CARDS,
+                           medianRt: prog ? D.u.median(prog.rts) : null });
+      while (D.state.tests.length > 100) D.state.tests.shift();
       D.state.flags.testInProgress = null;
-      D.save.commit();
+      D.state.flags.testProgress = null;
+      D.save.commitNow();
     }
     D.scheduler.ensureProgression();
     if (!D.state.flags.tryoutDone) return tryoutIntro();
@@ -48,11 +59,16 @@ D.main = (function () {
       D.save.commitNow();
       themePick();
     });
+    // A lost phone or a deleted icon comes back through here, before any tryout.
+    const extra = u().el('div', { class: 'col', style: { gap: '8px' } });
+    const restore = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.settings.restore);
+    restore.addEventListener('click', () => openRestore(extra));
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
       u().el('div', { class: 'big' }, D.copy.firstLaunch.askName),
       field, go,
       u().el('div', { class: 'grow' }),
+      restore, extra,
     ]));
     setTimeout(() => field.focus(), 120);
   }
@@ -73,7 +89,7 @@ D.main = (function () {
       b.addEventListener('click', () => {
         D.state.profile.theme = value;
         D.state.cosmetics.equipped.theme = value;
-        if (item) D.state.cosmetics.owned.push(item.id);
+        if (item) { D.state.cosmetics.owned.push(item.id); D.state.cosmetics.free = item.id; }
         D.shop.apply();
         D.save.commitNow();
         tryoutIntro();
@@ -101,6 +117,7 @@ D.main = (function () {
     ]));
   }
   function runTryout() {
+    D.audio.unlock();
     const t = D.tryout.create();
     let pending = null;
     D.cards.start(root, {
@@ -139,7 +156,6 @@ D.main = (function () {
     }
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'big' }, D.copy.profilePick),
       box,
       u().el('div', { class: 'grow' }),
     ]));
@@ -149,6 +165,11 @@ D.main = (function () {
      One object dominates: the table being worked on, with its belt colour and
      how much of it is fast. Everything else is a small line under it. */
   function home() {
+    if (pendingReload && !busy()) {
+      pendingReload = false;
+      D.fx.toast(D.copy.settings.updated, 1400);
+      setTimeout(() => location.reload(), 1200);
+    }
     u().clear(root);
     const p = D.state.progress;
     const lvl = D.xp.levelFor(p.xp);
@@ -194,8 +215,7 @@ D.main = (function () {
       ]),
     ]);
 
-    const play = u().el('button', { class: 'btn primary wide', type: 'button' },
-      D.state.inRun && !D.state.inRun.finished ? D.copy.summary.again : D.copy.home.play);
+    const play = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.home.play);
     play.addEventListener('click', startRun);
     const tiles = u().el('div', { class: 'tiles' }, [
       tile(D.copy.home.grid, () => D.grid.render(root, home)),
@@ -223,11 +243,12 @@ D.main = (function () {
 
   /* ---- a run ---- */
   function startRun() {
+    D.audio.unlock();                 // resumed at every run start (PLAN §9.3)
     D.save.touchDay();
     D.scheduler.ensureProgression();
     const rs = D.state.inRun && !D.state.inRun.finished
       ? D.runstate.resume(D.state.inRun)
-      : D.runstate.create(D.scheduler.plan());
+      : D.runstate.create(D.scheduler.plan(), { table: D.state.focus.primary });
     D.state.inRun = rs.snapshot();
     D.__rs = rs;                      // the run in progress, for the browser gate
     D.run.start(root, { rs: rs, onDone: afterRun });
@@ -340,6 +361,7 @@ D.main = (function () {
 
   /* ---- the Belt Test (PLAN §7.1) ---- */
   function startTest(key) {
+    D.audio.unlock();
     const test = D.belttest.create(key);
     D.state.flags.testInProgress = key;
     D.save.commitNow();
@@ -489,6 +511,10 @@ D.main = (function () {
     return b;
   }
 
+  function busy() {
+    return !!(D.state && (D.state.flags.testInProgress || (D.__rs && !D.__rs.isDone())));
+  }
+
   /* ---- service worker ---- */
   function registerWorker() {
     if (!('serviceWorker' in navigator)) return;
@@ -501,6 +527,9 @@ D.main = (function () {
         if (!sw) return;
         sw.addEventListener('statechange', () => {
           if (sw.state === 'activated' && hadController) {
+            // Never in the middle of a run or a Belt Test: a reload mid-test
+            // counts as walking away from it. It waits for Home instead.
+            if (busy()) { pendingReload = true; return; }
             D.fx.toast(D.copy.settings.updated, 1400);
             setTimeout(() => location.reload(), 1200);
           }

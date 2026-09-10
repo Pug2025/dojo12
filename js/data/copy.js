@@ -19,8 +19,15 @@ D.copy = (function () {
 
   function tableName(key) { return key === 'sq' ? 'the squares' : 'the ' + plural(Number(key)); }
   function tableNameCap(key) { return cap(tableName(key)); }
+  // "Sixes", as it starts a summary line: no article.
+  function bare(key) { return cap(tableName(key).replace(/^the /, '')); }
 
   const num = n => D.u.commas(n);
+  // Commas in the whole part only, so 0.0045 never becomes 0.0,045.
+  function numx(n) {
+    const t = String(n), i = t.indexOf('.');
+    return i < 0 ? D.u.commas(t) : D.u.commas(t.slice(0, i)) + t.slice(i);
+  }
   const secs = ms => D.u.seconds(ms);
 
   /* ---- one fact, written out ---- */
@@ -37,6 +44,7 @@ D.copy = (function () {
     half: n => 'Half of ' + n + '?',
     add: (x, y) => x + ' + ' + y + '?',
     sub: (x, y) => x + ' − ' + y + '?',
+    div: (p, d) => p + ' ÷ ' + d + '?',
     mul: (a, b) => a + ' × ' + b + '?',
     mulSo: (a, b) => 'So ' + a + ' × ' + b + '?',
     divSo: (p, d) => 'So ' + p + ' ÷ ' + d + '?',
@@ -74,6 +82,9 @@ D.copy = (function () {
     xp: 'XP above what the answers could have paid',
     runs: 'More runs in a day than a day holds',
     counts: 'More right answers than answers',
+    belts: 'Black belts with no passed test on record',
+    sparks: 'Sparks above what the answers could have paid',
+    days: 'More days played than days since the save began',
   };
 
   return {
@@ -89,7 +100,6 @@ D.copy = (function () {
       nameGo: 'Start',
       themeTitle: 'Pick a look.',
     },
-    profilePick: 'Who is playing?',
 
     /* ---- tryout (PLAN §6.6) ---- */
     tryout: {
@@ -124,8 +134,8 @@ D.copy = (function () {
       button: 'Rescue',
       skip: 'Skip',
       first: 'Rescue. You type the steps. The answer is yours.',
-      addedInstead: (a, b) => 'That is ' + a + ' plus ' + b + '. You need ' + word(a) + ' ' + plural(b) + '.',
-      divSubtracted: (p, d) => 'That is ' + p + ' take away ' + d + '. You need how many ' + plural(d) + ' make ' + p + '.',
+      addedInstead: (a, b) => "That's " + a + ' plus ' + b + '. You need ' + word(a) + ' ' + plural(b) + '.',
+      divSubtracted: (p, d) => "That's " + p + ' take away ' + d + '. You need how many ' + plural(d) + ' make ' + p + '.',
       stepValue: (question, value) => question + ' is ' + value + '. Type ' + value + ' to advance.',
       done: 'Got it.',
       showAnswer: (id, flip) => factEquation(id, flip) + '. Type it to advance.',
@@ -137,9 +147,9 @@ D.copy = (function () {
       newBest: d => 'New best (+' + num(d) + ')',
       gold: list => 'Gold: ' + list.join(', ') + '.',
       gotBack: list => 'Got back: ' + list.join(', ') + '.',
-      nextTest: (key, n) => tableNameCap(key) + ': ' + n + ' ' + (n === 1 ? 'fact' : 'facts') + ' from the test.',
-      nextTestOpen: key => tableNameCap(key) + ': test open.',
-      nextTable: key => 'Next: ' + tableName(key).replace(/^the /, '') + '.',
+      nextTest: (key, n) => bare(key) + ': ' + n + ' ' + (n === 1 ? 'fact' : 'facts') + ' from the test.',
+      nextTestOpen: key => bare(key) + ': test open.',
+      nextTable: key => 'Next: ' + tableName(key) + '.',
       xp: n => '+' + num(n) + ' XP',
       sparks: n => '+' + num(n) + ' sparks',
       again: 'Play again',
@@ -156,20 +166,20 @@ D.copy = (function () {
       grid: 'Grid', belts: 'Belts', shop: 'Shop', settings: 'Settings',
       week: 'This week',
       weekBonus: 'sparks. 5 days this week.',
-      daysBonus: n => n + ' days.',
+      daysBonus: n => 'sparks. ' + n + ' days.',
       plusSparks: n => '+' + num(n) + ' ',
     },
 
     /* ---- belts (PLAN §7.1) ---- */
     belts: {
       title: 'Belts',
-      yellow: key => 'Yellow belt. ' + tableNameCap(key) + '.',
-      orange: key => 'Orange belt. ' + tableNameCap(key) + '.',
-      testOpen: key => 'Test open. ' + tableNameCap(key) + '.',
+      yellow: key => 'Yellow belt. ' + tableLabel(key) + '.',
+      orange: key => 'Orange belt. ' + tableLabel(key) + '.',
+      testOpen: key => 'Test open. ' + tableLabel(key) + '.',
       count: (fast, total) => fast + ' of ' + total + ' fast',
-      offer: key => 'Belt Test. ' + tableNameCap(key) + '. 24 cards, 22 to pass, no rescues, quick.',
+      offer: key => 'Belt Test. ' + tableLabel(key) + '. 24 cards, 22 to pass, no rescues, quick.',
       start: 'Start',
-      pass: key => 'Black belt. ' + tableNameCap(key) + ' are yours!',
+      pass: key => 'Black belt. ' + tableLabel(key) + (key === 'bey:ops' ? ' is' : ' are') + ' yours!',
       failCount: (got, total) => got + ' of ' + total + '. Same test tomorrow.',
       failSlow: (got, total, slow) => got + ' of ' + total + ', too slow on ' + word(slow) + '. Same test tomorrow.',
       grandmaster: 'Grandmaster. All 66, both ways!',
@@ -199,7 +209,7 @@ D.copy = (function () {
       equipped: 'On',
       levelNeeded: n => 'Level ' + n,
       buy: 'Buy',
-      equip: 'Wear',
+      equip: 'Use',
       groups: { theme: 'Colours', skin: 'Card', ring: 'Ring', combo: 'Combo',
                 sound: 'Sound', mark: 'Mark' },
       names: {
@@ -233,6 +243,13 @@ D.copy = (function () {
           case 'next': return 'Next multiple of ' + f.b + ' after ' + f.a + '?';
           case 'frac': return f.a + '/' + f.b + ' of ' + f.c + '?';
           case 'pct': return f.a + ' % of ' + f.b + '?';
+          case 'dec': return numx(f.a) + (f.form === 'x' ? ' × ' : ' ÷ ') + num(f.b);
+          case 'ops':
+            if (f.form === 1) return f.a + ' + ' + f.b + ' × ' + f.c;
+            if (f.form === 2) return '(' + f.a + ' + ' + f.b + ') × ' + f.c;
+            if (f.form === 3) return f.a + ' − ' + f.b + ' ÷ ' + f.c;
+            if (f.form === 4) return f.a + ' × ' + f.b + ' − ' + f.c;
+            return f.a + ' ÷ (' + f.b + ' + ' + f.c + ')';
           default: return String(f.a);
         }
       },
@@ -240,7 +257,7 @@ D.copy = (function () {
         const q = D.copy.beyond.question(f).replace(/\?$/, '');
         if (f.input === 'yesno') return q + ' ' + (f.ans ? D.copy.beyond.yes : D.copy.beyond.no);
         if (f.input === 'remainder') return q + ' = ' + f.ans + ' r ' + f.ans2;
-        return q + ' = ' + f.ans;
+        return q + ' = ' + numx(f.ans);
       },
       yes: 'Yes',
       no: 'No',
@@ -248,9 +265,9 @@ D.copy = (function () {
       point: '.',
       topics: {
         sq: 'Squares and cubes', easy2d: 'Round numbers', mul2x1: 'Two digits by one',
-        divrem: 'Leftovers', divis: 'Multiples', factors: 'Factors',
-        frac: 'Fractions of', pct: 'Percentages', dec10: 'Tens and tenths',
-        mul2x2: 'Two by two', ops: 'In order',
+        divrem: 'Remainders', divis: 'Multiples', factors: 'Factors',
+        frac: 'Fractions of amounts', pct: 'Percentages', dec10: 'Tens, hundreds and thousands',
+        mul2x2: 'Two digits by two', ops: 'Order of operations',
       },
     },
 

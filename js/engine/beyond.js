@@ -109,9 +109,58 @@ D.beyond = (function () {
         return out;
       },
     },
+    {
+      id: 'dec10', input: 'decimal',
+      gen() {
+        const out = [];
+        const bases = [0.3, 0.45, 0.8, 1.2, 2.5, 3.07, 4.8, 6, 12, 37, 250];
+        for (const a of bases) for (const m of [10, 100, 1000]) {
+          out.push({ key: a + 'x' + m, ans: r6(a * m), a: a, b: m, form: 'x', kind: 'dec' });
+          const q = r6(a / m);
+          // Grade 6 stops at thousandths; ten-thousandths is the furthest this goes.
+          if (decimals(q) <= 4) out.push({ key: a + 'd' + m, ans: q, a: a, b: m, form: 'd', kind: 'dec' });
+        }
+        return out;
+      },
+    },
+    {
+      id: 'mul2x2', input: 'number',
+      gen() {
+        const out = [];
+        for (const a of [12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 24, 25]) {
+          for (const b of [11, 12, 13, 14, 15, 21, 22, 25]) {
+            out.push({ key: a + 'x' + b, ans: a * b, a: a, b: b, kind: 'mul' });
+          }
+        }
+        return out;
+      },
+    },
+    {
+      id: 'ops', input: 'number',
+      gen() {
+        const out = [];
+        const add = (form, a, b, c, ans) =>
+          out.push({ key: form + '_' + a + '_' + b + '_' + c, ans: ans, a: a, b: b, c: c, form: form, kind: 'ops' });
+        for (const [a, b, c] of [[3, 4, 5], [2, 6, 3], [5, 2, 4], [8, 3, 2], [4, 5, 6], [7, 2, 3], [6, 4, 2], [9, 3, 4]]) {
+          add(1, a, b, c, a + b * c);                 // a + b x c
+          add(2, a, b, c, (a + b) * c);               // (a + b) x c
+          add(4, a, b, c, a * b - c);                 // a x b - c
+        }
+        for (const [a, b, c] of [[20, 12, 4], [30, 18, 6], [25, 16, 8], [40, 21, 7], [15, 9, 3], [50, 36, 9], [28, 20, 5], [45, 24, 6]]) {
+          add(3, a, b, c, a - b / c);                 // a - b / c
+        }
+        for (const [a, b, c] of [[18, 2, 4], [24, 5, 1], [36, 3, 6], [42, 4, 3], [56, 5, 3], [30, 2, 3], [48, 6, 2], [60, 7, 5]]) {
+          if (a % (b + c) === 0) add(5, a, b, c, a / (b + c));   // a / (b + c)
+        }
+        return out;
+      },
+    },
   ];
 
   function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+  // Decimal arithmetic without the float dust: 0.3 x 10 is 3, not 3.0000000000000004.
+  function r6(x) { return Number(x.toFixed(6)); }
+  function decimals(x) { const t = String(x), i = t.indexOf('.'); return i < 0 ? 0 : t.length - i - 1; }
   function isPrime(n) {
     if (n < 2) return false;
     for (let i = 2; i * i <= n; i++) if (n % i === 0) return false;
@@ -130,7 +179,7 @@ D.beyond = (function () {
         const factId = id(topic.id, item.key);
         const fact = {
           id: factId, op: 'bey', lane: 'beyond', topic: topic.id, kind: item.kind,
-          a: item.a, b: item.b, c: item.c, ans: item.ans, ans2: item.ans2,
+          a: item.a, b: item.b, c: item.c, ans: item.ans, ans2: item.ans2, form: item.form,
           input: item.input || topic.input,
         };
         D.facts.register(fact);
@@ -289,6 +338,34 @@ D.beyond = (function () {
           mk('divSo', c.divSo(f.b, 10), L.div(f.b, 10), ten),
           mk('half', c.half(ten), L.half(ten), ten / 2),
           mk('add', c.add(ten, ten / 2), L.add(ten, ten / 2), f.ans)] };
+      }
+      case 'dec': {
+        // One place at a time. A single hop is the card itself, so it has no walkthrough.
+        const hops = Math.round(Math.log10(f.b));
+        if (hops < 2) return { famId: 'bey.dec', steps: [] };
+        const steps = [];
+        let v = f.a;
+        for (let i = 0; i < hops; i++) {
+          const nv = f.form === 'x' ? r6(v * 10) : r6(v / 10);
+          steps.push(f.form === 'x' ? mk('mul', c.mul(v, 10), L.mul(v, 10), nv)
+                                    : mk('div', c.div(v, 10), L.div(v, 10), nv));
+          v = nv;
+        }
+        return { famId: 'bey.dec', steps: steps };
+      }
+      case 'ops': {
+        // The inside first, then the outside: exactly the order the rule says.
+        const A = f.a, B = f.b, C = f.c;
+        if (f.form === 1) return { famId: 'bey.ops', steps: [
+          mk('mul', c.mul(B, C), L.mul(B, C), B * C), mk('add', c.add(A, B * C), L.add(A, B * C), f.ans)] };
+        if (f.form === 2) return { famId: 'bey.ops', steps: [
+          mk('add', c.add(A, B), L.add(A, B), A + B), mk('mul', c.mul(A + B, C), L.mul(A + B, C), f.ans)] };
+        if (f.form === 3) return { famId: 'bey.ops', steps: [
+          mk('div', c.div(B, C), L.div(B, C), B / C), mk('sub', c.sub(A, B / C), L.sub(A, B / C), f.ans)] };
+        if (f.form === 4) return { famId: 'bey.ops', steps: [
+          mk('mul', c.mul(A, B), L.mul(A, B), A * B), mk('sub', c.sub(A * B, C), L.sub(A * B, C), f.ans)] };
+        return { famId: 'bey.ops', steps: [
+          mk('add', c.add(B, C), L.add(B, C), B + C), mk('div', c.div(A, B + C), L.div(A, B + C), f.ans)] };
       }
       default: return { famId: 'bey', steps: [] };
     }

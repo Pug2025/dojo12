@@ -8,7 +8,8 @@ D.belts = (function () {
   function render(root, onBack, onTest) {
     u().clear(root);
     const list = u().el('div', { class: 'col', style: { gap: '10px' } });
-    const open = D.facts.TABLE_ORDER.filter(k => D.scheduler.isOpen(k));
+    // Beyond topics have belts too, once the lane is open (review 2026-09-10).
+    const open = D.scheduler.beltKeys();
     for (const key of open) list.appendChild(tile(key, onTest));
     if (!open.length) list.appendChild(u().el('div', { class: 'small' }, D.copy.grid.empty));
 
@@ -26,7 +27,7 @@ D.belts = (function () {
     const st = D.mastery.tableStats(key);
     const box = u().el('div', { class: 'plate' });
     box.appendChild(u().el('div', { class: 'row between' }, [
-      u().el('div', { class: 'value' }, D.copy.tableNameCap(key)),
+      u().el('div', { class: 'value' }, D.copy.tableLabel(key)),
       u().el('i', { class: 'belt b-' + t.belt }),
     ]));
     box.appendChild(u().el('div', { class: 'small' }, D.copy.belts.count(st.fastPlus, st.total)));

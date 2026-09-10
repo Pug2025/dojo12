@@ -109,5 +109,27 @@ D.fx = (function () {
     };
   }
 
-  return { pop, crack, shake, float, burst, toast, ring };
+  /* Size the card to the space its row actually gets. The wrapper has no content
+     size of its own, so its box is exactly what is left after the top row, the
+     line, the buttons and the keypad. CSS container units resolved to zero here
+     during layout and collapsed the card to its border, so this measures instead. */
+  function fitCard(wrap, card) {
+    if (!wrap || !card) return;
+    const box = wrap.getBoundingClientRect();
+    const size = Math.max(120, Math.floor(Math.min(box.width, box.height - 8, 330)));
+    card.style.width = size + 'px';
+    card.style.height = size + 'px';
+    card.style.setProperty('--cs', size + 'px');
+  }
+  let fitTarget = null, fitBound = false;
+  function watchFit(wrap, card) {
+    fitTarget = { wrap: wrap, card: card };
+    fitCard(wrap, card);
+    if (!fitBound) {
+      fitBound = true;
+      window.addEventListener('resize', () => { if (fitTarget) fitCard(fitTarget.wrap, fitTarget.card); });
+    }
+  }
+
+  return { pop, crack, shake, float, burst, toast, ring, fitCard, watchFit };
 })();

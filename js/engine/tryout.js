@@ -66,6 +66,7 @@ D.tryout = (function () {
       openerIdx: 0,
       reprobed: {},
       reprobes: 0,
+      hardWinSaid: false,
       current: null,
       finished: false,
       firstCard: true,
@@ -205,7 +206,12 @@ D.tryout = (function () {
           r.div = grade;
         }
         if (correct) r.correct.push(card.id);
-        if (card.kind === 'hard' && fast) out.line = D.copy.tryout.hardWin;
+        // Said once, and only where a fast answer means something: three times in
+        // two minutes and it stops meaning anything (PLAN §6.6).
+        if (card.kind === 'hard' && fast && !st.hardWinSaid && ['2', '10', '5'].indexOf(card.table) < 0) {
+          st.hardWinSaid = true;
+          out.line = D.copy.tryout.hardWin;
+        }
       }
       out.flash = !correct;
       st.lastMiss = !correct;

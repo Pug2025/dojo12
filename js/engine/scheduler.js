@@ -61,35 +61,60 @@ D.scheduler = (function () {
     if (!s.focus) s.focus = { primary: null, secondary: null };
     for (const key of D.facts.TABLE_ORDER) tableState(key);
 
+    // A slot only ever holds a table that is actually in focus, and only the
+    // primary can graduate, so an empty primary is filled before anything else.
+    // A perfect tryout left both slots empty and nothing ever filled the primary
+    // (review 2026-09-10).
+    for (const slot of ['primary', 'secondary']) {
+      const k = s.focus[slot];
+      if (k && tableState(k).status !== 'focus') s.focus[slot] = null;
+    }
+    if (s.focus.primary && s.focus.primary === s.focus.secondary) s.focus.secondary = null;
+    if (!s.focus.primary && s.focus.secondary) { s.focus.primary = s.focus.secondary; s.focus.secondary = null; }
+
     // Graduate a finished primary.
     if (s.focus.primary && M().tableStats(s.focus.primary).fastPct >= cfg.FOCUS_PROMOTE_PCT) {
       tableState(s.focus.primary).status = 'open';
       s.focus.primary = s.focus.secondary;
       s.focus.secondary = null;
     }
-    // A table that has slipped a long way back comes into focus again.
-    if (!s.focus.secondary) {
-      const slipped = openTables().find(k => k !== s.focus.primary &&
-        tableState(k).status === 'open' && M().tableStats(k).fastPct < cfg.TABLE_REOPEN_PCT);
-      if (slipped) { tableState(slipped).status = 'focus'; s.focus.secondary = slipped; }
-    }
-    // Fill empty focus slots from the unopened tables.
-    while (!s.focus.primary || !s.focus.secondary) {
-      const already = openTables().find(k => tableState(k).status === 'focus' &&
-        k !== s.focus.primary && k !== s.focus.secondary);
-      if (already) {
-        if (!s.focus.primary) s.focus.primary = already; else s.focus.secondary = already;
-        continue;
-      }
-      const next = nextUnopened();
-      if (!next) break;
-      openTable(next);
-      if (!s.focus.primary) s.focus.primary = next; else s.focus.secondary = next;
+    let guard = 0;
+    while ((!s.focus.primary || !s.focus.secondary) && guard++ < 30) {
+      const pick = nextFocus();
+      if (!pick) break;
+      if (tableState(pick).status === 'new') openTable(pick);
+      else tableState(pick).status = 'focus';
+      if (!s.focus.primary) s.focus.primary = pick; else s.focus.secondary = pick;
     }
     for (const key of focusKeys()) refreshHot(key);
     updateBelts();
     updateSafety();
     maybeOpenBeyondScouting();
+  }
+
+  /* The next table to bring into focus: one already marked focus that lost its
+     slot; one that has slipped below 60 % fast; the next unopened table; and,
+     once the grid is open, the first table below black that still has facts
+     nobody has taught. Without the last rule a table that graduated with a few
+     divisions unseen would never have them served, and its Belt Test would
+     never be offered. */
+  function nextFocus() {
+    const s = D.state;
+    const taken = k => k === s.focus.primary || k === s.focus.secondary;
+    const open = openTables().filter(k => !taken(k));
+    const marked = open.find(k => tableState(k).status === 'focus');
+    if (marked) return marked;
+    const slipped = open.find(k => M().tableStats(k).fastPct < cfg.TABLE_REOPEN_PCT);
+    if (slipped) return slipped;
+    const next = nextUnopened();
+    if (next) return next;
+    return open.find(k => tableState(k).belt !== 'black' && hasUntaught(k)) || null;
+  }
+  function hasUntaught(key) {
+    return M().activeItems(key).some(id => {
+      const st = M().status(id);
+      return st === 'new' || st === 'learning';
+    });
   }
 
   /* Hot set: at most four facts of a focus table at a time. A fact leaves when
@@ -170,12 +195,30 @@ D.scheduler = (function () {
   function updateBelts() {
     for (const key of beltKeys()) {
       const t = tableState(key), pct = M().tableStats(key).fastPct;
-      if (t.belt === 'black') {
-        if (t.provisionalUntil && D.u.gameDay() >= t.provisionalUntil) t.provisionalUntil = null;
-        else if (t.provisionalUntil && pct < cfg.PROVISIONAL_FLOOR) { t.belt = 'orange'; t.provisionalUntil = null; }
+      if (t.belt === 'black') continue;          // provisional belts are judged at the end of runs
+      t.belt = pct >= cfg.BELT_ORANGE_PCT ? 'orange' : pct >= cfg.BELT_YELLOW_PCT ? 'yellow' : 'white';
+    }
+  }
+  /* A new black belt stays provisional until the child has played counted runs
+     on three separate game-days after the day it was won, and reverts if the
+     table is below 80 % fast at the end of any of them (PLAN §7.1). Counted in
+     days played, not days on the calendar: left shut for three days, a belt
+     someone else won used to become permanent (exploit review 2026-09-10). Never
+     judged on the day of the win, when the test's own misses are still fresh. */
+  function checkProvisional(run) {
+    if (run && run.counted === false) return;
+    const day = (run && run.day) || D.u.gameDay();
+    for (const key of beltKeys()) {
+      const t = tableState(key);
+      if (t.belt !== 'black' || !t.provisionalUntil) continue;
+      if (t.beltDay === day) continue;
+      if (M().tableStats(key).fastPct < cfg.PROVISIONAL_FLOOR) {
+        t.belt = 'orange'; t.provisionalUntil = null; t.provisionalDays = [];
         continue;
       }
-      t.belt = pct >= cfg.BELT_ORANGE_PCT ? 'orange' : pct >= cfg.BELT_YELLOW_PCT ? 'yellow' : 'white';
+      t.provisionalDays = t.provisionalDays || [];
+      if (t.provisionalDays.indexOf(day) < 0) t.provisionalDays.push(day);
+      if (t.provisionalDays.length >= cfg.PROVISIONAL_DAYS) { t.provisionalUntil = null; t.provisionalDays = []; }
     }
   }
   function testOpen(key) {
@@ -198,6 +241,18 @@ D.scheduler = (function () {
   function learningPool() {
     const out = [];
     for (const key of focusKeys()) for (const id of refreshHot(key)) out.push(id);
+    // A fact that slips back to learning in a table outside focus comes back
+    // here. Nothing else serves a learning fact, so without this a gold fact
+    // missed once in an open table would never be seen again (review 2026-09-10).
+    const relapsed = [];
+    for (const key of openTables()) {
+      if (focusKeys().indexOf(key) >= 0) continue;
+      for (const id of M().activeItems(key)) {
+        const r = M().peek(id);
+        if (r && r.seen > 0 && M().status(id) === 'learning' && out.indexOf(id) < 0) relapsed.push(id);
+      }
+    }
+    for (const id of dedupe(relapsed).slice(0, cfg.HOT_SET)) out.push(id);
     // A table whose scouts keep coming back wrong gets served properly instead.
     for (const key of D.facts.TABLE_ORDER) {
       if (isOpen(key)) continue;
@@ -249,14 +304,27 @@ D.scheduler = (function () {
     if (D.state.lanes.beyond.scouting && D.beyond) return D.beyond.scoutPool();
     return [];
   }
+  /* Two families at a time, each working at most three facts, like a hot set:
+     the facts already seen and not yet fast, topped up from the ones not tried.
+     Drawn evenly from families of two hundred sums, no sum came round twice,
+     nothing became fast, and the lane never turned off (review 2026-09-10). */
   function safetyPool() {
     const lane = D.state.lanes.addsub;
     if (!lane.active) return [];
     const out = [];
+    let families = 0;
     for (const famId of D.facts.familyIds()) {
       const st = lane.families[famId];
       if (!st || !st.active) continue;
-      for (const id of D.facts.family(famId).facts) if (!M().isFast(id)) out.push(id);
+      if (families++ >= cfg.SAFETY_FAMILIES) break;
+      const slow = [], unseen = [];
+      for (const id of D.facts.family(famId).facts) {
+        if (M().isFast(id)) continue;
+        const r = M().peek(id);
+        if (r && r.seen > 0) slow.push(id); else unseen.push(id);
+      }
+      for (const id of slow) out.push(id);
+      for (const id of unseen.slice(0, Math.max(0, cfg.SAFETY_WORKING - slow.length))) out.push(id);
     }
     return out;
   }
@@ -330,7 +398,10 @@ D.scheduler = (function () {
     let L = D.u.clamp(p.learnSlots || cfg.LEARN_START, cfg.LEARN_MIN, cfg.LEARN_MAX);
     const beyondSlots = D.state.lanes.beyond.open ? Math.round(mixCount * cfg.BEYOND_SHARE) : 0;
     const safety = safetyPool();
-    const safetySlots = safety.length ? Math.min(cfg.SAFETY_MAX, Math.min(L, safety.length)) : 0;
+    // The quiet lane never takes more than half the learning slots, or at four
+    // slots it took all of them and multiplication stopped being taught.
+    const safetySlots = safety.length
+      ? Math.min(cfg.SAFETY_MAX, Math.floor(L * cfg.SAFETY_SHARE), safety.length) : 0;
     L = Math.max(0, L - safetySlots);
 
     const used = [];
@@ -546,5 +617,6 @@ D.scheduler = (function () {
            ensureProgression, refreshHot, updateBelts, testOpen, blackBelts, learningPool,
            promotePool, promoteWeight, duePool, maintenancePool, scoutPool, safetyPool, warmupPool,
            plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
-           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, beltKeys };
+           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, beltKeys,
+           checkProvisional, nextFocus };
 })();

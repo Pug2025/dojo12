@@ -58,7 +58,7 @@ D.xp = (function () {
     out.dayCounted = true;
     D.save.rollWeek(day);
     const idx = D.u.weekIndex(day);
-    if (!p.weekDots.includes(idx)) p.weekDots.push(idx);
+    if (D.u.weekKey(day) === p.weekKey && !p.weekDots.includes(idx)) p.weekDots.push(idx);
     if (!p.weekBonusPaid && p.weekDots.length >= cfg.WEEK_DOTS_FOR_BONUS) {
       p.weekBonusPaid = true;
       out.weekBonus = addSparks(cfg.SPARKS_WEEK);
@@ -76,6 +76,7 @@ D.xp = (function () {
   /* Personal bests. Minimum deltas keep the ratchet honest (PLAN §7.4). */
   function checkPbs(run) {
     const pbs = D.state.pbs, out = [];
+    const first = pbs.score === 0;
     // The first run sets the bar rather than beating it, so it is not a best.
     if (pbs.score === 0) { pbs.score = run.score; }
     else if (run.score > 0 && run.score >= Math.max(pbs.score * (1 + cfg.PB_SCORE_PCT), pbs.score + 1)) {
@@ -85,7 +86,8 @@ D.xp = (function () {
     } else if (run.score > pbs.score) {
       pbs.score = run.score;                    // the number moves, the spark does not
     }
-    if (run.bestCombo >= pbs.combo + cfg.PB_COMBO) {
+    // The first run sets every bar without paying for it (PLAN §7.4).
+    if (!first && run.bestCombo >= pbs.combo + cfg.PB_COMBO) {
       pbs.combo = run.bestCombo;
       out.push({ kind: 'combo' });
       addSparks(cfg.SPARKS_PB);
@@ -93,12 +95,15 @@ D.xp = (function () {
 
     if (run.fastestFact && D.facts.get(run.fastestFact.id).digits >= 2) {
       const cur = pbs.fastestFact;
-      if (!cur || run.fastestFact.ms <= cur.ms - cfg.PB_FACT_MS) {
-        pbs.fastestFact = { id: run.fastestFact.id, ms: run.fastestFact.ms };
+      const next = { id: run.fastestFact.id, ms: run.fastestFact.ms };
+      if (!cur) {
+        pbs.fastestFact = next;
+      } else if (next.ms <= cur.ms - cfg.PB_FACT_MS) {
+        pbs.fastestFact = next;
         out.push({ kind: 'fact' });
         addSparks(cfg.SPARKS_PB);
-      } else if (!cur || run.fastestFact.ms < cur.ms) {
-        pbs.fastestFact = { id: run.fastestFact.id, ms: run.fastestFact.ms };
+      } else if (next.ms < cur.ms) {
+        pbs.fastestFact = next;
       }
     }
     if (run.table) {

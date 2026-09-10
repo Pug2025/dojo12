@@ -28,6 +28,17 @@ Time. The game credits a new day only when the date has changed, it is past four
 and six hours of real time have passed, and it freezes new days if the clock is wound backwards,
 but a locked clock is simpler than any of that.
 
+## Backing up
+
+Settings, then **Back up to Dad.** sends one link that holds the whole save, about 5 KB. Opening
+the link on any device shows the dashboard: the belts, both grids, what is being worked on this
+week, each Belt Test's speed beside that week's run speed, restores, and a few consistency checks.
+The player can open the same view from Settings under **What Dad sees**.
+
+The link is also the way back. If the Home Screen icon is ever deleted, the save goes with it:
+install again, then Settings, **Restore**, and paste the link. A backup older than the save
+already on the phone is refused, and a restore rules out Belt Tests for the rest of that day.
+
 ## Working on it
 
     node tests-node.mjs      # the gate: engine assertions, reward paths, copy, learner bots

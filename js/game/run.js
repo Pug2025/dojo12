@@ -11,6 +11,8 @@ D.run = (function () {
     rs = o.rs;
     done = o.onDone;
     build(root);
+    // Reopened after being closed mid-miss: straight to the shown answer.
+    if (rs.raw.phase === 'reveal') { paintTop(); showReveal(rs.revealInfo()); return; }
     showCard();
   }
 
@@ -29,19 +31,25 @@ D.run = (function () {
     dom.card = u().el('div', { class: 'card' }, [dom.label, dom.question, dom.typed, dom.slots]);
     dom.wrap = u().el('div', { class: 'cardwrap' }, [dom.card]);
     dom.line = u().el('div', { class: 'diagline' }, '');
-    dom.buttons = u().el('div', { class: 'miss-buttons hidden' });
+    dom.buttons = u().el('div', { class: 'miss-buttons idle' });
     pad = D.keypad.build({
       autoSubmit: !!D.state.flags.autoSubmit,
       onChange: v => { dom.typed.textContent = v; paintSlots(v.length); },
       onSubmit: onSubmit,
     });
     dom.pad = pad.node;
-    root.appendChild(u().el('div', { class: 'screen' }, [
+    root.appendChild(u().el('div', { class: 'screen fit' }, [
       u().el('div', { class: 'runtop' }, [dom.score, dom.pips, dom.combo]),
       dom.wrap, dom.line, dom.buttons, dom.pad,
     ]));
+    D.fx.watchFit(dom.wrap, dom.card);
   }
 
+  // A word question ("Is 84 a multiple of 4?") gets a reading size, not a poster size.
+  function setQuestion(text) {
+    dom.question.textContent = text;
+    dom.question.classList.toggle('words', /[a-z]{2,}/i.test(text));
+  }
   function paintSlots(typedCount) {
     Array.from(dom.slots.children).forEach((k, i) => k.classList.toggle('on', i < typedCount));
   }
@@ -83,7 +91,7 @@ D.run = (function () {
     expired = false;
     const c = rs.present();
     if (!c) return finish();
-    dom.buttons.classList.add('hidden');
+    dom.buttons.classList.add('idle');
     u().clear(dom.buttons);
     dom.line.textContent = '';
     dom.card.classList.remove('gold');
@@ -94,7 +102,7 @@ D.run = (function () {
 
     dom.label.textContent = c.last ? D.copy.run.lastCard : c.comeback ? D.copy.run.comebackLabel : '';
     if (c.comeback) dom.card.classList.add('gold');
-    dom.question.textContent = c.question;
+    setQuestion(c.question);
     const fact = D.facts.get(rs.raw.cards[rs.raw.i].id);
     pad.setMode(fact.input || 'number');
     setSlots(fact.input === 'number' || !fact.input ? c.digits : 0);
@@ -153,6 +161,9 @@ D.run = (function () {
   function handle(out) {
     if (!out) return;
     pad.setLive(false);
+    clearTimeout(lateTimer);
+    dom.buttons.classList.add('idle');        // the miss path shows its own again
+    u().clear(dom.buttons);
     paintTop();
     if (out.kind === 'correct') {
       D.fx.pop(dom.card);
@@ -189,6 +200,7 @@ D.run = (function () {
       if (out.slip || out.silent) { commitAnd(out, 520); return; }
       dom.line.textContent = out.line || out.intro || '';
       showMissButtons(out);
+      saveNow();                                 // the miss is on the record before any choice
       return;
     }
     commitAnd(out, 300);
@@ -197,9 +209,13 @@ D.run = (function () {
     const p = dom.pips.children[rs.raw.i];
     if (p) p.classList.add('miss');
   }
-  function commitAnd(out, ms) {
+  // The run as it stands, written at once: closing the app must never undo a card.
+  function saveNow() {
     D.state.inRun = rs.snapshot();
-    D.save.commit();
+    D.save.commitNow();
+  }
+  function commitAnd(out, ms) {
+    saveNow();
     setTimeout(() => {
       if (out.redemptionStart) {
         D.fx.toast(out.redemptionStart, 1800);
@@ -217,7 +233,7 @@ D.run = (function () {
   /* ---- the miss (PLAN §6.7). No words, two buttons. ---- */
   function showMissButtons(out) {
     u().clear(dom.buttons);
-    dom.buttons.classList.remove('hidden');
+    dom.buttons.classList.remove('idle');
     pad.setLive(false);                        // the only moves here are the two buttons
     const rescue = u().el('button', { class: 'btn primary', type: 'button' }, D.copy.rescue.button);
     rescue.addEventListener('pointerdown', e => { e.preventDefault(); onRescue(); });
@@ -231,11 +247,15 @@ D.run = (function () {
   // A card with no ring gets a Rescue button after a long silence, and no text.
   function offerRescue() {
     if (rs.raw.phase !== 'card') return;
+    const at = rs.raw.i;
     u().clear(dom.buttons);
-    dom.buttons.classList.remove('hidden');
+    dom.buttons.classList.remove('idle');
     const b = u().el('button', { class: 'btn ghost', type: 'button' }, D.copy.rescue.button);
     b.addEventListener('pointerdown', e => {
       e.preventDefault();
+      // A tap that lands after this card was answered belongs to nobody. Sent on,
+      // it scored a miss on a card never shown and froze the run (review 2026-09-10).
+      if (rs.raw.i !== at || rs.raw.phase !== 'card' || !pad.isLive()) return;
       handle(rs.submit('', Math.round(performance.now() - t0)));
     });
     dom.buttons.appendChild(b);
@@ -243,18 +263,22 @@ D.run = (function () {
 
   function onRescue() {
     const out = rs.chooseRescue();
-    dom.buttons.classList.add('hidden');
+    dom.buttons.classList.add('idle');
     if (!out) return;
+    saveNow();
     if (out.kind === 'reveal') return showReveal(out);
     const c = rs.raw.cards[rs.raw.i];
-    dom.question.textContent = D.facts.display(c.id, c.flip);
+    setQuestion(D.facts.display(c.id, c.flip));
     dom.line.textContent = out.diagnosis || '';
     pad.setLive(true);
     showStep(rs.currentStep());
   }
   function onSkip() {
-    dom.buttons.classList.add('hidden');
-    showReveal(rs.chooseSkip());
+    dom.buttons.classList.add('idle');
+    const out = rs.chooseSkip();
+    if (!out) return;
+    saveNow();
+    showReveal(out);
   }
   function showStep(step) {
     if (!step) return;
@@ -263,7 +287,8 @@ D.run = (function () {
     pad.clear();
     dom.forced = false;
     u().clear(dom.slots);
-    pad.setMode('number');
+    // Beyond's decimal walkthroughs need the point key (review 2026-09-10).
+    pad.setMode(Number.isInteger(step.answer) ? 'number' : 'decimal');
     pad.setDigits(0);
     setStepPrompt(step.prompt);
   }
@@ -292,6 +317,7 @@ D.run = (function () {
       dom.forced = true;
       dom.line.textContent = out.line;
       D.fx.shake(dom.card);
+      pad.setMode(Number.isInteger(out.step.answer) ? 'number' : 'decimal');
       return setStepPrompt(out.step.prompt);
     }
     if (out.kind === 'rescued') {
@@ -308,7 +334,7 @@ D.run = (function () {
     pad.setLive(true);
     const c = rs.raw.cards[rs.raw.i];
     dom.label.textContent = '';
-    dom.question.textContent = D.facts.display(c.id, c.flip);
+    setQuestion(D.facts.display(c.id, c.flip));
     dom.line.textContent = out.line;
     dom.typed.textContent = '';
     pad.clear();

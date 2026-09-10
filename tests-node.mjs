@@ -1217,8 +1217,12 @@ function seedTableFast(key) {
     r.ewma = 9000; r.lastMiss = true; r.streak = 0;
   }
   D.mastery.dirty();
-  D.scheduler.updateBelts();
-  t("a provisional belt reverts when the table slips", D.scheduler.tableState("2").belt === "orange");
+  t3.beltDay = D.u.gameDay();
+  D.scheduler.checkProvisional({ day: D.u.gameDay(), counted: true });
+  t("a provisional belt is never taken back on the day it was won", D.scheduler.tableState("2").belt === "black");
+  t3.beltDay = D.belttest.addDays(D.u.gameDay(), -1);
+  D.scheduler.checkProvisional({ day: D.u.gameDay(), counted: true });
+  t("a provisional belt reverts when the table slips in later runs", D.scheduler.tableState("2").belt === "orange");
 }
 {
   // A table the tryout seeded gets a second look inside the same day.
@@ -1266,7 +1270,7 @@ h2("beyond");
   newState();
   D.beyond.build();
   const topics = D.beyond.topics();
-  t("there are eight Beyond topics in this release", topics.length === 8, "topics " + topics.length);
+  t("there are eleven Beyond topics", topics.length === 11, "topics " + topics.length);
   let bad = [];
   for (const topic of topics) {
     const ids = D.beyond.topicFacts(topic.id);
@@ -1299,6 +1303,13 @@ h2("beyond");
   t("no is wrong when the answer is yes", D.facts.check(yn, "0") === false);
   const pct = D.beyond.topicFacts("pct")[0];
   t("a percentage answer checks as a number", D.facts.check(pct, String(D.facts.get(pct).ans)) === true);
+  const dec = D.beyond.topicFacts("dec10").find(id => D.facts.get(id).ans < 1);
+  const decAns = String(D.facts.get(dec).ans);
+  t("a decimal answer checks with or without its leading zero",
+    D.facts.check(dec, decAns) === true && D.facts.check(dec, decAns.replace(/^0/, "")) === true, decAns);
+  t("no decimal question prints float dust",
+    D.beyond.topicFacts("dec10").every(id => !/\d{7,}/.test(D.facts.display(id, false)) &&
+                                              !/\d\.\d{7,}/.test(String(D.facts.get(id).ans))));
 }
 {
   // Every Beyond fact has a walkthrough that lands on its own answer.
@@ -1383,6 +1394,7 @@ h2("backup and restore");
 {
   newState("Tester");
   seedFast(mid(3, 4));
+  D.state.runs.push({ day: D.u.gameDay(), correct: 18, cards: 20, score: 1500, medianRt: 1200 });
   D.state.progress.xp = 500;
   const older = JSON.parse(JSON.stringify(D.state));
   older.lastSeenEpoch = D.state.lastSeenEpoch - 3600 * 1000;
@@ -1422,7 +1434,8 @@ h2("backup and restore");
   const ahead = seedFast(mid(4, 8)); ahead.days = ["2027-01-01"];
   t("a day dated after the phone's own day is flagged", D.share.checks(D.state).some(c => c.id === "ahead"));
   t("every check has a name the dashboard can print",
-    ["thin", "ahead", "xp", "runs", "counts"].every(id => !/undefined/.test(D.copy.dash.checkLine(id, 1))));
+    ["thin", "ahead", "xp", "runs", "counts", "belts", "sparks", "days"]
+      .every(id => !/undefined/.test(D.copy.dash.checkLine(id, 1)) && D.copy.dash.checkLine(id, 1).indexOf(id + ":") !== 0));
 }
 
 /* ================= 12. the weekly recap (PLAN §7.1) ================= */
@@ -1444,6 +1457,467 @@ h2("weekly recap");
   t("the recap names the fastest fact", lines.some(l => l === "Fastest fact: 6 × 7, 1.4 s."), lines.join(" | "));
   t("the recap has at most three lines", lines.length <= 3);
   t("the week roll keeps two snapshots at most", Object.keys(D.state.snapshots).length <= 2);
+}
+
+
+/* ================= 13. the approved lines, exactly (PLAN §10.5) ================= */
+h2("approved lines");
+{
+  const m78 = D.facts.mulId(7, 8);
+  const EXACT = [
+    [D.copy.rescue.addedInstead(7, 8), "That's 7 plus 8. You need seven eights."],
+    [D.copy.rescue.divSubtracted(56, 7), "That's 56 take away 7. You need how many sevens make 56."],
+    [D.copy.rescue.showAnswer(m78, false), "7 × 8 = 56. Type it to advance."],
+    [D.copy.rescue.stepValue("7 × 10", 70), "7 × 10 is 70. Type 70 to advance."],
+    [D.copy.run.earned(m78, false, 1900), "7 × 8. 1.9 s. That one's yours."],
+    [D.copy.summary.nextTable("4"), "Next: the fours."],
+    [D.copy.summary.nextTest("6", 2), "Sixes: 2 facts from the test."],
+    [D.copy.summary.nextTestOpen("7"), "Sevens: test open."],
+    [D.copy.summary.gold([m78, "56 ÷ 7"].map(x => x === m78 ? D.facts.display(m78, false) : x)), "Gold: 7 × 8, 56 ÷ 7."],
+    [D.copy.home.plusSparks(25) + D.copy.home.weekBonus, "+25 sparks. 5 days this week."],
+    [D.copy.home.plusSparks(25) + D.copy.home.daysBonus(30), "+25 sparks. 30 days."],
+    [D.copy.home.table("7", 14, 22), "The sevens. 14 of 22 fast."],
+    [D.copy.belts.offer("7"), "Belt Test. The sevens. 24 cards, 22 to pass, no rescues, quick."],
+    [D.copy.belts.pass("7"), "Black belt. The sevens are yours!"],
+    [D.copy.belts.failCount(19, 24), "19 of 24. Same test tomorrow."],
+    [D.copy.belts.failSlow(24, 24, 4), "24 of 24, too slow on four. Same test tomorrow."],
+    [D.copy.belts.grandmaster, "Grandmaster. All 66, both ways!"],
+    [D.copy.tryout.end(["2", "10", "5"], "4"), "Open: twos, tens, fives. Next: fours."],
+    [D.copy.settings.clockMoved("2026-09-14"), "Clock moved. No new days until 14 September."],
+    [D.copy.recap.improved(D.facts.mulId(7, 8), false, 4100, 2000), "Most improved: 7 × 8, 4.1 s to 2.0 s."],
+  ];
+  const off = EXACT.filter(([got, want]) => got !== want);
+  t("every approved line reads exactly as the plan wrote it", off.length === 0,
+    off.map(([got, want]) => JSON.stringify(got) + " should be " + JSON.stringify(want)).join(" | "));
+}
+
+/* ================= 14. the copy transcript (PLAN §12) =================
+   Every line a struggling player reads in the tryout and one bad run, in order,
+   written to qa/copy-run.txt so a person can read it aloud. */
+h2("copy transcript");
+{
+  Math.random = mulberry(4242);
+  setTime(2026, 9, 9, 16, 0);
+  newState("Player");
+  const lines = [];
+  const say = (who, text) => { if (text) lines.push((who + "          ").slice(0, 10) + text); };
+
+  say("screen", D.copy.tryout.intro);
+  const tr = D.tryout.create();
+  let g = 0;
+  while (g++ < 60) {
+    const card = tr.next();
+    if (!card) break;
+    if (card.intro) say("line", card.intro);
+    say("card", card.question);
+    const f = D.facts.get(card.id);
+    const easy = f.op === "mul" && Math.min(f.a, f.b) <= 4;
+    const right = card.kind === "filler" || Math.random() < (easy ? 0.85 : 0.22);
+    const out = tr.answer(right ? f.ans : f.ans + 7, right ? 1500 : 4200);
+    if (!right) say("", out.flash ? "(red flash)" : "(nothing)");
+    if (out.line) say("line", out.line);
+  }
+  const placed = tr.apply();
+  say("screen", D.copy.tryout.end(placed.open, placed.next));
+  lines.push("");
+
+  D.scheduler.ensureProgression();
+  const rs = D.runstate.create(D.scheduler.plan());
+  const actions = ["added", "plain", "fast", "fast", "timeout", "skip", "plain"];
+  let k = 0;
+  g = 0;
+  while (!rs.isDone() && g++ < 200) {
+    const cur = rs.present();
+    if (!cur) break;
+    if (cur.last) say("label", D.copy.run.lastCard);
+    if (cur.comeback) say("label", D.copy.run.comebackLabel);
+    say("card", cur.question);
+    const f = D.facts.get(cur.card.id);
+    const kind = cur.card.kind;
+    const plain = kind !== "warmup" && kind !== "scout" && kind !== "comeback" && kind !== "redemption";
+    const action = plain && (k++ % 2 === 1) ? actions.shift() : null;
+    let out;
+    if (action === "timeout" && cur.ringMs) {
+      out = rs.timeout();
+    } else if (action) {
+      const wrong = action === "added" && f.op === "mul" ? f.a + f.b : f.ans * 10 + 3;
+      const ms = action === "fast" ? 250 : 3800;
+      out = rs.submit(wrong, ms);
+      if (out && out.slip) { say("", "(crack, buzz)"); say("card", cur.question); out = rs.submit(wrong, ms); }
+    } else {
+      out = rs.submit(f.ans, 2600);
+    }
+    if (!out) break;
+    if (out.kind === "correct") {
+      if (out.line) say("line", out.line);
+      if (out.redemptionStart) say("line", out.redemptionStart);
+      continue;
+    }
+    if (out.kind !== "miss") continue;
+    say("", "(crack, buzz)");
+    if (out.intro) say("line", out.intro);
+    if (out.line) say("line", out.line);
+    if (out.redemptionStart) say("line", out.redemptionStart);
+    if (!out.buttons) continue;
+    say("buttons", out.mandatory ? D.copy.rescue.button : D.copy.rescue.button + " / " + D.copy.rescue.skip);
+    if (action === "skip" && !out.mandatory) {
+      const rv = rs.chooseSkip();
+      say("line", rv.line);
+      const done = rs.typedAnswer(f.ans);
+      if (done && done.redemptionStart) say("line", done.redemptionStart);
+      continue;
+    }
+    const r = rs.chooseRescue();
+    if (r && r.kind === "reveal") {
+      say("line", r.line);
+      const d2 = rs.typedAnswer(f.ans);
+      if (d2 && d2.redemptionStart) say("line", d2.redemptionStart);
+      continue;
+    }
+    if (r && r.diagnosis) say("line", r.diagnosis);
+    let fails = action === "fast" ? 2 : action === "plain" ? 1 : 0;
+    let guard = 0;
+    while (guard++ < 20) {
+      const st = rs.currentStep();
+      if (!st) break;
+      say("step", st.prompt);
+      let o = fails > 0 ? rs.stepSubmit(st.answer + 1) : rs.stepSubmit(st.answer);
+      if (fails > 0) fails--;
+      if (!o) break;
+      if (o.kind === "stepValue") { say("line", o.line); o = rs.stepForced(o.step.answer); }
+      if (o && o.kind === "rescued") {
+        say("line", o.line);
+        if (o.redemptionStart) say("line", o.redemptionStart);
+        break;
+      }
+    }
+  }
+  const sum = D.runstate.finishRun(rs);
+  lines.push("");
+  say("summary", D.copy.num(sum.score));
+  const pb = ((sum.extra && sum.extra.pbs) || []).find(p => p.kind === "score");
+  if (pb) say("summary", D.copy.summary.newBest(pb.delta));
+  if (sum.golds.length) say("summary", D.copy.summary.gold(sum.golds.map(id => D.facts.display(id, false))));
+  if (sum.gotBack.length) say("summary", D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false))));
+  const nxt = D.scheduler.nextUnopened();
+  if (nxt) say("summary", D.copy.summary.nextTable(nxt));
+  if (sum.xp) say("summary", D.copy.summary.xp(sum.xp));
+  if (sum.sparks) say("summary", D.copy.summary.sparks(sum.sparks));
+
+  const qaDir = path.join(ROOT, "qa");
+  fs.mkdirSync(qaDir, { recursive: true });
+  const header = "Every line a struggling player reads in the tryout and one bad run, in order.\n" +
+    "Read it aloud. Would you say all of this to a kid across a kitchen table?\n\n";
+  fs.writeFileSync(path.join(qaDir, "copy-run.txt"), header + lines.join("\n") + "\n");
+  const text = lines.join("\n");
+  t("the copy transcript is written for a human read", lines.length > 30, "lines " + lines.length);
+  t("the transcript carries the one-time rescue line", text.indexOf(D.copy.rescue.first) >= 0);
+  t("the transcript carries typed walkthrough steps", lines.some(l => l.indexOf("step") === 0));
+  t("nothing in the transcript is a word on a miss",
+    !/not yet|not quite|almost|nope|so close|oops|wrong|good job|great/i.test(text));
+  Math.random = mulberry(SEED);
+}
+
+
+/* ================= 15. what the copy read changed (PLAN §6.6, §6.8) ================= */
+h2("copy read");
+{
+  newState();
+  D.scheduler.activateSafety();
+  const add = "add:8+7";
+  const rs = D.runstate.create(handPlan([add, mid(2, 3), mid(2, 4)]));
+  rs.raw.golds.push(add, mid(2, 3));
+  rs.raw.gotBack.push(add, mid(2, 4), mid(2, 4));
+  const sum = rs.summary();
+  t("the safety net never shows up in a run summary",
+    sum.gotBack.indexOf(add) < 0 && sum.golds.indexOf(add) < 0, JSON.stringify(sum.gotBack));
+  t("a fact won back twice is named once", sum.gotBack.filter(x => x === mid(2, 4)).length === 1);
+}
+{
+  newState();
+  const tr = D.tryout.create();
+  let said = 0, early = 0, g = 0;
+  while (g++ < 60) {
+    const card = tr.next();
+    if (!card) break;
+    const out = tr.answer(D.facts.get(card.id).ans, 700);
+    if (out.line === D.copy.tryout.hardWin) {
+      said++;
+      if (["2", "10", "5"].indexOf(card.table) >= 0) early++;
+    }
+  }
+  t("a perfect tryout says that one's yours once at most", said <= 1, "said " + said);
+  t("that line is never spent on the twos, tens or fives", early === 0);
+}
+
+
+/* ================= 16. what the correctness review found (2026-09-10) ================= */
+h2("correctness review");
+{
+  newState();
+  const tr = D.tryout.create();
+  let g = 0;
+  while (g++ < 60) { const c = tr.next(); if (!c) break; tr.answer(D.facts.get(c.id).ans, 600); }
+  tr.apply();
+  D.scheduler.ensureProgression();
+  t("a perfect tryout still leaves a primary table in focus", !!D.state.focus.primary, JSON.stringify(D.state.focus));
+}
+{
+  newState();
+  D.scheduler.ensureProgression();
+  D.scheduler.tableState("5").status = "open";
+  for (const id of D.facts.table("5").products) seedFast(id);
+  const id = D.facts.mulId(5, 7);
+  const r = D.mastery.rec(id); r.lastMiss = true; r.streak = 0;
+  D.mastery.dirty();
+  let served = 0;
+  for (let i = 0; i < 20; i++) if (D.scheduler.plan().cards.some(c => c.id === id)) served++;
+  t("a fact that slips back in a table outside focus is served again", served > 0, "served in " + served + " of 20 plans");
+}
+{
+  newState();
+  for (const key of D.facts.TABLE_ORDER) {
+    D.scheduler.tableState(key).status = "open";
+    for (const id of D.facts.table(key).items) seedFast(id);
+  }
+  for (const id of D.facts.table("5").divisions) delete D.state.facts[id];
+  D.state.focus = { primary: null, secondary: null };
+  D.mastery.dirty();
+  D.scheduler.ensureProgression();
+  t("a table left half taught comes back into focus",
+    [D.state.focus.primary, D.state.focus.secondary].indexOf("5") >= 0, JSON.stringify(D.state.focus));
+}
+{
+  newState("Tester");
+  const tr = D.tryout.create();
+  let g = 0;
+  while (g++ < 60) { const c = tr.next(); if (!c) break; tr.answer(D.facts.get(c.id).ans, 900); }
+  tr.apply();
+  const backup = D.save.fresh({ name: "Tester", slug: "tester" });
+  backup.facts[mid(3, 4)] = D.mastery.blank();
+  backup.facts[mid(3, 4)].seen = 4;
+  backup.runs.push({ day: "2026-09-08", correct: 18, cards: 20, score: 1500 });
+  backup.lastSeenEpoch = D.u.now() - 86400000;
+  const res = D.share.apply(backup);
+  t("a backup restores onto a new install that has only done the tryout", res.ok === true, JSON.stringify(res));
+}
+{
+  newState();
+  seedTableFast("2");
+  const items = D.mastery.activeItems("2");
+  for (const id of items.slice(-2)) { D.mastery.rec(id).ewma = 3000; }
+  D.mastery.dirty();
+  const test = D.belttest.create("2");
+  let misses = 0, slows = 0, guard = 0;
+  while (!test.isDone() && guard++ < 40) {
+    const p = test.present();
+    if (!p) break;
+    const f = D.facts.get(p.card.id);
+    const fast = D.mastery.isFast(p.card.id);
+    if (fast && misses < 2) { misses++; test.submit(f.ans + 7, 800); }
+    else if (fast && slows < 2) { slows++; test.submit(f.ans, 9000); }
+    else test.submit(f.ans, fast ? 800 : 2300);
+  }
+  const res = test.result();
+  D.scheduler.ensureProgression();
+  t("a pass with two misses and two slow answers is a pass", res.passed === true,
+    res.correct + " correct, " + res.slow + " slow");
+  t("the belt a test just gave is not taken back the same day", D.scheduler.tableState("2").belt === "black",
+    "table now " + Math.round(100 * D.mastery.tableStats("2").fastPct) + " %");
+}
+{
+  setTime(2026, 9, 13, 18, 0);
+  newState();
+  D.scheduler.ensureProgression();
+  const rs = D.runstate.create(D.scheduler.plan());
+  for (let i = 0; i < 4; i++) answer(rs, true, 900);
+  const snap = rs.snapshot();
+  setTime(2026, 9, 14, 9, 0);
+  D.save.touchDay();
+  const wk = D.state.progress.weekKey;
+  const back = D.runstate.resume(snap);
+  t("a resumed run belongs to the day it is finished", back.raw.day === D.u.gameDay(), back.raw.day);
+  playAll(back, { correct: true, ms: 900 });
+  D.runstate.finishRun(back);
+  t("finishing a resumed run never rolls the week backwards", D.state.progress.weekKey === wk,
+    D.state.progress.weekKey + " vs " + wk);
+  setTime(2026, 9, 9, 16, 0);
+}
+{
+  newState();
+  D.state.progress.weekKey = "2026-09-14";
+  D.save.rollWeek("2026-09-10");
+  t("weeks never roll backwards", D.state.progress.weekKey === "2026-09-14");
+}
+{
+  newState();
+  const ids = [mid(6, 7), mid(2, 3), mid(3, 8), mid(4, 9), mid(7, 9), mid(2, 5), mid(8, 9)];
+  seedFast(ids[1]); seedFast(ids[5]);
+  const rs = D.runstate.create(handPlan(ids,
+    ["learning", "maintenance", "learning", "learning", "learning", "maintenance", "learning"]));
+  const miss = answer(rs, false, 3000);
+  if (miss && miss.buttons) rescueThrough(rs, true);
+  const had = rs.raw.cards.some(c => c.kind === "comeback");
+  const slip = answer(rs, false, 3000);
+  t("the slip setup has a comeback and a slip", had && !!slip && slip.slip === true);
+  t("a slip re-serve never deletes a comeback", rs.raw.cards.some(c => c.kind === "comeback"));
+}
+{
+  newState();
+  D.scheduler.activateSafety();
+  D.state.progress.learnSlots = 4;
+  D.scheduler.ensureProgression();
+  const plan = D.scheduler.plan();
+  const safety = plan.cards.filter(c => c.kind === "safety").length;
+  const learning = plan.cards.filter(c => c.kind === "learning").length;
+  t("the quiet lane takes at most half the learning slots", safety <= 2 && learning >= 2,
+    safety + " safety, " + learning + " learning");
+}
+{
+  newState();
+  D.scheduler.activateSafety();
+  let days = 0;
+  for (; days < 60 && D.state.lanes.addsub.active; days++) {
+    for (let k = 0; k < 3; k++) {
+      const plan = D.scheduler.plan();
+      for (const c of plan.cards) {
+        if (D.facts.get(c.id).lane !== "addsub") continue;
+        D.mastery.record(c.id, { correct: true, rt: 900, day: D.u.gameDay() });
+      }
+    }
+    advanceHours(24);
+    D.save.touchDay();
+  }
+  t("a quiet lane answered well turns itself off", D.state.lanes.addsub.active === false,
+    "still on after " + days + " days");
+  setTime(2026, 9, 9, 16, 0);
+}
+{
+  newState();
+  for (const key of D.facts.TABLE_ORDER) D.scheduler.tableState(key).status = "open";
+  for (const key of D.facts.TABLE_ORDER.slice(0, 6)) D.scheduler.tableState(key).belt = "black";
+  D.scheduler.ensureProgression();
+  t("an open Beyond topic has a place on the belt ladder", D.scheduler.beltKeys().some(k => k.indexOf("bey:") === 0));
+  t("a Beyond topic's belt lines read properly",
+    !/NaN|undefined|bey:/.test(D.copy.belts.offer("bey:sq") + D.copy.belts.pass("bey:ops")),
+    D.copy.belts.pass("bey:ops"));
+}
+
+
+/* ================= 17. what the exploit review found (2026-09-10) ================= */
+h2("exploit review");
+{
+  newState();
+  const ids = [mid(6, 7), mid(2, 3), mid(2, 4)];
+  const rs = D.runstate.create(handPlan(ids, ["learning", "maintenance", "maintenance"]));
+  const out = answer(rs, false, 3000);
+  t("the kill setup reaches the miss buttons", !!out && out.buttons === true);
+  const back = D.runstate.resume(rs.snapshot());
+  t("a run closed at the miss buttons comes back on the shown answer",
+    back.raw.phase === "reveal" && back.raw.i === 0, back.raw.phase + " at " + back.raw.i);
+  const xp0 = D.state.progress.xp;
+  t("the reopened card cannot be answered for points", back.submit(D.facts.get(ids[0]).ans, 800) === null);
+  const done = back.typedAnswer(D.facts.get(ids[0]).ans);
+  t("typing the shown answer pays nothing", !!done && done.points === 0 && D.state.progress.xp === xp0);
+}
+{
+  newState("Tester");
+  seedTableFast("2");
+  D.state.runs.push({ day: D.u.gameDay(), correct: 18, cards: 20, score: 1500 });
+  const link = JSON.parse(JSON.stringify(D.state));
+  const test = D.belttest.create("2");
+  test.abandon();
+  t("a link taken just before a Belt Test is refused after it", D.share.apply(link).ok === false);
+  const edited = JSON.parse(JSON.stringify(link));
+  edited.lastSeenEpoch = D.state.lastSeenEpoch + 60000;
+  for (const id of Object.keys(edited.facts)) edited.facts[id].seen = Math.max(0, edited.facts[id].seen - 1);
+  t("a backup that has answered fewer cards is refused whatever its clock says", D.share.apply(edited).ok === false);
+}
+{
+  newState("Tester");
+  const payload = D.save.fresh({ name: "Tester", slug: "tester" });
+  for (const id of D.facts.table("2").items) {
+    payload.facts[id] = Object.assign(D.mastery.blank(), { seen: 8, ok: 8, streak: 3, ewma: 900,
+      window: [1, 1, 1, 1, 1, 1, 1, 1], provisional: true, lastDay: D.u.gameDay() });
+  }
+  payload.tables["2"] = { status: "open", belt: "orange", testAttemptDay: null, testFailed: false, hot: [] };
+  D.share.apply(payload);
+  D.state.progress.runsToday = 3;
+  t("a restore leaves no same-day Belt Test through the seeded-table rule", D.belttest.canAttempt("2") === false);
+}
+{
+  newState();
+  seedTableFast("2");
+  const test = D.belttest.create("2");
+  for (let i = 0; i < 3; i++) { const p = test.present(); test.submit(D.facts.get(p.card.id).ans + 7, 800); }
+  const prog = D.state.flags.testProgress;
+  t("a Belt Test keeps its progress in the save card by card",
+    !!prog && prog.served === 3 && prog.correct === 0, JSON.stringify(prog));
+}
+{
+  newState("Tester");
+  D.state.progress.xp = 25500;
+  t("XP with no correct answers behind it is flagged", D.share.checks(D.state).some(c => c.id === "xp"));
+  D.state.progress.xp = 0;
+  D.state.progress.sparks = 50052;
+  t("sparks no answers could have paid are flagged", D.share.checks(D.state).some(c => c.id === "sparks"));
+  D.state.progress.sparks = 0;
+  D.scheduler.tableState("7").belt = "black";
+  t("a black belt with no passed test on record is flagged", D.share.checks(D.state).some(c => c.id === "belts"));
+}
+{
+  newState();
+  seedTableFast("7");
+  const t7 = D.scheduler.tableState("7");
+  t7.status = "open"; t7.belt = "black"; t7.beltDay = "2026-09-09"; t7.provisionalUntil = "2026-09-12"; t7.provisionalDays = [];
+  D.scheduler.checkProvisional({ day: "2026-09-13", counted: true });
+  t("days the app was shut do not settle a provisional belt",
+    !!t7.provisionalUntil && t7.provisionalDays.length === 1, JSON.stringify(t7.provisionalDays));
+  D.scheduler.checkProvisional({ day: "2026-09-14", counted: true });
+  D.scheduler.checkProvisional({ day: "2026-09-15", counted: true });
+  t("three days of play at the belt's standard settle it", !t7.provisionalUntil && t7.belt === "black");
+}
+{
+  newState();
+  const id = mid(7, 8);
+  const r = seedFast(id); r.best = 6000;
+  seedFast(mid(2, 3)); seedFast(mid(2, 4));
+  const rs = D.runstate.create(handPlan([id, mid(2, 3), mid(2, 4)]));
+  const out = rs.submit(D.facts.get(id).ans, 5800);
+  t("beating a slow ghost outside the fast line pays no spark", out.marks.indexOf("pb") < 0);
+}
+{
+  newState();
+  const sp0 = D.state.progress.sparks;
+  D.xp.checkPbs({ score: 1500, bestCombo: 12, fastestFact: { id: mid(7, 8), ms: 1500 }, table: null, medianRt: 1500 });
+  t("the first run sets every personal best without paying for one", D.state.progress.sparks === sp0,
+    "sparks paid " + (D.state.progress.sparks - sp0));
+}
+{
+  newState();
+  const ids = [mid(2, 3), mid(6, 9), mid(2, 4), mid(2, 5)];
+  ids.forEach(id => seedAuto(id));
+  const plan = handPlan(ids);
+  plan.cards[1].bonus = true;
+  const rs = D.runstate.create(plan);
+  answer(rs, true, 800);
+  const combo = rs.raw.combo;
+  const slip = answer(rs, false, 3000);
+  t("a slip on a settled fact goes on its record",
+    !!slip && slip.slip === true && D.mastery.rec(ids[1]).lastMissDay === D.u.gameDay() &&
+    D.mastery.rec(ids[1]).miss >= 1);
+  t("a slip alone does not take a day", D.mastery.rec(ids[1]).days.length === 3,
+    "days " + D.mastery.rec(ids[1]).days.length);
+  const re = answer(rs, true, 800);
+  t("a slip's re-serve does not step the combo", rs.raw.combo === combo, combo + " then " + rs.raw.combo);
+  t("a bonus card answered wrong first pays no bonus", re.marks.indexOf("bonus") < 0);
+}
+{
+  D.beyond.build();
+  const yn = D.beyond.topicFacts("divis")[0];
+  const worked = D.beyond.topicFacts("mul2x1")[0];
+  t("a yes or no Beyond card pays less than one that has to be worked out",
+    D.facts.weight(yn) <= 0.5 && D.facts.weight(yn) < D.facts.weight(worked));
 }
 
 /* ================= results ================= */
