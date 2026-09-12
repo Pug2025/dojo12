@@ -1,62 +1,108 @@
-/* Dojo 12 — colour themes. The base theme ships with the game; the rest are
-   shop stock. Every theme sets the same variables.
+/* Dojo 12 — papers (ART.md). Every paper sets the same tokens and nothing else;
+   the material rules in app.css never change with the paper. Washi and Night are
+   free and picked on first launch, the rest are shop stock.
+   Belt colours are the real cloth and never change with the paper. */
+:root,
+[data-theme="washi"] {
+  --paper:  #EFE8D8;
+  --paper2: #E2D9C3;
+  --paper3: #D6CBB0;
+  --ink:    #1A1611;
+  --ink2:   #6B6252;
+  --rule:   #C7BCA0;
+  --shu:    #C2361E;
+  --kin:    #C9A227;
+  --onInk:  #EFE8D8;
+  --grainA: rgba(26, 22, 17, 0.05);
+  --grainB: rgba(26, 22, 17, 0.03);
+}
+[data-theme="night"] {
+  --paper:  #1B2436;
+  --paper2: #232E44;
+  --paper3: #2C3850;
+  --ink:    #ECE6D8;
+  --ink2:   #9AA4B8;
+  --rule:   #3A4760;
+  --shu:    #D9553C;
+  --kin:    #D8B44A;
+  --onInk:  #1B2436;
+  --grainA: rgba(236, 230, 216, 0.05);
+  --grainB: rgba(236, 230, 216, 0.03);
+}
+[data-theme="matcha"] {
+  --paper:  #E4E7D4;
+  --paper2: #D6DBC1;
+  --paper3: #C6CDAD;
+  --ink:    #1E2416;
+  --ink2:   #636B52;
+  --rule:   #B7BE9F;
+  --shu:    #B33F22;
+  --kin:    #B79226;
+  --onInk:  #E4E7D4;
+  --grainA: rgba(30, 36, 22, 0.05);
+  --grainB: rgba(30, 36, 22, 0.03);
+}
+[data-theme="sakura"] {
+  --paper:  #F2E3E1;
+  --paper2: #E8D2D0;
+  --paper3: #DCC0BE;
+  --ink:    #241A1A;
+  --ink2:   #6F5A5A;
+  --rule:   #CFB2B0;
+  --shu:    #B5342B;
+  --kin:    #BE9330;
+  --onInk:  #F2E3E1;
+  --grainA: rgba(36, 26, 26, 0.05);
+  --grainB: rgba(36, 26, 26, 0.03);
+}
+[data-theme="kraft"] {
+  --paper:  #D9C4A3;
+  --paper2: #CBB390;
+  --paper3: #B99F79;
+  --ink:    #241A0F;
+  --ink2:   #6E5A42;
+  --rule:   #AE9470;
+  --shu:    #A83A1C;
+  --kin:    #9C7A1E;
+  --onInk:  #D9C4A3;
+  --grainA: rgba(36, 26, 15, 0.06);
+  --grainB: rgba(36, 26, 15, 0.035);
+}
+[data-theme="sumi"] {
+  --paper:  #23211C;
+  --paper2: #2C2A24;
+  --paper3: #3A372F;
+  --ink:    #EFE8D8;
+  --ink2:   #A29882;
+  --rule:   #4A463C;
+  --shu:    #D4482C;
+  --kin:    #D4B03C;
+  --onInk:  #23211C;
+  --grainA: rgba(239, 232, 216, 0.05);
+  --grainB: rgba(239, 232, 216, 0.03);
+}
+[data-theme="kinpaku"] {
+  --paper:  #F0E3C0;
+  --paper2: #E4D3A5;
+  --paper3: #D4BF88;
+  --ink:    #1F1A0F;
+  --ink2:   #6B5E3C;
+  --rule:   #C9B27F;
+  --shu:    #B3341C;
+  --kin:    #A8871B;
+  --onInk:  #F0E3C0;
+  --grainA: rgba(31, 26, 15, 0.05);
+  --grainB: rgba(31, 26, 15, 0.03);
+}
 
-   The four grid states are four different hues, not four shades of one, so a
-   cell reads at 24 pixels across a room: orange is being learned, blue is known
-   but slow, green is fast, gold is settled. Gold also carries a ring inside the
-   cell, so the two brightest states differ in shape as well as colour. */
-:root, [data-theme="dojo"] {
-  --bg: #0a0c11; --bg2: #0e1118;
-  --panel: #171b25; --panel2: #212736; --edge: #2c3446;
-  --ink: #f3f6fc; --dim: #8b95ab; --scrim: rgba(5,7,11,0.78);
-  --accent: #ff6a3d; --accent2: #ffa23d; --onAccent: #180702;
-  --glow: rgba(255,106,61,0.30);
-  --gold: #ffc93c; --gold2: #ffe27a; --goldSoft: rgba(255,201,60,0.20);
-  --learn: #ef7d3c; --known: #4d9bf0; --fastc: #2fbf71;
-  --bad: #ff4f4f; --warn: #ffb03d;
-  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(255,140,80,0.16), transparent 70%);
-}
-[data-theme="space"] {
-  --bg: #05070f; --bg2: #080c1a;
-  --panel: #121a30; --panel2: #1c2645; --edge: #2a3660;
-  --ink: #e9edff; --dim: #7f8db8; --scrim: rgba(2,4,10,0.80);
-  --accent: #6f8cff; --accent2: #9d7bff; --onAccent: #030618;
-  --glow: rgba(111,140,255,0.32);
-  --gold: #ffd166; --gold2: #fff0b8; --goldSoft: rgba(255,209,102,0.20);
-  --learn: #f08a4b; --known: #55b7e8; --fastc: #45d6a0;
-  --bad: #ff5f6b; --warn: #ffb45a;
-  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(120,140,255,0.18), transparent 70%);
-}
-[data-theme="paper"] {
-  --bg: #f2eee2; --bg2: #ece7d8;
-  --panel: #fffdf6; --panel2: #e4dece; --edge: #d3ccb7;
-  --ink: #1f1c16; --dim: #6f6857; --scrim: rgba(38,34,26,0.45);
-  --accent: #c14a24; --accent2: #e0873a; --onAccent: #fffdf6;
-  --glow: rgba(193,74,36,0.22);
-  --gold: #d99b1c; --gold2: #f2c65c; --goldSoft: rgba(217,155,28,0.22);
-  --learn: #d4762e; --known: #3d7fbf; --fastc: #2f8f57;
-  --bad: #b8382c; --warn: #b8802e;
-  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(193,74,36,0.10), transparent 70%);
-}
-[data-theme="neon"] {
-  --bg: #06060c; --bg2: #0a0a14;
-  --panel: #14142a; --panel2: #1e1e3c; --edge: #2d2d58;
-  --ink: #f4f2ff; --dim: #8d88bd; --scrim: rgba(3,3,8,0.80);
-  --accent: #14e0a3; --accent2: #4df0ff; --onAccent: #021410;
-  --glow: rgba(20,224,163,0.30);
-  --gold: #ffe14d; --gold2: #fff7a8; --goldSoft: rgba(255,225,77,0.20);
-  --learn: #ff8a3d; --known: #4d9bf0; --fastc: #22e08a;
-  --bad: #ff3d68; --warn: #ffa93d;
-  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(20,224,163,0.16), transparent 70%);
-}
-[data-theme="animals"] {
-  --bg: #0d0f0a; --bg2: #12160e;
-  --panel: #1c2216; --panel2: #28301e; --edge: #38432a;
-  --ink: #f4f6ea; --dim: #96a186; --scrim: rgba(6,8,4,0.78);
-  --accent: #c9a227; --accent2: #e8c65a; --onAccent: #16150a;
-  --glow: rgba(201,162,39,0.28);
-  --gold: #ffd95c; --gold2: #fff0b0; --goldSoft: rgba(255,217,92,0.20);
-  --learn: #e08a3c; --known: #5aa7d8; --fastc: #58b364;
-  --bad: #d9503f; --warn: #e0a63c;
-  --lamp: radial-gradient(120% 62% at 50% -12%, rgba(201,162,39,0.15), transparent 70%);
+/* The belt cloth. A coloured belt with a black rank bar holding white stripes,
+   and a red bar on a black belt, the way a real one is made. */
+:root {
+  --belt-white:  #F4F0E6;
+  --belt-blue:   #2C4D8C;
+  --belt-purple: #5A3A78;
+  --belt-brown:  #6B4423;
+  --belt-black:  #14110D;
+  --belt-bar:    #14110D;
+  --belt-tape:   #F4F0E6;
 }

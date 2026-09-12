@@ -22,11 +22,12 @@ D.runstate = (function () {
       phase: 'card',
       score: 0, combo: 0, bestCombo: 0,
       served: 0, correct: 0, unaided: 0, unaidedCards: 0,
-      xpGained: 0, sparksGained: 0, sparkAcc: 0,
-      golds: [], gotBack: [], missed: [], rts: [],
-      outOfTimeShown: false, fastWrongs: 0, earnedLine: null, earnedShown: false,
+      xpGained: 0, coinsGained: 0,
+      dotted: [], done: [], gotBack: [], missed: [], rts: [],
+      outOfTimeShown: false, fastWrongs: 0,
       slipUsed: false, cardHelped: false, cardFastWrong: false, cardStepRetried: false,
-      cardDiagnosis: null, rescue: null, pending: [],
+      cardDiagnosis: null, rescue: null, pending: [], cardOvertime: false,
+      spares: (plan.spares || []).slice(),
       redemption: false, redemptionQueue: [], finished: false,
       counted: false, table: o.table || null,
     };
@@ -56,7 +57,7 @@ D.runstate = (function () {
         digits: D.u.digitsOf(f.ans),
         ringMs: ringMs(c),
         last: !!c.last, comeback: c.kind === 'comeback', redemption: c.kind === 'redemption',
-        phase: r.phase, combo: r.combo, score: r.score,
+        phase: r.phase, combo: r.combo, score: r.score, overtime: !!r.cardOvertime,
       };
     }
 
@@ -90,25 +91,23 @@ D.runstate = (function () {
       if (ring) base += cfg.RING_BONUS * D.u.clamp(1 - rt / ring, 0, 1);
       return base;
     }
-    function payCorrect(c, rt) {
-      const out = { points: 0, xp: 0, sparks: 0, marks: [] };
+    function payCorrect(c, rt, overtime) {
+      const out = { points: 0, xp: 0, coins: 0, marks: [] };
       let base = baseFor(c, rt);
       if (c.last) base *= cfg.LAST_CARD_MULT;
       if (c.bonus) base *= cfg.BONUS_MULT;
-      if (c.kind === 'comeback') out.points = Math.round(base * (c.comebackMult || cfg.COMEBACK_MULT));
+      // After the ring ran out: base points, no combo multiplier, no comeback double.
+      if (overtime) out.points = Math.round(base);
+      else if (c.kind === 'comeback') out.points = Math.round(base * (c.comebackMult || cfg.COMEBACK_MULT));
       else if (c.kind === 'redemption') out.points = Math.round(baseFor(c, rt));
       else if (c.slipRepair) out.points = Math.round(baseFor(c, rt));
       else out.points = Math.round(base * comboMult(r.combo));
       r.score += out.points;
-      if (c.bonus) { out.sparks += cfg.BONUS_SPARKS; out.marks.push('bonus'); }
+      if (c.bonus) { out.coins += cfg.BONUS_COINS; out.marks.push('bonus'); }
       return out;
     }
     function gainXp(n) { r.xpGained += n; }
-    function gainSparks(n) { r.sparksGained += n; D.xp.addSparks(n); }
-    function creditSparkForAnswer() {
-      r.sparkAcc += cfg.SPARKS_PER_CORRECT;
-      if (r.sparkAcc >= 1) { const whole = Math.floor(r.sparkAcc); r.sparkAcc -= whole; gainSparks(whole); }
-    }
+    function gainCoins(n) { r.coinsGained += n; D.xp.addCoins(n); }
 
     /* ---- the answer ---- */
     function submit(value, rt) {
@@ -116,21 +115,34 @@ D.runstate = (function () {
       const c = card(), f = D.facts.get(c.id);
       const given = value === '' || value === null || value === undefined ? null : value;
       const correct = D.facts.check(c.id, value);
+      // Answered well after the ring emptied on a card that stays up: the same as
+      // timeout() having fired, for callers that never ran the clock.
+      const ring = ringMs(c);
+      if (ring && rt > ring + cfg.RING_GRACE_MS && overtimeKind(c)) r.cardOvertime = true;
       r.served++;
       r.rts.push(rt);
       return correct ? onCorrect(c, f, rt) : onWrong(c, f, rt, given, false);
     }
+    function overtimeKind(c) { return cfg.RING_OVERTIME_KINDS.indexOf(c.ringKind) >= 0; }
+    /* On a question still slow for this child an emptied ring leaves the card up:
+       it still takes the answer, for base points and no combo step. On a fast or
+       gold question it is a miss (Jamie, rework 2026-09-10). */
     function timeout() {
       if (r.phase !== 'card') return null;
       const c = card(), f = D.facts.get(c.id);
+      if (overtimeKind(c)) {
+        if (r.cardOvertime) return null;
+        r.cardOvertime = true;
+        return { kind: 'overtime', card: c };
+      }
       const ring = ringMs(c) || 0;
       r.served++;
       return onWrong(c, f, ring + cfg.RING_GRACE_MS, null, true);
     }
 
     function onCorrect(c, f, rt) {
-      const out = { kind: 'correct', card: c, rt: rt, points: 0, xp: 0, sparks: 0, marks: [],
-                    gold: false, line: null, comeback: c.kind === 'comeback' };
+      const out = { kind: 'correct', card: c, rt: rt, points: 0, xp: 0, coins: 0, marks: [],
+                    dot: false, bothDots: false, line: null, comeback: c.kind === 'comeback' };
       // Scouts are invisible: they score like any card and move the combo not at all.
       if (c.kind === 'scout') {
         D.scheduler.noteScout(c.id, true, rt <= M().threshold(c.id));
@@ -141,50 +153,75 @@ D.runstate = (function () {
       }
       const helped = r.cardHelped || c.kind === 'redemption' || !!c.slipRepair;
       const before = M().peek(c.id);
-      const beforeStatus = M().status(c.id);
       const beforeBest = before ? before.best : null;
       const rec = M().record(c.id, { correct: true, rt: rt, helped: helped, day: r.day,
                                      warmup: c.kind === 'warmup', comeback: c.kind === 'comeback' });
       r.correct++;
       if (!helped) { r.unaided++; }
-      // A slip's re-serve holds the combo where it was, as decided in step 1.
-      if (!c.slipRepair) {
+      // A slip's re-serve holds the combo where it was, as decided in step 1, and so
+      // does an answer given after the ring ran out.
+      const overtime = !!r.cardOvertime;
+      if (!c.slipRepair && !overtime) {
         r.combo++;
         if (r.combo > r.bestCombo) r.bestCombo = r.combo;
       }
-      const pay = payCorrect(c, rt);
-      out.points = pay.points; out.marks = pay.marks; out.sparks += pay.sparks;
-      if (pay.sparks) gainSparks(pay.sparks);
+      const pay = payCorrect(c, rt, overtime);
+      out.points = pay.points; out.marks = pay.marks; out.coins += pay.coins;
+      if (pay.coins) gainCoins(pay.coins);
 
       if (!helped) {
         out.xp = D.xp.answerXp(c.id);
         gainXp(out.xp);
-        creditSparkForAnswer();
+        gainCoins(cfg.COINS_PER_CORRECT);
+        out.coins += cfg.COINS_PER_CORRECT;
         if (!r.fastestFact || rt < r.fastestFact.ms) r.fastestFact = { id: c.id, ms: rt };
-        // The ghost only pays inside the fast line, or answering slowly on purpose
-        // and shaving a little each time paid a spark nearly every card.
+        // Beating this question's best time is marked, never paid. Paid, answering
+        // slowly on purpose and shaving a little each time was worth doing.
         if (beforeBest !== null && before && before.ok >= cfg.GHOST_MIN_ATTEMPTS &&
             rt <= beforeBest - cfg.GHOST_BEAT_MS && M().isFastRt(c.id, rt)) {
           out.marks.push('pb');
-          gainSparks(cfg.SPARKS_GHOST);
-          out.sparks += cfg.SPARKS_GHOST;
         }
       }
-      if (rec.turnedGold) {
-        const goldXp = D.xp.goldXp(c.id);
-        if (goldXp) { gainXp(goldXp); out.xp += goldXp; out.gold = true; r.golds.push(c.id); out.sparks += cfg.SPARKS_GOLD; r.sparksGained += cfg.SPARKS_GOLD; }
+      // A dot filled, and both dots filled: the in-run moments about learning.
+      if (rec.dotFilled) { out.dot = true; r.dotted.push(c.id); }
+      if (rec.bothDots) {
+        out.bothDots = true;
+        r.done.push(c.id);
+        D.state.progress.doneThisWeek = (D.state.progress.doneThisWeek || 0) + 1;
       }
       if (c.kind === 'comeback') { out.line = D.copy.run.comebackWin; r.gotBack.push(c.id); }
       if (c.bonus) out.line = D.copy.run.bonus;
-      // One earned line per run, and only for a fact that was not already settled.
-      if (!r.earnedShown && !helped && !c.bonus && c.kind !== 'comeback' &&
-          (beforeStatus === 'learning' || beforeStatus === 'known') &&
-          rec.wasFast && D.facts.weight(c.id) >= 1.1) {
-        r.earnedShown = true;
-        out.line = D.copy.run.earned(c.id, c.flip, rt);
-      }
+      trimRepeats(c, false);
       dropFromRedemption(c.id);
       return advance(out);
+    }
+
+    /* A booked repeat keeps its card only while it has a job: the fact is still
+       slow for this child, or a fast answer today would still add a day. Otherwise
+       the card goes to a fact this run is not serving. After a miss the comeback
+       is the repeat, so the booked ones go. Taken whatever happened, they served
+       4 × 4 three times in one round (rework 2026-09-10). */
+    function trimRepeats(c, missed) {
+      if (c.kind !== 'promote') return;
+      if (!missed && (M().status(c.id) === 'known' || M().canCountToday(c.id, r.day))) return;
+      for (let j = r.i + 1; j < r.cards.length; j++) {
+        const o = r.cards[j];
+        if (!o || o.id !== c.id || !o.repeat || o.last) continue;
+        const sub = spareFor(j);
+        if (!sub) continue;
+        sub.slot = j; sub.bonus = o.bonus;
+        r.cards[j] = sub;
+      }
+    }
+    function spareFor(j) {
+      const near = [r.cards[j - 1], r.cards[j + 1]].filter(Boolean);
+      const k = r.spares.findIndex(id => {
+        const ans = D.facts.get(id).ans;
+        if (near.some(o => o.id === id || D.facts.get(o.id).ans === ans)) return false;
+        return !r.cards.some((o, idx) => idx > r.i && o.id === id);
+      });
+      if (k < 0) return null;
+      return D.scheduler.card(r.spares.splice(k, 1)[0], 'maintenance');
     }
 
     function onWrong(c, f, rt, given, timedOut) {
@@ -225,6 +262,7 @@ D.runstate = (function () {
         (D.state.progress.fastWrongs7d = D.state.progress.fastWrongs7d || []).push(r.day);
       }
       M().record(c.id, { correct: false, rt: rt, day: r.day });
+      trimRepeats(c, true);
       // A warm-up is the ramp, not the test: missing one costs the card, never
       // the combo, so card four is never reached at nothing (PLAN §2, §6.5).
       if (c.kind === 'warmup') { /* the combo holds */ }
@@ -374,7 +412,7 @@ D.runstate = (function () {
     function advance(out) {
       r.i++;
       r.slipUsed = false; r.cardHelped = false; r.cardFastWrong = false;
-      r.cardStepRetried = false; r.cardMissed = false; r.cardDiagnosis = null;
+      r.cardStepRetried = false; r.cardMissed = false; r.cardDiagnosis = null; r.cardOvertime = false;
       r.phase = 'card';
       if (r.i >= r.cards.length) startRedemptionOrFinish(out);
       out.next = present();
@@ -438,7 +476,7 @@ D.runstate = (function () {
     });
     return {
       score: r.score, correct: r.correct, unaided: r.unaided, cards: r.served,
-      xp: r.xpGained, sparks: r.sparksGained, golds: shown(r.golds), gotBack: shown(r.gotBack),
+      xp: r.xpGained, coins: r.coinsGained, dotted: shown(r.dotted), done: shown(r.done), gotBack: shown(r.gotBack),
       missed: r.missed.slice(), bestCombo: r.bestCombo, medianRt: medianRt,
       fastestFact: r.fastestFact, day: r.day, table: r.table, fastWrongs: r.fastWrongs,
       counted: r.correct >= D.cfg.RUN_MIN_CORRECT,
@@ -453,17 +491,18 @@ D.runstate = (function () {
     s.runs.push({ day: sum.day, table: sum.table, score: sum.score, correct: sum.correct,
                   cards: sum.cards, medianRt: sum.medianRt });
     while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
-    const extra = { weekBonus: 0, daysBonus: 0, pbs: [] };
+    const extra = { pbs: [], belt: [] };
     if (sum.counted) {
-      const credit = D.xp.creditDay(sum.day);
-      extra.weekBonus = credit.weekBonus;
-      extra.daysBonus = credit.daysBonus;
-      extra.daysBonusAt = credit.daysBonusAt;
+      D.xp.creditDay(sum.day);
       extra.pbs = D.xp.checkPbs(sum);
     }
     D.scheduler.adaptLearnSlots();
-    D.scheduler.checkProvisional(sum);
+    D.scheduler.endPlacementRound();
     D.scheduler.ensureProgression();
+    // Stripes and belts are settled when the round ends, where there is room to
+    // show them (rework 2026-09-10). A short round's dots still count.
+    extra.belt = D.belt.update();
+    sum.coins += extra.belt.reduce((n, e) => n + e.coins, 0);
     s.inRun = null;
     D.save.commit();
     sum.extra = extra;

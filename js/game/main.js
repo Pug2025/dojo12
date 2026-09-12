@@ -1,4 +1,6 @@
-/* Dojo 12 — screens and the flow between them. */
+/* Dojo 12 — screens and the flow between them (ART.md for the look, PLAN §7.1
+   for what each screen holds). Four things a child tracks: points for the round,
+   coins to spend, a level that stocks the shop, and one belt moved by dots. */
 "use strict";
 D.main = (function () {
   const u = () => D.u;
@@ -21,15 +23,10 @@ D.main = (function () {
     D.save.loadProfile(slug);
     D.shop.apply();
     D.save.touchDay();
-    // A Belt Test that was walked away from is a fail, and it stays stamped.
+    // A belt test that was walked away from is a fail, and it stays stamped.
     if (D.state.flags.testInProgress) {
-      const key = D.state.flags.testInProgress;
-      const t = D.scheduler.tableState(key);
-      t.testFailed = true;
-      // It goes on the record like any failed test, with what was answered,
-      // so the dashboard still sees it (exploit review 2026-09-10).
       const prog = D.state.flags.testProgress;
-      D.state.tests.push({ day: (prog && prog.day) || D.u.gameDay(), key: key, passed: false,
+      D.state.tests.push({ day: (prog && prog.day) || D.u.gameDay(), key: 'black', passed: false,
                            abandoned: true, correct: prog ? prog.correct : 0,
                            total: prog ? prog.total : D.cfg.TEST_CARDS,
                            medianRt: prog ? D.u.median(prog.rts) : null });
@@ -39,131 +36,140 @@ D.main = (function () {
       D.save.commitNow();
     }
     D.scheduler.ensureProgression();
-    if (!D.state.flags.tryoutDone) return tryoutIntro();
+    if (!D.state.flags.tryoutDone) return intro(0);
     home();
   }
-  function applyTheme() { D.shop.apply(); }
 
   /* ---- first launch ---- */
   function firstLaunch() {
     u().clear(root);
     const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
                                     autocapitalize: 'words', maxlength: '14' });
-    const go = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.firstLaunch.nameGo);
-    go.addEventListener('click', () => {
+    const go = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.first.start);
+    const startNamed = () => {
       const name = (field.value || '').trim();
-      if (!name) { field.focus(); return; }
-      D.save.startProfile(name, 'dojo');
-      applyTheme();
+      if (!name) { D.fx.toast(D.copy.first.nameNeeded, 1600); field.focus(); return; }
+      D.save.startProfile(name, 'washi');
+      D.shop.apply();
       D.scheduler.ensureProgression();
       D.save.commitNow();
-      themePick();
-    });
-    // A lost phone or a deleted icon comes back through here, before any tryout.
-    const extra = u().el('div', { class: 'col', style: { gap: '8px' } });
-    const restore = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.settings.restore);
-    restore.addEventListener('click', () => openRestore(extra));
+      paperPick();
+    };
+    go.addEventListener('click', startNamed);
+    field.addEventListener('keydown', e => { if (e.key === 'Enter') startNamed(); });
+    // A lost phone or a deleted icon comes back through here, before round 1.
+    const box = u().el('div', { class: 'col', style: { gap: '9px' } });
+    const link = u().el('button', { class: 'link small', type: 'button' }, D.copy.first.haveSave);
+    link.addEventListener('click', () => toggleRestore(box));
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'big' }, D.copy.firstLaunch.askName),
+      u().el('div', { class: 'titlebar' }, D.copy.first.askName),
       field, go,
       u().el('div', { class: 'grow' }),
-      restore, extra,
+      link, box,
     ]));
     setTimeout(() => field.focus(), 120);
   }
 
-  /* One theme, free, chosen before anything else. The rest are shop stock. */
-  function themePick() {
+  /* Two papers are free. The rest are shop stock, so nothing here is taken back. */
+  function paperPick() {
     u().clear(root);
-    const list = u().el('div', { class: 'tiles' });
-    const themes = ['dojo'].concat(D.cfg.SHOP.filter(i => i.kind === 'theme').map(i => i.value));
-    for (const value of themes) {
-      const item = D.cfg.SHOP.find(i => i.kind === 'theme' && i.value === value);
-      const name = D.copy.shop.names['theme:' + value];
-      const b = u().el('button', { class: 'btn wide col centre', type: 'button',
-                                   style: { gap: '9px', padding: '17px' } }, [
-        u().el('i', { class: 'swatch big-swatch v-' + value }),
-        u().el('span', {}, name),
+    const list = u().el('div', { class: 'col', style: { gap: '9px' } });
+    for (const value of D.cfg.FREE_PAPERS) {
+      const b = u().el('button', { class: 'btn wide row between', type: 'button' }, [
+        u().el('span', {}, D.copy.shop.names['theme:' + value]),
+        D.shop.paperSwatch(value),
       ]);
       b.addEventListener('click', () => {
         D.state.profile.theme = value;
         D.state.cosmetics.equipped.theme = value;
-        if (item) { D.state.cosmetics.owned.push(item.id); D.state.cosmetics.free = item.id; }
+        D.state.cosmetics.free = 'theme:' + value;
         D.shop.apply();
         D.save.commitNow();
-        tryoutIntro();
+        intro(0);
       });
       list.appendChild(b);
     }
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'big' }, D.copy.firstLaunch.themeTitle),
+      u().el('div', { class: 'titlebar' }, D.copy.first.pickPaper),
       list,
+      u().el('div', { class: 'small dim t13' }, D.copy.first.paperNote),
       u().el('div', { class: 'grow' }),
     ]));
   }
 
-  /* ---- the tryout (PLAN §6.6) ---- */
-  function tryoutIntro() {
+  /* ---- the three screens before round 1 ---- */
+  function intro(step) {
     u().clear(root);
-    const go = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.tryout.play);
-    go.addEventListener('click', runTryout);
+    const art = u().el('div', { class: 'cardwrap', style: { maxHeight: '46vh' } });
+    const card = u().el('div', { class: 'card', style: { width: '210px', height: '210px', '--cs': '210px' } });
+    art.appendChild(card);
+    let title = '', body = '';
+    if (step === 0) {
+      title = D.copy.intro.card; body = D.copy.intro.cardHow;
+      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
+      card.appendChild(u().el('div', { class: 'slots' }, [u().el('i', { class: 'on' }), u().el('i')]));
+    } else if (step === 1) {
+      title = D.copy.intro.timer; body = D.copy.intro.timerHow;
+      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
+      const ring = D.fx.enso(card, { goldAt: 0.42, bestAt: 0 });
+      ring.set(0.62);
+    } else {
+      title = D.copy.intro.dots; body = D.copy.intro.dotsHow;
+      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
+      card.appendChild(u().el('div', { class: 'dots' }, [u().el('i', { class: 'on' }), u().el('i', { class: 'lit' })]));
+    }
+    const last = step >= 2;
+    const go = u().el('button', { class: 'btn ink wide', type: 'button' },
+                      last ? D.copy.intro.start : D.copy.intro.next);
+    go.addEventListener('click', () => (last ? startRoundOne() : intro(step + 1)));
+    const marks = u().el('div', { class: 'pips' });
+    for (let i = 0; i < 3; i++) marks.appendChild(u().el('i', { class: i === step ? 'now' : i < step ? 'done' : '' }));
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'big' }, D.copy.tryout.intro),
+      marks, art,
+      u().el('div', { class: 'titlebar' }, title),
+      u().el('div', { class: 't15' }, body),
+      last ? u().el('div', { class: 't13 dim' }, D.copy.intro.roundOne) : null,
       u().el('div', { class: 'grow' }),
       go,
     ]));
   }
-  function runTryout() {
+
+  /* ---- round 1: the same screen as every round ---- */
+  function startRoundOne() {
     D.audio.unlock();
-    const t = D.tryout.create();
-    let pending = null;
-    D.cards.start(root, {
-      provide: () => { pending = t.next(); return pending; },
-      answer: (v, rt) => {
-        const out = t.answer(v, rt);
-        if (!out) return { correct: false, done: true };
-        return { correct: out.correct, line: out.line, flash: out.flash,
-                 done: false, streak: 1 };
-      },
-      onDone: () => tryoutEnd(t),
-    });
+    const ro = D.roundone.create();
+    D.__rs = ro;
+    D.run.start(root, { rs: ro, onDone: roundOneEnd, onLeave: () => intro(2) });
   }
-  function tryoutEnd(t) {
-    const sum = t.apply();
+  function roundOneEnd(sum) {
     u().clear(root);
-    const go = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.tryout.play);
-    go.addEventListener('click', () => { home(); startRun(); });
+    const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
+    const lines = u().el('div', { class: 'lines' }, [
+      u().el('div', { class: 't17' }, focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen),
+      u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest),
+      u().el('div', { class: 't15' }, D.copy.roundOne.coins),
+      u().el('div', { class: 't15' }, D.copy.roundOne.xp),
+    ]);
+    const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.roundOne.play);
+    again.addEventListener('click', startRun);
+    const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.roundOne.home);
+    back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'titlebar' }, D.copy.roundOne.title),
+      u().el('div', { class: 'row between' }, [
+        u().el('div', { class: 't44 num' }, D.copy.num(sum.score)),
+        u().el('div', { class: 'label' }, D.copy.summary.points),
+      ]),
+      lines,
       u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'mid' }, D.copy.tryout.end(sum.open, sum.next)),
-      u().el('div', { class: 'grow' }),
-      backupButton(),
-      go,
+      again, back,
     ]));
     D.save.commitNow();
   }
 
-  function profilePick(list) {
-    u().clear(root);
-    const box = u().el('div', { class: 'col', style: { gap: '10px' } });
-    for (const p of list) {
-      const b = u().el('button', { class: 'btn wide', type: 'button' }, p.name);
-      b.addEventListener('click', () => open(p.slug));
-      box.appendChild(b);
-    }
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
-      box,
-      u().el('div', { class: 'grow' }),
-    ]));
-  }
-
-  /* ---- home (PLAN §7.1) ----
-     One object dominates: the table being worked on, with its belt colour and
-     how much of it is fast. Everything else is a small line under it. */
+  /* ---- home ---- */
   function home() {
     if (pendingReload && !busy()) {
       pendingReload = false;
@@ -173,67 +179,74 @@ D.main = (function () {
     u().clear(root);
     const p = D.state.progress;
     const lvl = D.xp.levelFor(p.xp);
-
+    const info = D.belt.info();
     const worn = D.shop.equipped('mark');
-    const nameRow = u().el('div', { class: 'row between' }, [
+
+    const head = u().el('div', { class: 'home-head' }, [
       u().el('div', { class: 'row', style: { gap: '9px' } }, [
-        worn ? markGlyph(worn) : null,
-        u().el('div', { class: 'big' }, D.state.profile.name),
+        worn ? D.fx.markGlyph(worn) : null,
+        u().el('div', { class: 'home-name' }, D.state.profile.name),
       ]),
-      u().el('div', { class: 'mid lvl' }, D.copy.home.level(lvl.level)),
+      u().el('div', { class: 'seal' }, D.copy.home.level(lvl.level)),
     ]);
-    const bar = u().el('div', { class: 'xpbar' }, [
+    const xp = u().el('div', { class: 'xpline' }, [
       u().el('i', { style: { width: Math.round(100 * lvl.into / lvl.need) + '%' } }),
     ]);
 
-    const focusKey = D.state.focus.primary;
-    const plate = u().el('div', { class: 'plate' });
-    if (focusKey) {
-      const st = D.mastery.tableStats(focusKey);
-      const belt = D.scheduler.tableState(focusKey).belt;
-      plate.appendChild(u().el('div', { class: 'row between' }, [
-        u().el('div', { class: 'label' }, D.copy.dash.nextUp),
-        u().el('i', { class: 'belt b-' + belt }),
-      ]));
-      plate.appendChild(u().el('div', { class: 'value' }, D.copy.tableNameCap(focusKey)));
-      plate.appendChild(u().el('div', { class: 'small' }, D.copy.belts.count(st.fastPlus, st.total)));
-      plate.appendChild(u().el('div', { class: 'beltbar' }, [
-        u().el('i', { style: { width: Math.round(100 * st.fastPct) + '%' } }),
-      ]));
-    }
-
-    const dots = u().el('div', { class: 'dots' });
-    for (let i = 0; i < 7; i++) {
-      dots.appendChild(u().el('i', { class: 'dot' + (p.weekDots.indexOf(i) >= 0 ? ' on' : '') }));
-    }
-    const week = u().el('div', { class: 'plate col', style: { gap: '9px' } }, [
-      u().el('div', { class: 'label' }, D.copy.home.week),
-      dots,
-      u().el('div', { class: 'row between' }, [
-        u().el('div', { class: 'small' }, D.copy.home.runsToday(p.runsToday)),
-        u().el('div', { class: 'small' }, D.copy.home.daysPlayed(p.daysPlayed)),
-      ]),
+    const belt = u().el('div', { class: 'plate lift' }, [
+      beltBand(info, true),
+      u().el('div', { class: 't22' }, D.copy.belt.now(info.belt, info.stripes)),
+      u().el('div', { class: 'bar-fill' }, [u().el('i', { style: { width: beltPct(info) + '%' } })]),
+      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.dots)
+        : D.copy.belt.toNext(Math.max(0, info.nextAt - info.dots), info.nextKind, info.nextBelt)),
     ]);
 
-    const play = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.home.play);
+    const focusKey = D.state.focus.primary;
+    const second = D.state.focus.secondary;
+    const workLine = focusKey
+      ? (second ? D.copy.home.workingTwo(focusKey, second)
+                : D.copy.home.working(focusKey, D.scheduler.nextUnopened()))
+      : null;
+
+    const play = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.home.play);
     play.addEventListener('click', startRun);
-    const tiles = u().el('div', { class: 'tiles' }, [
-      tile(D.copy.home.grid, () => D.grid.render(root, home)),
-      tile(D.copy.home.belts, () => D.belts.render(root, home, startTest)),
-      tile(D.copy.home.shop, () => D.shop.render(root, home)),
-      tile(D.copy.home.settings, settings),
+    const nav = u().el('div', { class: 'navrow' }, [
+      link(D.copy.home.grid, () => D.grid.render(root, home)),
+      link(D.copy.home.belt, () => D.belts.render(root, home, startTest)),
+      link(D.copy.home.shop, () => D.shop.render(root, home)),
+      link(D.copy.home.settings, settings),
     ]);
 
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'col hero' }, [nameRow, bar]),
+      head, xp,
       u().el('div', { class: 'grow' }),
-      plate, week,
+      belt,
+      workLine ? u().el('div', { class: 't15' }, workLine) : null,
+      u().el('div', { class: 'row', style: { gap: '7px' } }, [
+        u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
+      ]),
       u().el('div', { class: 'grow' }),
-      play, tiles,
+      play, nav,
     ]));
     if (D.state.flags.clockFrozenUntil) {
       D.fx.toast(D.copy.settings.clockMoved(D.state.flags.clockFrozenUntil), 3000);
     }
+  }
+  function beltPct(info) {
+    if (info.black || !info.nextAt) return 100;
+    const span = Math.max(1, info.nextAt - info.prevAt);
+    return D.u.clamp(Math.round(100 * (info.dots - info.prevAt) / span), 0, 100);
+  }
+  function beltBand(info, tall) {
+    const bar = u().el('div', { class: 'bar' });
+    for (let i = 0; i < info.stripes; i++) bar.appendChild(u().el('i'));
+    return u().el('div', { class: 'beltband b-' + info.belt + (tall ? ' tall' : '') },
+                  [u().el('div', { class: 'cloth' }), bar]);
+  }
+  function link(text, fn) {
+    const b = u().el('button', { class: 'link', type: 'button' }, text);
+    b.addEventListener('click', fn);
+    return b;
   }
   function tile(text, fn) {
     const b = u().el('button', { class: 'btn wide', type: 'button' }, text);
@@ -241,21 +254,18 @@ D.main = (function () {
     return b;
   }
 
-  /* ---- a run ---- */
+  /* ---- a round ---- */
   function startRun() {
-    D.audio.unlock();                 // resumed at every run start (PLAN §9.3)
+    D.audio.unlock();
     D.save.touchDay();
     D.scheduler.ensureProgression();
     const rs = D.state.inRun && !D.state.inRun.finished
       ? D.runstate.resume(D.state.inRun)
       : D.runstate.create(D.scheduler.plan(), { table: D.state.focus.primary });
     D.state.inRun = rs.snapshot();
-    D.__rs = rs;                      // the run in progress, for the browser gate
-    D.run.start(root, { rs: rs, onDone: afterRun });
+    D.__rs = rs;
+    D.run.start(root, { rs: rs, onDone: afterRun, onLeave: home });
   }
-
-  /* The weekly recap comes first after the first run of a new week, and only
-     when it has at least two things to say (PLAN §7.1). */
   function afterRun(sum) {
     if (D.recap.due()) {
       if (D.recap.lines().length >= 2) { D.recap.render(root, () => summary(sum)); return; }
@@ -264,109 +274,70 @@ D.main = (function () {
     summary(sum);
   }
 
-  /* ---- backup (PLAN §9.5) ----
-     The link is built before the button is live, because Safari will not open
-     the share sheet across an awaited compression. */
-  function backupButton() {
-    const b = u().el('button', { class: 'btn wide', type: 'button', disabled: 'disabled' },
-                     D.copy.settings.backup);
-    D.share.precompute().then(() => b.removeAttribute('disabled')).catch(() => {});
-    b.addEventListener('click', () => {
-      if (D.share.shareNow()) return;
-      if (D.share.copyNow()) { D.fx.toast(D.copy.settings.copied, 1400); return; }
-      D.share.fileNow();
-    });
-    return b;
-  }
-
-  /* ---- run summary (PLAN §7.1) ---- */
+  /* ---- the end of a round ---- */
   function summary(sum) {
     u().clear(root);
-    const lines = u().el('div', { class: 'col lines' });
+    const info = D.belt.info();
+    const events = (sum.extra && sum.extra.belt) || [];
     const pbs = (sum.extra && sum.extra.pbs) || [];
     const scorePb = pbs.find(x => x.kind === 'score');
-    if (scorePb) lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.newBest(scorePb.delta)));
-    else if (D.state.pbs.score > sum.score) {
-      lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.best(D.state.pbs.score)));
-    }
-    if (sum.golds.length) {
-      lines.appendChild(u().el('div', { class: 'small' },
-        D.copy.summary.gold(sum.golds.map(id => D.facts.display(id, false)))));
-    }
-    if (sum.gotBack.length) {
-      lines.appendChild(u().el('div', { class: 'small' },
-        D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false)))));
-    }
-    const nextLine = nextUp();
-    if (nextLine) lines.appendChild(u().el('div', { class: 'small' }, nextLine));
-    if (sum.xp) lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.xp(sum.xp)));
-    if (sum.sparks) lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.sparks(sum.sparks)));
-    if (sum.extra && sum.extra.weekBonus) {
-      lines.appendChild(u().el('div', { class: 'small' },
-        D.copy.home.plusSparks(sum.extra.weekBonus) + D.copy.home.weekBonus));
-    }
-    if (sum.extra && sum.extra.daysBonus) {
-      lines.appendChild(u().el('div', { class: 'small' },
-        D.copy.home.plusSparks(sum.extra.daysBonus) + D.copy.home.daysBonus(sum.extra.daysBonusAt)));
-    }
+    const lines = u().el('div', { class: 'lines' });
+    const add = (text, cls) => { if (text) lines.appendChild(u().el('div', { class: cls || 't15' }, text)); };
 
-    const again = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.summary.again);
+    add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.copy.summary.best(D.state.pbs.score), 't15 dim');
+    if (sum.bestCombo) add(D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo));
+    if (sum.dotted.length) add(D.copy.summary.dots(sum.dotted.length));
+    if (sum.done.length) add(D.copy.summary.done(sum.done.map(id => D.facts.display(id, false))));
+    if (sum.gotBack.length) add(D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false))));
+
+    const beltBox = u().el('div', { class: 'plate' }, [beltBand(info)]);
+    for (const ev of events) {
+      beltBox.appendChild(u().el('div', { class: 't22' },
+        ev.kind === 'belt' ? D.copy.belt.beltTied(ev.belt) : D.copy.belt.stripeTied(ev.belt, ev.stripes)));
+    }
+    beltBox.appendChild(u().el('div', { class: 'bar-fill' }, [u().el('i', { style: { width: beltPct(info) + '%' } })]));
+    beltBox.appendChild(u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.dots)
+      : D.copy.belt.toNext(Math.max(0, info.nextAt - info.dots), info.nextKind, info.nextBelt)));
+    if (events.length) { D.audio.belt(); D.fx.seal(beltBox); }
+
+    const lvl = D.xp.levelFor(D.state.progress.xp);
+    const tail = u().el('div', { class: 'lines' }, [
+      sum.xp ? u().el('div', { class: 'sumline' }, [
+        u().el('span', {}, D.copy.summary.xp(sum.xp)),
+        u().el('span', { class: 'v' }, D.copy.home.level(lvl.level)),
+      ]) : null,
+      sum.coins ? u().el('div', { class: 'sumline' }, [
+        u().el('span', {}, D.copy.summary.coins(sum.coins)),
+        u().el('span', { class: 'v' }, D.copy.home.coins(D.state.progress.coins)),
+      ]) : null,
+    ]);
+
+    const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.again);
     again.addEventListener('click', startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
 
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'score' }, D.copy.num(sum.score)),
-      lines,
+      u().el('div', { class: 'row between' }, [
+        u().el('div', { class: 't64 num' }, D.copy.num(sum.score)),
+        u().el('div', { class: 'label' }, D.copy.summary.points),
+      ]),
+      lines, beltBox, tail,
       u().el('div', { class: 'grow' }),
       again, back,
     ]));
     D.save.commitNow();
   }
-  // The one line that says where the child is going next.
-  function nextUp() {
-    const key = D.state.focus.primary;
-    if (!key) return null;
-    const st = D.mastery.tableStats(key);
-    if (D.scheduler.testOpen(key)) return D.copy.summary.nextTestOpen(key);
-    const left = st.total - st.fastPlus;
-    if (st.fastPct >= D.cfg.BELT_ORANGE_PCT) return D.copy.summary.nextTest(key, left);
-    const next = D.scheduler.nextUnopened();
-    return next ? D.copy.summary.nextTable(next) : null;
-  }
 
-  /* A worn mark, drawn rather than shipped. */
-  const MARKS = {
-    circle: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
-    triangle: 'M12 3 22 21H2z',
-    square: 'M4 4h16v16H4z',
-    diamond: 'M12 2 22 12 12 22 2 12z',
-    hex: 'M7 3h10l5 9-5 9H7l-5-9z',
-    star: 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
-    ring: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
-    cross: 'M9 2h6v7h7v6h-7v7H9v-7H2V9h7z',
-  };
-  function markGlyph(value) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', MARKS[value] || MARKS.circle);
-    path.setAttribute('fill', 'var(--accent)');
-    path.setAttribute('fill-rule', 'evenodd');
-    svg.appendChild(path);
-    return u().el('span', { class: 'mark' }, [svg]);
-  }
-
-  /* ---- the Belt Test (PLAN §7.1) ---- */
-  function startTest(key) {
+  /* ---- the black belt test ---- */
+  function startTest() {
     D.audio.unlock();
-    const test = D.belttest.create(key);
-    D.state.flags.testInProgress = key;
+    const test = D.belttest.create();
+    D.state.flags.testInProgress = 'black';
     D.save.commitNow();
     D.cards.start(root, {
       total: D.cfg.TEST_CARDS,
+      title: D.copy.belt.testTitle,
       leftValue: () => D.copy.num(test.raw.score),
       ringInfo: () => {
         const c = test.raw.cards[test.raw.i];
@@ -377,11 +348,12 @@ D.main = (function () {
       provide: () => {
         const p = test.present();
         if (!p) return null;
-        return { question: p.question, digits: p.digits, ringMs: p.ringMs, index: p.index };
+        return { question: p.question, digits: p.digits, ringMs: p.ringMs, index: p.index,
+                 input: D.facts.get(p.card.id).input || 'number' };
       },
       answer: (v, rt) => {
         const out = test.submit(v, rt);
-        return { correct: out.kind === 'correct', points: out.points, gold: out.gold,
+        return { correct: out.kind === 'correct', points: out.points, bothDots: out.bothDots,
                  index: out.card ? test.raw.cards.indexOf(out.card) : -1,
                  done: out.done, streak: test.raw.correct };
       },
@@ -396,119 +368,181 @@ D.main = (function () {
     D.state.flags.testInProgress = null;
     D.save.commitNow();
     u().clear(root);
-    const lines = u().el('div', { class: 'col lines' });
+    const lines = u().el('div', { class: 'lines' });
     if (res.passed) {
       D.audio.belt();
-      D.fx.shake(document.getElementById('app'));
-      lines.appendChild(u().el('div', { class: 'big' }, D.copy.belts.pass(res.key)));
-      if (res.grandmaster) lines.appendChild(u().el('div', { class: 'mid' }, D.copy.belts.grandmaster));
-      lines.appendChild(u().el('div', { class: 'small' }, D.copy.settings.backupNudge));
+      lines.appendChild(u().el('div', { class: 't30' }, D.copy.belt.blackBelt));
+      lines.appendChild(beltBand(D.belt.info(), true));
       lines.appendChild(backupButton());
     } else {
-      lines.appendChild(u().el('div', { class: 'mid' }, D.belttest.failLine(res)));
+      lines.appendChild(u().el('div', { class: 't17' }, D.belttest.failLine(res)));
     }
-    if (res.xp) lines.appendChild(u().el('div', { class: 'small' }, D.copy.summary.xp(res.xp)));
-    const back = u().el('button', { class: 'btn primary wide', type: 'button' }, D.copy.summary.home);
+    if (res.xp) lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.xp(res.xp)));
+    if (res.coins) lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.coins(res.coins)));
+    const back = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'score' }, D.copy.num(res.score)),
+      u().el('div', { class: 'titlebar' }, D.copy.belt.testTitle),
+      u().el('div', { class: 't44 num' }, D.copy.num(res.score)),
       lines,
       u().el('div', { class: 'grow' }),
       back,
     ]));
   }
 
+  /* ---- sending Dad a copy (PLAN §9.5) ----
+     The link is built before the button is live, because Safari will not open
+     the share sheet across an awaited compression. Whatever happens, the child
+     is told what happened. */
+  function backupButton() {
+    const b = u().el('button', { class: 'btn wide', type: 'button', disabled: 'disabled' },
+                     D.copy.settings.backup);
+    D.share.precompute().then(() => b.removeAttribute('disabled')).catch(() => {});
+    b.addEventListener('click', () => {
+      if (D.share.shareNow()) { D.fx.toast(D.copy.settings.backupHow, 3200); return; }
+      if (D.share.copyNow()) { D.fx.toast(D.copy.settings.copied, 3200); return; }
+      D.share.fileNow();
+    });
+    return b;
+  }
+
   /* ---- settings ---- */
   function settings() {
     u().clear(root);
     const f = D.state.flags;
-    const rows = u().el('div', { class: 'col', style: { gap: '10px' } }, [
+    const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
       toggle(D.copy.settings.sound, f.sound, v => { f.sound = v; D.save.commit(); }),
       toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }),
+      tile(D.copy.settings.paper, () => D.shop.render(root, settings, 'theme')),
       backupButton(),
-      u().el('div', { class: 'tiles' }, [
-        tile(D.copy.settings.copyLink, () => {
-          if (D.share.copyNow()) D.fx.toast(D.copy.settings.copied, 1400);
-        }),
-        tile(D.copy.settings.shareFile, () => D.share.fileNow()),
-      ]),
-      tile(D.copy.settings.dashboard, () => D.dashboard.render(root, { onBack: settings })),
     ]);
-    const restore = tile(D.copy.settings.restore, () => openRestore(rows));
-    const reset = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.settings.reset);
+    const dad = u().el('button', { class: 'btn quiet wide holdbar', type: 'button' },
+                       [u().el('i', { class: 'fill' }), u().el('span', {}, D.copy.settings.forDad)]);
+    holdFor(dad, 2000, forDad, D.copy.settings.forDadHold);
+    const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
+    back.addEventListener('click', home);
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'titlebar' }, D.copy.settings.title),
+      rows,
+      u().el('div', { class: 'grow' }),
+      dad, back,
+    ]));
+  }
+  /* The parent's corner: a hold, so it is out of a child's way without being a
+     secret (Jamie, rework 2026-09-10). */
+  function holdFor(btn, ms, fn, hint) {
+    const fill = btn.querySelector('.fill');
+    let timer = 0;
+    const cancel = () => { clearTimeout(timer); fill.style.transition = 'none'; fill.style.width = '0'; };
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (hint) D.fx.toast(hint, 1400);
+      fill.style.transition = 'width ' + ms + 'ms linear';
+      fill.style.width = '100%';
+      timer = setTimeout(() => { cancel(); fn(); }, ms + 40);
+    });
+    for (const evt of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(evt, cancel);
+  }
+
+  function forDad() {
+    u().clear(root);
+    const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
+      tile(D.copy.forDad.dashboard, () => D.dashboard.render(root, { onBack: forDad })),
+    ]);
+    const restore = tile(D.copy.forDad.restore, () => toggleRestore(rows));
+    const reset = u().el('button', { class: 'btn quiet wide', type: 'button' }, D.copy.forDad.reset);
     reset.addEventListener('click', () => {
       if (rows.querySelector('.resetbox')) return;
       const field = u().el('input', { class: 'field', type: 'text', autocapitalize: 'characters' });
-      const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.reset);
+      const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.resetGo);
       go.addEventListener('click', () => {
-        if ((field.value || '').trim().toUpperCase() !== D.copy.settings.resetWord) return;
+        if ((field.value || '').trim().toUpperCase() !== D.copy.forDad.resetWord) return;
         D.save.reset();
         location.reload();
       });
       rows.appendChild(u().el('div', { class: 'col resetbox', style: { gap: '8px' } }, [
-        u().el('div', { class: 'small' }, D.copy.settings.resetAsk), field, go,
+        u().el('div', { class: 't15' }, D.copy.forDad.resetAsk), field, go,
       ]));
     });
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
-    back.addEventListener('click', home);
+    back.addEventListener('click', settings);
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'big' }, D.copy.settings.title),
-      rows, restore, u().el('div', { class: 'grow' }), reset, back,
+      u().el('div', { class: 'titlebar' }, D.copy.forDad.title),
+      rows, restore,
+      u().el('div', { class: 'grow' }),
+      reset, back,
     ]));
   }
 
-  /* ---- restore (PLAN §9.5): a pasted link or a saved file ---- */
-  function openRestore(container) {
-    if (container.querySelector('.restorebox')) return;
+  /* ---- bringing a saved game back (PLAN §9.5) ---- */
+  function toggleRestore(container) {
+    const open = container.querySelector('.restorebox');
+    if (open) { open.remove(); return; }
     const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
-                                    placeholder: D.copy.dash.paste });
-    const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.restore);
+                                    placeholder: D.copy.forDad.paste });
+    const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.bringBack);
     go.addEventListener('click', () => restoreFromText(field.value));
     const file = u().el('input', { type: 'file', accept: 'application/json,.json', class: 'hidden' });
     file.addEventListener('change', () => { if (file.files && file.files[0]) restoreFromFile(file.files[0]); });
-    const pick = u().el('button', { class: 'btn ghost wide', type: 'button' }, D.copy.dash.openFile);
+    const pick = u().el('button', { class: 'link small', type: 'button' }, D.copy.forDad.openFile);
     pick.addEventListener('click', () => file.click());
-    container.appendChild(u().el('div', { class: 'col restorebox', style: { gap: '8px' } },
+    container.appendChild(u().el('div', { class: 'col restorebox', style: { gap: '9px' } },
                                  [field, go, pick, file]));
   }
   function restoreFromText(text) {
     const m = String(text || '').match(/s=([A-Za-z0-9_-]+)/);
     const payload = m ? m[1] : String(text || '').trim();
     if (!payload) return;
-    D.share.decode(payload).then(finishRestore).catch(() => {});
+    D.share.decode(payload).then(finishRestore).catch(() => D.fx.toast(D.copy.forDad.restoreBad, 2400));
   }
   function restoreFromFile(fileObj) {
     const reader = new FileReader();
-    reader.onload = () => { try { finishRestore(JSON.parse(reader.result)); } catch (e) { /* not a save */ } };
+    reader.onload = () => {
+      try { finishRestore(JSON.parse(reader.result)); }
+      catch (e) { D.fx.toast(D.copy.forDad.restoreBad, 2400); }
+    };
     reader.readAsText(fileObj);
   }
   function finishRestore(payload) {
     const res = D.share.apply(payload);
     if (!res.ok) {
-      if (res.reason === 'older') D.fx.toast(D.copy.settings.restoreOlder, 2600);
+      D.fx.toast(res.reason === 'older' ? D.copy.forDad.restoreOlder : D.copy.forDad.restoreBad, 2800);
       return;
     }
     D.save.key = D.save.keyFor(D.state.profile.slug);
     D.save.rememberProfile(D.state.profile);
     D.save.commitNow();
     D.shop.apply();
-    D.fx.toast(D.copy.settings.restoreDone, 2400);
+    D.fx.toast(D.copy.forDad.restoreDone, 2400);
     home();
   }
 
-  function toggle(label, on, fn) {
-    const knob = u().el('i', {});
-    const sw = u().el('span', { class: 'sw' + (on ? ' on' : '') }, [knob]);
+  function toggle(labelText, on, fn) {
+    const state = u().el('span', { class: 'seal' }, on ? D.copy.settings.on : D.copy.settings.off);
     const b = u().el('button', { class: 'btn wide row between', type: 'button' }, [
-      u().el('span', {}, label), sw,
+      u().el('span', {}, labelText), state,
     ]);
     b.addEventListener('click', () => {
       on = !on;
-      sw.classList.toggle('on', on);
+      state.textContent = on ? D.copy.settings.on : D.copy.settings.off;
+      state.style.background = on ? 'var(--shu)' : 'var(--ink2)';
       fn(on);
     });
+    state.style.background = on ? 'var(--shu)' : 'var(--ink2)';
     return b;
+  }
+
+  function profilePick(list) {
+    u().clear(root);
+    const box = u().el('div', { class: 'col', style: { gap: '9px' } });
+    for (const p of list) {
+      const b = u().el('button', { class: 'btn wide', type: 'button' }, p.name);
+      b.addEventListener('click', () => open(p.slug));
+      box.appendChild(b);
+    }
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'grow' }), box, u().el('div', { class: 'grow' }),
+    ]));
   }
 
   function busy() {
@@ -518,8 +552,6 @@ D.main = (function () {
   /* ---- service worker ---- */
   function registerWorker() {
     if (!('serviceWorker' in navigator)) return;
-    // A first install is not an update: only say so when a worker was already
-    // driving the page and a new one has taken over.
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').then(reg => {
       reg.addEventListener('updatefound', () => {
@@ -527,8 +559,8 @@ D.main = (function () {
         if (!sw) return;
         sw.addEventListener('statechange', () => {
           if (sw.state === 'activated' && hadController) {
-            // Never in the middle of a run or a Belt Test: a reload mid-test
-            // counts as walking away from it. It waits for Home instead.
+            // Never in the middle of a round or a test: a reload mid-test counts
+            // as walking away from it. It waits for Home instead.
             if (busy()) { pendingReload = true; return; }
             D.fx.toast(D.copy.settings.updated, 1400);
             setTimeout(() => location.reload(), 1200);
@@ -538,7 +570,7 @@ D.main = (function () {
     }).catch(() => {});
   }
 
-  return { boot, home, startRun, summary, settings, applyTheme, startTest, runTryout };
+  return { boot, home, startRun, summary, settings, startTest, intro };
 })();
 
 document.addEventListener('DOMContentLoaded', D.main.boot);

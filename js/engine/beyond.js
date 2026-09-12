@@ -253,7 +253,7 @@ D.beyond = (function () {
     return D.u.take(pool, n, () => 1);
   }
 
-  /* Beyond scouting turns into an open lane at six black belts (PLAN §6.4). */
+  /* Beyond scouting turns into an open lane at the purple belt (rework 2026-09-10). */
   function ensure() {
     build();
     const lane = D.state.lanes.beyond;

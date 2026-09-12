@@ -8,7 +8,7 @@ D.mastery = (function () {
   function blank() {
     return { seen: 0, ok: 0, miss: 0, streak: 0, ewma: null, days: [], lastDay: null,
              lastMiss: false, lastMissDay: null, missDays: [], helpedLast: false,
-             best: null, provisional: false, goldPaid: false, window: [] };
+             best: null, provisional: false, doneOnce: false, window: [] };
   }
   function rec(id) {
     const s = D.state;
@@ -91,14 +91,46 @@ D.mastery = (function () {
   function isFast(id) { const st = status(id); return st === 'fast' || st === 'auto'; }
   function isKnownPlus(id) { const st = status(id); return st === 'known' || st === 'fast' || st === 'auto'; }
 
-  /* Spaced review. Facts with no earned day are due every day. */
+  /* Spaced review. A fact with no counted day is due every day. The wait counts
+     from the newest day that counted toward gold, not from the last time the
+     fact was answered: counted from any answer, a fact that came up on the day
+     in between lost a day, and one that came up every day never went gold
+     (rework 2026-09-10). Day keys are YYYY-MM-DD, so the newest sorts last. */
   function isDue(id, day) {
     const r = peek(id);
     if (!r || r.seen === 0) return true;
     if (!r.days.length) return true;
-    if (!r.lastDay) return true;
+    const last = r.days.reduce((a, b) => (b > a ? b : a));
     const idx = D.u.clamp(r.days.length - 1, 0, cfg.REVIEW_INTERVALS.length - 1);
-    return D.u.daysBetween(r.lastDay, day || D.u.gameDay()) >= cfg.REVIEW_INTERVALS[idx];
+    return D.u.daysBetween(last, day || D.u.gameDay()) >= cfg.REVIEW_INTERVALS[idx];
+  }
+
+  /* Dots on a question: one per counted day, two at most (rework 2026-09-10). */
+  function dots(id) {
+    const r = peek(id);
+    return r ? Math.min(r.days.length, cfg.AUTO_DAYS) : 0;
+  }
+  /* A miss, or settling into slow answers, empties a dot. Whatever the fact held,
+     it keeps at most one, so the child sees the dot go and the check-ins start
+     again from the first wait. Days beyond two were invisible, and shifting one
+     off a well-reviewed fact changed nothing a child could see. */
+  function emptyDot(r) {
+    if (!r.days.length) return false;
+    const keep = Math.min(r.days.length - 1, cfg.AUTO_DAYS - 1);
+    r.days = keep > 0 ? r.days.slice(-keep) : [];
+    return true;
+  }
+
+  /* Would a fast, unaided right answer on this fact add a day right now? The
+     test record() applies, asked before the answer instead of after it, so a
+     booked repeat can tell whether it still has a job (rework 2026-09-10). */
+  function canCountToday(id, day) {
+    const d = day || D.u.gameDay();
+    const r = peek(id) || blank();
+    if (r.days.includes(d) || r.lastMissDay === d) return false;
+    if (r.streak + 1 < 2) return false;
+    if (r.days.length && !isDue(id, d)) return false;
+    return accuracyOk({ window: r.window.concat([1]).slice(-cfg.ACC_WINDOW), seen: r.seen + 1, ok: r.ok + 1 });
   }
 
   /* ---- ring window (PLAN §6.5) ---- */
@@ -133,7 +165,7 @@ D.mastery = (function () {
     const o = opts || {};
     const r = rec(id);
     const day = o.day || D.u.gameDay();
-    const out = { earnedDay: false, turnedGold: false, wasFast: false, lostDay: false };
+    const out = { dotFilled: false, bothDots: false, firstBothDots: false, wasFast: false, lostDot: false };
     r.seen++;
     // A slip stays out of the accuracy window. It is a typing error repaired by
     // retrieval, and warm-ups serve settled facts so often that counting every
@@ -164,14 +196,17 @@ D.mastery = (function () {
           accuracyOk(r) && dueToday && !missedToday && !r.days.includes(day)) {
         r.days.push(day);
         while (r.days.length > cfg.MAX_DAYS_KEPT) r.days.shift();
-        out.earnedDay = true;
-        if (r.days.length >= cfg.AUTO_DAYS && !r.goldPaid) out.turnedGold = true;
+        out.dotFilled = true;
+        if (r.days.length === cfg.AUTO_DAYS) {
+          out.bothDots = true;
+          if (!r.doneOnce) { out.firstBothDots = true; r.doneOnce = true; }
+        }
       }
-      // Settled but slow: an auto fact answered well above its threshold gives a day back.
+      // Settled but slow: a fact with both dots, answered well above its threshold
+      // on average, empties a dot.
       if (r.days.length >= cfg.AUTO_DAYS && !o.helped && r.ewma !== null &&
           r.ewma > cfg.SLOW_AUTO * threshold(id)) {
-        r.days.shift();
-        out.lostDay = true;
+        out.lostDot = emptyDot(r);
       }
       if (r.provisional) r.provisional = false;
     } else if (o.slip) {
@@ -185,7 +220,7 @@ D.mastery = (function () {
       r.streak = 0;
       r.lastMiss = true;
       r.lastMissDay = day;
-      if (r.days.length) { r.days.shift(); out.lostDay = true; }
+      if (r.days.length) out.lostDot = emptyDot(r);
       if (r.missDays[r.missDays.length - 1] !== day) {
         r.missDays.push(day);
         while (r.missDays.length > 2) r.missDays.shift();
@@ -251,6 +286,6 @@ D.mastery = (function () {
   }
 
   return { blank, rec, peek, threshold, relativeCap, isFastRt, accuracyOk, status, isFast,
-           isKnownPlus, isDue, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
+           isKnownPlus, isDue, canCountToday, dots, emptyDot, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
            statsFor, tableStats, divisionOpen, activeItems, dirty };
 })();

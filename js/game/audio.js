@@ -88,7 +88,10 @@ D.audio = (function () {
     tone(SCALE[i] * v.mult, v.len, v.wave, v.vol);
   }
   function miss() { sweep(180, 70, 0.19, 'square', 0.11); }
-  function gold() { tone(880, 0.1, 'triangle', 0.15); tone(1318.51, 0.22, 'triangle', 0.13, 0.09); }
+  // A dot filling is a stamp on paper; both dots is the seal coming down.
+  function stamp() { tone(1046.5, 0.05, 'square', 0.07); tone(523.25, 0.09, 'triangle', 0.10, 0.03); }
+  function thump() { tone(196, 0.14, 'triangle', 0.16); tone(98, 0.22, 'sine', 0.12, 0.02); tone(880, 0.18, 'triangle', 0.10, 0.06); }
+  function gold() { thump(); }
   function bonus() { tone(659.25, 0.09, 'triangle', 0.14); tone(987.77, 0.09, 'triangle', 0.14, 0.08); tone(1318.51, 0.2, 'triangle', 0.13, 0.16); }
   function lastCard() { tone(392, 0.09, 'triangle', 0.12); tone(523.25, 0.16, 'triangle', 0.13, 0.08); }
   function key() { tone(1200, 0.03, 'sine', 0.05); }
@@ -97,5 +100,5 @@ D.audio = (function () {
     notes.forEach((f, i) => tone(f, 0.28, 'triangle', 0.16, i * 0.12));
   }
 
-  return { install, unlock, tone, correct, miss, gold, bonus, lastCard, key, belt, enabled };
+  return { install, unlock, tone, correct, miss, gold, stamp, thump, bonus, lastCard, key, belt, enabled };
 })();

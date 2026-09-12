@@ -119,10 +119,9 @@ D.share = (function () {
     next.lastSeenEpoch = Math.max(next.lastSeenEpoch || 0, fromEpoch, D.u.now());
     next.rolloverEpoch = Math.max(next.rolloverEpoch || 0, local.rolloverEpoch || 0);
     if (local.gameDay && (!next.gameDay || local.gameDay > next.gameDay)) next.gameDay = local.gameDay;
-    for (const key of Object.keys(next.tables || {})) {
-      next.tables[key].testAttemptDay = next.gameDay;
-      next.tables[key].testFailed = true;          // no same-day retake through the seeded-table rule
-    }
+    // No black belt test on the day of a restore.
+    next.belt = next.belt || { step: 0, black: false, blackDay: null, testDay: null };
+    next.belt.testDay = next.gameDay;
     // The phone's own record of Belt Tests is kept, whatever the backup says.
     next.tests = next.tests || [];
     const known = new Set(next.tests.map(t => t.day + '|' + t.key + '|' + t.correct));
@@ -134,6 +133,7 @@ D.share = (function () {
     while (next.restores.length > 20) next.restores.shift();
     D.state = next;
     D.mastery.dirty();
+    if (D.belt) D.belt.sync();
     D.save.commitNow();
     return { ok: true };
   }
@@ -144,32 +144,22 @@ D.share = (function () {
   function checks(state) {
     const out = [];
     const facts = state.facts || {};
-    let autoThin = 0, dayAhead = 0, everSeen = 0, correct = 0;
+    let thin = 0, dayAhead = 0, everSeen = 0, correct = 0;
     for (const id of Object.keys(facts)) {
       const r = facts[id];
-      if (r.days && r.days.length >= D.cfg.AUTO_DAYS && r.seen < 4) autoThin++;
+      // Every counted day took an answer on that day.
+      if (r.days && r.days.length > (r.seen || 0)) thin++;
       for (const d of (r.days || [])) if (d > state.gameDay) dayAhead++;
       everSeen += r.seen || 0;
       correct += r.ok || 0;
     }
-    if (autoThin) out.push({ id: 'thin', n: autoThin });
+    if (thin) out.push({ id: 'thin', n: thin });
     if (dayAhead) out.push({ id: 'ahead', n: dayAhead });
 
     const runs = state.runs || [];
-    // XP can only have come from correct answers, gold, belts and grandmaster.
-    // Each fact counts its own correct answers for life, so their sum bounds the
-    // answers that could ever have paid, even after the run history rolls over.
-    // A belt can be won, lost to the provisional rule and won again, hence two.
-    // Bonuses count only when the save shows what earned them: gold facts, belts
-    // won, grandmaster. A flat allowance let a save with no answers carry 25,500 XP
-    // (exploit review 2026-09-10).
-    const tests = state.tests || [];
-    const blacks = Object.keys(state.tables || {}).filter(k => state.tables[k].belt === 'black');
-    const golds = Object.keys(facts).filter(id => facts[id].goldPaid).length;
-    const beltsWon = Math.max(tests.filter(t => t.passed).length, blacks.length);
-    const ceiling = correct * D.cfg.XP_PER_CORRECT * D.cfg.WEIGHT_BEYOND
-      + golds * D.cfg.XP_GOLD + beltsWon * D.cfg.XP_BLACK_BELT
-      + (state.flags && state.flags.grandmaster ? D.cfg.XP_GRANDMASTER : 0) + 100;
+    // XP only comes from correct answers, and each fact counts its own for life,
+    // so their sum bounds it even after the run history rolls over.
+    const ceiling = correct * D.cfg.XP_PER_CORRECT * D.cfg.WEIGHT_BEYOND + 100;
     if ((state.progress.xp || 0) > ceiling) out.push({ id: 'xp', n: Math.round(state.progress.xp - ceiling) });
 
     // A run takes at least a minute and a half of real time.
@@ -179,21 +169,20 @@ D.share = (function () {
     if (busiest > 16 * 60 / 1.5) out.push({ id: 'runs', n: busiest });
     if (correct > everSeen) out.push({ id: 'counts', n: correct - everSeen });
 
-    // Every black belt was won in a test on record.
-    const passedKeys = new Set(tests.filter(t => t.passed).map(t => t.key));
-    const unearned = blacks.filter(k => !passedKeys.has(k)).length;
-    if (unearned) out.push({ id: 'belts', n: unearned });
-    // Sparks held plus sparks spent cannot pass what the answers could have paid.
+    // A black belt was won in a test on record.
+    const tests = state.tests || [];
+    const belt = state.belt || { step: 0, black: false };
+    if (belt.black && !tests.some(t => t.passed && t.key === 'black')) out.push({ id: 'belts', n: 1 });
+    // Coins held plus coins spent cannot pass what answers, bonus cards and the belt could pay.
     const cos = state.cosmetics || {};
     const spent = (cos.owned || []).filter(id => id !== cos.free)
       .map(id => (D.cfg.SHOP.find(i => i.id === id) || { price: 0 }).price).reduce((a, b) => a + b, 0);
     const days = (state.progress && state.progress.daysPlayed) || 0;
     const runsEver = Math.max(runs.length, days * 12);
-    const sparkCeiling = correct * 1.5 + golds + runsEver * 20
-      + beltsWon * 2 * D.cfg.SPARKS_BLACK_BELT + (days / 5 + 1) * D.cfg.SPARKS_WEEK
-      + 2 * D.cfg.SPARKS_DAYS + 100;
-    const sparks = (state.progress && state.progress.sparks) || 0;
-    if (sparks + spent > sparkCeiling) out.push({ id: 'sparks', n: Math.round(sparks + spent - sparkCeiling) });
+    const coinCeiling = correct * D.cfg.COINS_PER_CORRECT + runsEver * D.cfg.BONUS_COINS
+      + (belt.step || 0) * D.cfg.COINS_BELT + (belt.black ? D.cfg.COINS_BELT : 0) + 100;
+    const coins = (state.progress && state.progress.coins) || 0;
+    if (coins + spent > coinCeiling) out.push({ id: 'coins', n: Math.round(coins + spent - coinCeiling) });
     // Days played cannot outrun the calendar since the save began.
     if (state.profile && state.profile.created && state.gameDay) {
       const span = D.u.daysBetween(state.profile.created, state.gameDay) + 1;

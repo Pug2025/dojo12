@@ -25,11 +25,11 @@ D.install = (function () {
   function render(root) {
     const u = D.u;
     u.clear(root);
-    root.appendChild(u.el('div', { class: 'screen centre install col' }, [
+    root.appendChild(u.el('div', { class: 'screen centre col' }, [
       u.el('div', { class: 'grow' }),
-      u.el('div', { class: 'big' }, D.copy.install.line),
+      u.el('div', { class: 'titlebar' }, D.copy.install.line),
       u.el('div', { class: 'shot col centre', style: { gap: '10px' } }, [
-        shareGlyph(), u.el('div', { class: 'small' }, D.copy.install.how),
+        shareGlyph(), u.el('div', { class: 't15' }, D.copy.install.how),
       ]),
       u.el('div', { class: 'grow' }),
     ]));

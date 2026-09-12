@@ -26,7 +26,8 @@ D.keypad = (function () {
       if (o.autoSubmit && mode === 'number' && digits >= 2 && value.length === digits) setTimeout(fire, 40);
     }
     function fire() {
-      if (!value.length) return;
+      // Go with nothing typed answers back, so a tap is never swallowed.
+      if (!value.length) { if (o.onEmpty) o.onEmpty(); return; }
       const v = value;
       value = '';
       listeners.change(value);

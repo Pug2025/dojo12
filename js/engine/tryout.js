@@ -43,9 +43,14 @@ D.tryout = (function () {
      right; if the very first card went wrong there is nothing to draw on yet, so
      the smallest fact in the game stands in. */
   const FALLBACK = () => [D.facts.mulId(2, 2), D.facts.mulId(2, 3), D.facts.mulId(2, 10)];
+  /* Never the card just shown, and never a third time: the same win three times
+     in one round is what made round 1 feel like a loop (rework 2026-09-10). */
   function fillerId(st) {
-    if (st.correct.length) return D.u.choice(st.correct);
-    return D.u.choice(FALLBACK());
+    const pool = st.correct.length ? st.correct.slice() : FALLBACK();
+    const last = st.current ? st.current.id : null;
+    const fresh = pool.filter(id => id !== last && (st.shown[id] || 0) < 2);
+    const next = fresh.length ? fresh : pool.filter(id => id !== last);
+    return D.u.choice(next.length ? next : pool);
   }
 
   function create() {
@@ -67,6 +72,7 @@ D.tryout = (function () {
       reprobed: {},
       reprobes: 0,
       hardWinSaid: false,
+      shown: {},            // how many times each fact has been served this round
       current: null,
       finished: false,
       firstCard: true,
@@ -154,14 +160,18 @@ D.tryout = (function () {
     function show(card) {
       st.current = card;
       st.total++;
+      st.shown[card.id] = (st.shown[card.id] || 0) + 1;
       if (card.kind !== 'filler') st.served++;
       const f = D.facts.get(card.id);
       const first = st.firstCard;
       st.firstCard = false;
+      // The flip goes out with the card, so a shown answer reads the way the
+      // question did (rework 2026-09-10).
+      const flip = f.op === 'mul' && Math.random() < 0.5;
       return {
         id: card.id, kind: card.kind, table: card.table || null,
-        question: D.facts.display(card.id, f.op === 'mul' && Math.random() < 0.5),
-        flip: false,
+        question: D.facts.display(card.id, flip),
+        flip: flip,
         digits: D.u.digitsOf(f.ans),
         intro: first ? D.copy.tryout.firstCard : null,
         index: st.total,
@@ -279,5 +289,5 @@ D.tryout = (function () {
              safetyMisses: st.safetyMisses, results: st.results };
   }
 
-  return { create, apply, activateSafety, openers, fillerId, SAFETY };
+  return { create, apply, activateSafety, openers, fillerId, SAFETY, easyFor, hardFor };
 })();

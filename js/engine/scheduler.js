@@ -10,8 +10,7 @@ D.scheduler = (function () {
   function tableState(key) {
     const s = D.state;
     if (!s.tables[key]) {
-      s.tables[key] = { status: 'new', belt: 'white', beltDay: null, provisionalUntil: null,
-                        testAttemptDay: null, testFailed: false, hot: [] };
+      s.tables[key] = { status: 'new', hot: [] };
     }
     return s.tables[key];
   }
@@ -87,7 +86,6 @@ D.scheduler = (function () {
       if (!s.focus.primary) s.focus.primary = pick; else s.focus.secondary = pick;
     }
     for (const key of focusKeys()) refreshHot(key);
-    updateBelts();
     updateSafety();
     maybeOpenBeyondScouting();
   }
@@ -96,8 +94,7 @@ D.scheduler = (function () {
      slot; one that has slipped below 60 % fast; the next unopened table; and,
      once the grid is open, the first table below black that still has facts
      nobody has taught. Without the last rule a table that graduated with a few
-     divisions unseen would never have them served, and its Belt Test would
-     never be offered. */
+     divisions unseen would never have them served. */
   function nextFocus() {
     const s = D.state;
     const taken = k => k === s.focus.primary || k === s.focus.secondary;
@@ -108,7 +105,7 @@ D.scheduler = (function () {
     if (slipped) return slipped;
     const next = nextUnopened();
     if (next) return next;
-    return open.find(k => tableState(k).belt !== 'black' && hasUntaught(k)) || null;
+    return open.find(k => hasUntaught(k)) || null;
   }
   function hasUntaught(key) {
     return M().activeItems(key).some(id => {
@@ -118,13 +115,15 @@ D.scheduler = (function () {
   }
 
   /* Hot set: at most four facts of a focus table at a time. A fact leaves when
-     it reaches `known`; the next one folds in (PLAN §6.4). */
+     it reaches `known`; the next one folds in (PLAN §6.4). The next one is drawn
+     at random: taken in answer order, a table arrived as 10 × 2, 10 × 3, 10 × 4,
+     10 × 5 and the runs read as a pattern (rework 2026-09-10). */
   function refreshHot(key) {
     const t = tableState(key);
     const items = M().activeItems(key);
     t.hot = (t.hot || []).filter(id => items.includes(id) && !M().isKnownPlus(id));
     if (t.hot.length >= cfg.HOT_SET) { t.hot = t.hot.slice(0, cfg.HOT_SET); return t.hot; }
-    for (const id of items) {
+    for (const id of D.u.shuffle(items)) {
       if (t.hot.length >= cfg.HOT_SET) break;
       if (M().isKnownPlus(id)) continue;
       if (t.hot.includes(id)) continue;
@@ -185,52 +184,13 @@ D.scheduler = (function () {
     return false;
   }
 
-  function beltKeys() {
-    const out = openTables();
-    if (D.beyond && D.state.lanes.beyond.open) {
-      for (const tid of D.beyond.openTopics()) out.push(D.beyond.topicKey(tid));
-    }
-    return out;
-  }
-  function updateBelts() {
-    for (const key of beltKeys()) {
-      const t = tableState(key), pct = M().tableStats(key).fastPct;
-      if (t.belt === 'black') continue;          // provisional belts are judged at the end of runs
-      t.belt = pct >= cfg.BELT_ORANGE_PCT ? 'orange' : pct >= cfg.BELT_YELLOW_PCT ? 'yellow' : 'white';
-    }
-  }
-  /* A new black belt stays provisional until the child has played counted runs
-     on three separate game-days after the day it was won, and reverts if the
-     table is below 80 % fast at the end of any of them (PLAN §7.1). Counted in
-     days played, not days on the calendar: left shut for three days, a belt
-     someone else won used to become permanent (exploit review 2026-09-10). Never
-     judged on the day of the win, when the test's own misses are still fresh. */
-  function checkProvisional(run) {
-    if (run && run.counted === false) return;
-    const day = (run && run.day) || D.u.gameDay();
-    for (const key of beltKeys()) {
-      const t = tableState(key);
-      if (t.belt !== 'black' || !t.provisionalUntil) continue;
-      if (t.beltDay === day) continue;
-      if (M().tableStats(key).fastPct < cfg.PROVISIONAL_FLOOR) {
-        t.belt = 'orange'; t.provisionalUntil = null; t.provisionalDays = [];
-        continue;
-      }
-      t.provisionalDays = t.provisionalDays || [];
-      if (t.provisionalDays.indexOf(day) < 0) t.provisionalDays.push(day);
-      if (t.provisionalDays.length >= cfg.PROVISIONAL_DAYS) { t.provisionalUntil = null; t.provisionalDays = []; }
-    }
-  }
-  function testOpen(key) {
-    const t = tableState(key);
-    if (t.belt === 'black') return false;
-    return M().tableStats(key).fastPct >= cfg.BELT_TEST_PCT;
-  }
-  function blackBelts() { return openTables().filter(k => tableState(k).belt === 'black').length; }
   function maybeOpenBeyondScouting() {
     const b = D.state.lanes.beyond;
     if (!b.scouting && D.facts.TABLE_ORDER.every(isOpen)) b.scouting = true;
-    if (!b.open && blackBelts() >= cfg.BEYOND_OPEN_BELTS) {
+    // The lane needs every table open as well as the purple belt. On the belt alone
+    // it opened for a child still on five tables, and a quarter of each run became
+    // fractions and percentages (rework 2026-09-10).
+    if (!b.open && b.scouting && D.belt && D.belt.state().step >= cfg.BEYOND_OPEN_STEP) {
       b.open = true;
       if (D.beyond) D.beyond.openTopic(D.beyond.nextTopic() || 'sq');
     }
@@ -364,6 +324,11 @@ D.scheduler = (function () {
 
   /* ---------------- the run plan (PLAN §6.5) ---------------- */
   function ringKindFor(id) {
+    // A fact the tryout placed but no run has asked gets no clock yet. With one,
+    // round 2 said "Out of time." within five seconds on questions a child had
+    // never answered (rework 2026-09-10).
+    const r = M().peek(id);
+    if (r && r.provisional) return null;
     const st = M().status(id);
     return (st === 'known' || st === 'fast' || st === 'auto') ? st : null;
   }
@@ -411,7 +376,11 @@ D.scheduler = (function () {
 
     const learnIds = claim(pick(learningPool(), L));
     const safeIds = safetySlots ? claim(pick(safety, safetySlots)) : [];
-    const scoutIds = claim(pick(scoutPool(), cfg.SCOUTS));
+    // Tables round 1 ran out of cards for are tried first, an easy and a hard
+    // question each, as round 1 would have (rework 2026-09-10).
+    const scoutIds = placementActive()
+      ? claim(placementScouts().filter(id => !used.includes(id)).slice(0, cfg.PLACEMENT_SCOUTS))
+      : claim(pick(scoutPool(), cfg.SCOUTS));
     const beyondIds = (beyondSlots && D.beyond) ? claim(D.beyond.pick(beyondSlots, used)) : [];
 
     // Whatever is left goes to short-lag repetition on correct-but-slow facts:
@@ -487,7 +456,12 @@ D.scheduler = (function () {
 
     const cards = warm.concat(body, [lastCard]);
     for (let i = 0; i < cards.length; i++) cards[i].slot = i;
-    return { cards: cards, day: day, learnSlots: L + safetySlots };
+    // Facts this run does not serve, for the slot of a booked repeat that has
+    // nothing left to give (rework 2026-09-10).
+    const inRun = new Set(cards.map(c => c.id));
+    const spares = D.u.shuffle(dedupe(duePool(day).concat(maintenancePool(), promotePool()))
+      .filter(id => !inRun.has(id))).slice(0, cfg.RUN_SPARES);
+    return { cards: cards, day: day, learnSlots: L + safetySlots, spares: spares };
   }
 
   // Drop a card into a free slot, preferring one whose neighbours do not clash.
@@ -586,13 +560,60 @@ D.scheduler = (function () {
     return p.learnSlots;
   }
 
+  /* ---- placement left over from round 1 (rework 2026-09-10) ----
+     Round 1 is twenty cards. A strong child runs out of cards before every table
+     has had its easy and hard question, so the tables left over are tried by
+     scout cards in the next rounds: both right opens the table with its
+     products seeded known, a wrong easy one leaves it for the normal order. */
+  function placementActive() {
+    const p = D.state.placement;
+    return !!(p && p.runsLeft > 0 && p.tables && p.tables.length);
+  }
+  function placementScouts() {
+    const p = D.state.placement;
+    p.pending = {};
+    const out = [];
+    for (const key of p.tables.slice(0, 2)) {
+      const easy = D.tryout.easyFor(key), hard = D.tryout.hardFor(key);
+      p.pending[easy] = { key: key, kind: 'easy' };
+      p.pending[hard] = { key: key, kind: 'hard' };
+      out.push(easy, hard);
+    }
+    return out;
+  }
+  function notePlacement(id, correct, fast) {
+    const p = D.state.placement;
+    if (!p || !p.pending || !p.pending[id]) return;
+    const slot = p.pending[id];
+    const res = (p.results = p.results || {})[slot.key] || (p.results[slot.key] = {});
+    res[slot.kind] = !correct ? 'wrong' : fast ? 'fast' : 'slow';
+    const settle = () => { p.tables = p.tables.filter(k => k !== slot.key); };
+    if (res.easy === 'wrong') { settle(); return; }
+    if (res.easy && res.hard) {
+      if (res.hard !== 'wrong' && !isOpen(slot.key)) {
+        tableState(slot.key).status = 'open';
+        for (const pid of D.facts.table(slot.key).products) M().seedKnown(pid);
+      }
+      settle();
+    }
+  }
+  // After each round: one round fewer, and gone when nothing is left to place.
+  function endPlacementRound() {
+    const p = D.state.placement;
+    if (!p) return;
+    p.runsLeft--;
+    p.pending = {};
+    if (p.runsLeft <= 0 || !p.tables.length) D.state.placement = null;
+  }
+
   /* Scout bookkeeping (PLAN §6.4). Silent both ways. */
   function noteScout(id, correct, fast) {
+    notePlacement(id, correct, fast);
     const p = M().recordProbe(id, { correct: correct, fast: fast });
     const f = D.facts.get(id);
     const key = f.tables ? f.tables[0] : null;
     if (!key) return p;
-    // A Beyond scout only records; the lane itself opens on black belts.
+    // A Beyond scout only records; the lane itself opens at the purple belt.
     if (f.lane === 'beyond') return p;
     if (!correct) {
       p.missRun = (p.missRun || 0) + 1;
@@ -614,9 +635,9 @@ D.scheduler = (function () {
   }
 
   return { tableState, isOpen, openTables, focusKeys, prereqMet, nextUnopened, openTable,
-           ensureProgression, refreshHot, updateBelts, testOpen, blackBelts, learningPool,
+           ensureProgression, refreshHot, learningPool,
            promotePool, promoteWeight, duePool, maintenancePool, scoutPool, safetyPool, warmupPool,
            plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
-           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, beltKeys,
-           checkProvisional, nextFocus };
+           activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, nextFocus,
+           placementActive, placementScouts, endPlacementRound };
 })();

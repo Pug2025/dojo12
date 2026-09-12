@@ -28,12 +28,13 @@ D.save = (function () {
       runs: [],
       tests: [],
       snapshots: {},
-      pbs: { score: 0, byTable: {}, combo: 0, fastestFact: null },
-      progress: { xp: 0, level: 1, sparks: 0, daysPlayed: 0, weekKey: D.u.weekKey(today),
-                  weekDots: [], weekBonusPaid: false, lastRunDay: null, runsToday: 0,
+      pbs: { score: 0, combo: 0, fastestFact: null },
+      progress: { xp: 0, level: 1, coins: 0, daysPlayed: 0, weekKey: D.u.weekKey(today),
+                  lastRunDay: null, runsToday: 0,
                   fullXpToday: 0, learnSlots: cfg.LEARN_START, fastWrongs7d: [], stepMisses: [],
-                  goldsThisWeek: 0, goldsLastWeek: 0,
-                  daysBonusPaid: [] },
+                  doneThisWeek: 0, doneLastWeek: 0 },
+      belt: { step: 0, black: false, blackDay: null, testDay: null },
+      placement: null,   // tables round 1 never reached, tried by scouts in the next rounds
       cosmetics: { owned: [], equipped: {} },
       inRun: null,
       restores: [],
@@ -60,7 +61,32 @@ D.save = (function () {
     try { localStorage.setItem(INDEX_KEY, JSON.stringify(profiles().filter(x => x.slug !== slug))); } catch (e) {}
   }
 
-  const MIGRATIONS = { /* 2: current */ };
+  /* 3 (rework 2026-09-10): sparks become coins, gold becomes both dots, and the
+     belts per table give way to one belt, set from the dots already filled when
+     the save next loads, without paying for stripes nobody saw. */
+  const MIGRATIONS = {
+    3: function (s) {
+      const p = s.progress || (s.progress = {});
+      p.coins = (p.coins || 0) + (p.sparks || 0);
+      p.doneThisWeek = p.goldsThisWeek || 0;
+      p.doneLastWeek = p.goldsLastWeek || 0;
+      for (const k of ['sparks', 'weekDots', 'weekBonusPaid', 'daysBonusPaid', 'goldsThisWeek', 'goldsLastWeek']) delete p[k];
+      for (const id of Object.keys(s.facts || {})) {
+        const r = s.facts[id];
+        if (r && 'goldPaid' in r) { r.doneOnce = !!r.goldPaid; delete r.goldPaid; }
+      }
+      for (const key of Object.keys(s.tables || {})) {
+        const t = s.tables[key];
+        for (const k of ['belt', 'beltDay', 'provisionalUntil', 'provisionalDays', 'testAttemptDay',
+                         'testAttemptRun', 'testFailed']) delete t[k];
+      }
+      if (s.pbs) delete s.pbs.byTable;
+      if (s.flags) delete s.flags.grandmaster;
+      s.belt = { step: 0, black: false, blackDay: null, testDay: null, needsSync: true };
+      s.version = 3;
+      return s;
+    },
+  };
   function migrate(s) {
     let v = s.version || cfg.VERSION;
     while (MIGRATIONS[v + 1]) { s = MIGRATIONS[v + 1](s); v = s.version; }
@@ -80,6 +106,7 @@ D.save = (function () {
       if (!raw) { D.state = fresh({ slug: slug }); return false; }
       D.state = migrate(JSON.parse(raw));
       D.mastery.dirty();
+      if (D.belt) D.belt.sync();
       return true;
     } catch (e) {
       D.state = fresh({ slug: slug });
@@ -153,7 +180,7 @@ D.save = (function () {
     return true;
   }
 
-  // Seven dots, one per game-day played this week, wiped every Monday.
+  // The week turns over on Monday: a photograph for the recap, and the week's count.
   function rollWeek(day) {
     const s = D.state, wk = D.u.weekKey(day);
     // Weeks only ever move forward.
@@ -168,11 +195,9 @@ D.save = (function () {
     s.snapshots[wk] = shot;
     const keys = Object.keys(s.snapshots).sort();
     while (keys.length > 2) delete s.snapshots[keys.shift()];
-    s.progress.goldsLastWeek = s.progress.goldsThisWeek || 0;
-    s.progress.goldsThisWeek = 0;
+    s.progress.doneLastWeek = s.progress.doneThisWeek || 0;
+    s.progress.doneThisWeek = 0;
     s.progress.weekKey = wk;
-    s.progress.weekDots = [];
-    s.progress.weekBonusPaid = false;
   }
   function trimFastWrongs(day) {
     const p = D.state.progress;

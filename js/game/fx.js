@@ -1,55 +1,49 @@
-/* Dojo 12 — the visual half of every piece of feedback (PLAN §7.6).
-   Every sound has a twin here, because most kids' phones are on silent. */
+/* Dojo 12 — the visual half of every piece of feedback (PLAN §7.6, ART.md).
+   Motion is ink behaving: a brush circle drawn in one breath, a seal slammed
+   down, a crack and three splats. Every sound has a twin here, because most
+   kids' phones are on silent. */
 "use strict";
 D.fx = (function () {
   const u = () => D.u;
+  const NS = 'http://www.w3.org/2000/svg';
 
-  function pop(node) { D.u.pulse(node, 'pop', 260); }
-  function crack(node) { D.u.pulse(node, 'cracked', 620); }
-  function shake(node) { D.u.pulse(node, 'shake', 340); }
+  function pop(node) { D.u.pulse(node, 'pop', 180); }
+  function crack(node) {
+    D.u.pulse(node, 'cracked', 900);
+    splats(node, 3);
+  }
+  function shake(node) { D.u.pulse(node, 'pop', 180); }
 
-  // A number that lifts off the card and fades. Used for points and sparks.
+  /* Three sumi splats that bloom and settle. No red: a miss is ink. */
+  function splats(anchor, n) {
+    if (!anchor || !anchor.getBoundingClientRect) return;
+    const box = anchor.getBoundingClientRect();
+    for (let i = 0; i < n; i++) {
+      const size = 7 + Math.random() * 11;
+      const node = D.u.el('i', { class: 'splat', style: {
+        left: (box.left + box.width * (0.2 + Math.random() * 0.6)) + 'px',
+        top: (box.top + box.height * (0.3 + Math.random() * 0.4)) + 'px',
+        width: size + 'px', height: size + 'px',
+      } });
+      document.body.appendChild(node);
+      setTimeout(() => node.remove(), 420);
+    }
+  }
+
+  /* A number that lifts off the card and fades: points, coins. */
   function float(anchor, text, tone) {
     if (!anchor) return;
     const box = anchor.getBoundingClientRect();
-    const n = D.u.el('div', { class: 'num', text: text, style: {
-      position: 'fixed', left: (box.left + box.width / 2) + 'px', top: (box.top + 20) + 'px',
-      transform: 'translateX(-50%)', fontSize: '28px', fontWeight: '800', zIndex: '30',
-      color: tone === 'gold' ? 'var(--gold)' : 'var(--accent)',
-      pointerEvents: 'none', transition: 'transform 620ms ease-out, opacity 620ms ease-out',
+    const n = D.u.el('div', { class: 'floatnum num', text: text, style: {
+      left: (box.left + box.width / 2) + 'px', top: (box.top + 24) + 'px',
+      transform: 'translateX(-50%)', color: tone === 'gold' ? 'var(--kin)' : 'var(--shu)',
     } });
     document.body.appendChild(n);
     requestAnimationFrame(() => {
-      n.style.transform = 'translateX(-50%) translateY(-52px)';
+      n.style.transform = 'translateX(-50%) translateY(-54px)';
       n.style.opacity = '0';
     });
-    setTimeout(() => n.remove(), 700);
-  }
-
-  /* Sparks off the card on a correct answer. More of them as the combo climbs,
-     gold when a fact settles. This is the visual half of the tick. */
-  function burst(anchor, count, tone) {
-    if (!anchor) return;
-    const box = anchor.getBoundingClientRect();
-    const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
-    const colour = tone === 'gold' ? 'var(--gold)' : 'var(--accent2)';
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const dist = box.width * (0.42 + Math.random() * 0.3);
-      const size = 5 + Math.random() * 5;
-      const n = D.u.el('i', { class: 'spark', style: {
-        left: cx + 'px', top: cy + 'px', width: size + 'px', height: size + 'px',
-        background: colour, opacity: '1',
-        transition: 'transform 520ms cubic-bezier(.16,.8,.3,1), opacity 520ms ease-out',
-      } });
-      document.body.appendChild(n);
-      requestAnimationFrame(() => {
-        n.style.transform = 'translate(' + Math.cos(angle) * dist + 'px,' +
-          (Math.sin(angle) * dist + 26) + 'px) scale(0.3)';
-        n.style.opacity = '0';
-      });
-      setTimeout(() => n.remove(), 600);
-    }
+    setTimeout(() => n.remove(), 620);
   }
 
   function toast(text, ms) {
@@ -60,76 +54,112 @@ D.fx = (function () {
     setTimeout(() => n.remove(), ms || 2000);
   }
 
-  /* The ring: the card's own edge, lit and draining. It starts at the top
-     middle and runs clockwise. A gold mark sits where an answer stops counting
-     as fast, and a faint tick at this child's own best time on the fact.
-     pathLength normalises the border to 100 units, so the dash maths does not
-     care how big the card is on a given phone. */
-  function ring(container, opts) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const S = 100, INSET = 2.4, RX = 10.4, WIDTH = 2.6;
-    const side = S - INSET * 2;
-    const perimeter = 4 * (side - 2 * RX) + 2 * Math.PI * RX;
-    const START = 100 * ((side / 2 - RX) / perimeter);     // top middle, clockwise
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('class', 'ring');
+  /* The seal: a square vermilion hanko with 12 cut into it, slammed onto
+     anything that just settled. */
+  function seal(anchor) {
+    if (!anchor) return null;
+    const n = D.u.el('div', { class: 'seal big sealslam', text: '12' });
+    anchor.appendChild(n);
+    return n;
+  }
+
+  /* ---- the ensō ----
+     One brush circle, open at the top right, drawn clockwise from the top. The
+     remaining time is a shu stroke that shortens; the gold tick sits where an
+     answer stops counting as fast, and a small ink tick at this child's own best
+     time on the question. pathLength normalises the circle to 100 units, so the
+     dash maths does not care how big the card is on a given phone. */
+  function enso(container, opts) {
+    const o = opts || {};
+    const R = 46, CX = 50, CY = 50;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'enso');
     svg.setAttribute('viewBox', '0 0 100 100');
-    function edge(cls, width) {
-      const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', String(INSET)); r.setAttribute('y', String(INSET));
-      r.setAttribute('width', String(side)); r.setAttribute('height', String(side));
-      r.setAttribute('rx', String(RX)); r.setAttribute('ry', String(RX));
-      r.setAttribute('class', cls);
-      r.setAttribute('stroke-width', String(width));
-      r.setAttribute('pathLength', '100');
-      return r;
+    function circle(cls, dash, offset, rotate) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', String(CX)); c.setAttribute('cy', String(CY)); c.setAttribute('r', String(R));
+      c.setAttribute('class', cls);
+      c.setAttribute('pathLength', '100');
+      if (dash) c.setAttribute('stroke-dasharray', dash);
+      if (offset) c.setAttribute('stroke-dashoffset', offset);
+      c.setAttribute('transform', 'rotate(' + rotate + ' ' + CX + ' ' + CY + ')');
+      return c;
     }
-    function mark(cls, width, len, at) {
-      const m = edge(cls, width);
-      m.setAttribute('stroke-dasharray', len + ' ' + (100 - len));
-      m.setAttribute('stroke-dashoffset', String(-(START + at * 100)));
-      m.setAttribute('stroke-linecap', 'butt');
-      return m;
-    }
-    svg.appendChild(edge('track', WIDTH));
-    const arc = edge('arc', WIDTH);
-    arc.setAttribute('stroke-dashoffset', String(-START));
+    // The track is drawn open, thick at the start of the stroke and thin at its tail.
+    svg.appendChild(circle('track', '94 6', '0', -84));
+    const arc = circle('arc', '100 0', '0', -90);
     svg.appendChild(arc);
-    if (opts.ghostAt > 0.02 && opts.ghostAt < 0.99) svg.appendChild(mark('ghost', WIDTH * 1.7, 0.7, opts.ghostAt));
-    if (opts.goldAt > 0.02 && opts.goldAt < 0.99) svg.appendChild(mark('goldline', WIDTH * 2.2, 1.1, opts.goldAt));
+    function tick(cls, at) {
+      const angle = (at * 360 - 90) * Math.PI / 180;
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', String(CX + Math.cos(angle) * (R - 5)));
+      line.setAttribute('y1', String(CY + Math.sin(angle) * (R - 5)));
+      line.setAttribute('x2', String(CX + Math.cos(angle) * (R + 5)));
+      line.setAttribute('y2', String(CY + Math.sin(angle) * (R + 5)));
+      line.setAttribute('class', cls);
+      svg.appendChild(line);
+    }
+    if (o.bestAt > 0.02 && o.bestAt < 0.99) tick('tick-best', o.bestAt);
+    if (o.goldAt > 0.02 && o.goldAt < 0.99) tick('tick-gold', o.goldAt);
     container.appendChild(svg);
     return {
       node: svg,
       set(fraction) {
         const f = D.u.clamp(fraction, 0, 1) * 100;
         arc.setAttribute('stroke-dasharray', f + ' ' + (100 - f));
-        arc.classList.toggle('low', f < 22);
       },
+      // The stroke thickens at three, six and nine in a row (ART.md).
+      thickness(tier) { container.style.setProperty('--ensoW', [4.5, 4.5, 6.5, 8.5][D.u.clamp(tier, 0, 3)] + 'px'); },
       remove() { svg.remove(); },
     };
   }
 
+  /* A worn seal, drawn rather than shipped. */
+  const MARKS = {
+    circle: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+    triangle: 'M12 3 22 21H2z',
+    square: 'M4 4h16v16H4z',
+    diamond: 'M12 2 22 12 12 22 2 12z',
+    hex: 'M7 3h10l5 9-5 9H7l-5-9z',
+    star: 'M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z',
+    ring: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+    cross: 'M9 2h6v7h7v6h-7v7H9v-7H2V9h7z',
+  };
+  function markGlyph(value, tone) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', MARKS[value] || MARKS.circle);
+    path.setAttribute('fill', tone || 'var(--shu)');
+    path.setAttribute('fill-rule', 'evenodd');
+    svg.appendChild(path);
+    return D.u.el('span', { class: 'mark' }, [svg]);
+  }
+
   /* Size the card to the space its row actually gets. The wrapper has no content
-     size of its own, so its box is exactly what is left after the top row, the
-     line, the buttons and the keypad. CSS container units resolved to zero here
-     during layout and collapsed the card to its border, so this measures instead. */
+     size of its own, so its box is exactly what the top row, the line, the
+     buttons and the keypad leave. Watched, because the line and the buttons
+     appear after a miss and the card has to give way to them (the 375 by 667
+     overlap, rework 2026-09-10). */
   function fitCard(wrap, card) {
     if (!wrap || !card) return;
     const box = wrap.getBoundingClientRect();
-    const size = Math.max(120, Math.floor(Math.min(box.width, box.height - 8, 330)));
+    const size = Math.max(120, Math.floor(Math.min(box.width, box.height - 6, 330)));
     card.style.width = size + 'px';
     card.style.height = size + 'px';
     card.style.setProperty('--cs', size + 'px');
   }
-  let fitTarget = null, fitBound = false;
+  let watcher = null;
   function watchFit(wrap, card) {
-    fitTarget = { wrap: wrap, card: card };
     fitCard(wrap, card);
-    if (!fitBound) {
-      fitBound = true;
-      window.addEventListener('resize', () => { if (fitTarget) fitCard(fitTarget.wrap, fitTarget.card); });
+    if (watcher) watcher.disconnect();
+    if (typeof ResizeObserver === 'function') {
+      watcher = new ResizeObserver(() => fitCard(wrap, card));
+      watcher.observe(wrap);
+    } else {
+      window.addEventListener('resize', () => fitCard(wrap, card));
     }
   }
 
-  return { pop, crack, shake, float, burst, toast, ring, fitCard, watchFit };
+  return { pop, crack, shake, splats, float, toast, seal, enso, markGlyph, fitCard, watchFit };
 })();
