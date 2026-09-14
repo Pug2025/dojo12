@@ -17,6 +17,9 @@ D.belts = (function () {
     ]);
     if (!info.black) {
       box.appendChild(u().el('div', { class: 't13 dim' }, D.copy.belt.testTitle));
+      if (!info.testOpen && info.step < D.belt.lastStep()) {
+        box.appendChild(u().el('div', { class: 't13 dim' }, D.copy.belt.far(D.cfg.BELT_STEPS[D.cfg.BELT_STEPS.length - 1])));
+      }
       if (info.testOpen) {
         const start = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.belt.start);
         start.addEventListener('click', () => onTest());

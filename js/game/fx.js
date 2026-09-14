@@ -8,11 +8,10 @@ D.fx = (function () {
   const NS = 'http://www.w3.org/2000/svg';
 
   function pop(node) { D.u.pulse(node, 'pop', 180); }
-  function crack(node) {
-    D.u.pulse(node, 'cracked', 900);
-    splats(node, 3);
-  }
-  function shake(node) { D.u.pulse(node, 'pop', 180); }
+  // A miss is the crack alone (§13.3): the three splats read as "white dots for no
+  // apparent reason" (Jamie, 2026-09-14).
+  function crack(node) { D.u.pulse(node, 'cracked', 900); }
+  function shake(node) { D.u.pulse(node, 'shake', 260); }
 
   /* Three sumi splats that bloom and settle. No red: a miss is ink. */
   function splats(anchor, n) {
@@ -44,6 +43,50 @@ D.fx = (function () {
       n.style.opacity = '0';
     });
     setTimeout(() => n.remove(), 620);
+  }
+
+  /* A coin lifting off the card, the same coin Home shows, so a coin is seen
+     being earned (§13.3). */
+  function floatCoin(anchor, n) {
+    if (!anchor) return;
+    const box = anchor.getBoundingClientRect();
+    const node = D.u.el('div', { class: 'floatnum floatcoin', style: {
+      left: (box.left + box.width * 0.78) + 'px', top: (box.top + box.height * 0.62) + 'px',
+      transform: 'translateX(-50%)',
+    } }, [D.u.el('i', { class: 'coin' }), D.u.el('span', {}, '+' + n)]);
+    document.body.appendChild(node);
+    requestAnimationFrame(() => {
+      node.style.transform = 'translateX(-50%) translateY(-40px)';
+      node.style.opacity = '0';
+    });
+    setTimeout(() => node.remove(), 720);
+  }
+
+  /* Small drawings for How it works: a card with its time, the seal in its three
+     states, a belt with stripes, the streak pill, the two buttons, a coin. */
+  function glyph(kind) {
+    const wrap = D.u.el('div', { class: 'howglyph' });
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 120 48');
+    const add = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]); svg.appendChild(n); return n; };
+    const rect = (x, y, w, h, fill, stroke, r) => add('rect', { x, y, width: w, height: h, fill, stroke, 'stroke-width': stroke ? 1.5 : 0, rx: r || 0 });
+    const text = (x, y, s, size, fill) => { const n = add('text', { x, y, 'font-size': size, 'font-weight': 900, 'text-anchor': 'middle', fill, 'font-family': 'inherit' }); n.textContent = s; return n; };
+    const ring = (cx, cy, r, stroke, dash) => add('circle', { cx, cy, r, fill: 'none', stroke, 'stroke-width': 2.5, 'stroke-dasharray': dash || 'none' });
+    switch (kind) {
+      case 'card': rect(38, 4, 44, 40, 'var(--paper)', 'var(--ink)', 3); text(60, 26, '7 × 8', 12, 'var(--ink)'); text(60, 40, '1.4 s', 7, 'var(--shu)'); break;
+      case 'time': ring(60, 24, 18, 'var(--ink2)'); add('path', { d: 'M60 6 A18 18 0 1 1 42 24', fill: 'none', stroke: 'var(--shu)', 'stroke-width': 3.5, 'stroke-linecap': 'round' });
+        add('line', { x1: 74, y1: 12, x2: 80, y2: 6, stroke: 'var(--kin)', 'stroke-width': 4 }); text(60, 28, '7 × 8', 9, 'var(--ink)'); break;
+      case 'overtime': ring(60, 24, 18, 'var(--ink2)'); text(60, 28, '7 × 8', 9, 'var(--ink)'); text(60, 44, '4.9 s', 6, 'var(--ink2)'); break;
+      case 'seal': ring(24, 24, 9, 'var(--ink2)'); ring(60, 24, 9, 'var(--shu)'); add('circle', { cx: 96, cy: 24, r: 10, fill: 'var(--shu)' }); ring(96, 24, 6, 'var(--paper)'); break;
+      case 'belt': rect(10, 16, 100, 16, 'var(--belt-white)', 'var(--ink)', 2); rect(68, 16, 42, 16, 'var(--belt-bar)', 'none'); rect(74, 16, 3, 16, 'var(--belt-tape)'); rect(81, 16, 3, 16, 'var(--belt-tape)'); break;
+      case 'streak': rect(30, 14, 60, 20, 'var(--shu)', 'none', 3); text(60, 28, '× 1.5', 10, 'var(--onInk)'); break;
+      case 'wrong': rect(8, 12, 50, 24, 'var(--paper)', 'var(--ink)', 3); rect(64, 12, 48, 24, 'var(--paper)', 'var(--ink2)', 3); text(33, 28, D.copy.rescue.button, 6, 'var(--ink)'); text(88, 28, D.copy.rescue.skip, 6, 'var(--ink2)'); break;
+      case 'coins': add('circle', { cx: 60, cy: 24, r: 14, fill: 'var(--kin)', stroke: 'var(--ink)', 'stroke-width': 2 }); rect(55, 19, 10, 10, 'var(--paper)', 'var(--ink)'); break;
+      case 'tick': ring(60, 24, 18, 'var(--ink2)'); add('line', { x1: 44, y1: 10, x2: 40, y2: 5, stroke: 'var(--ink)', 'stroke-width': 3 }); add('line', { x1: 74, y1: 12, x2: 80, y2: 6, stroke: 'var(--kin)', 'stroke-width': 4 }); break;
+      default: return wrap;
+    }
+    wrap.appendChild(svg);
+    return wrap;
   }
 
   function toast(text, ms) {
@@ -161,5 +204,5 @@ D.fx = (function () {
     }
   }
 
-  return { pop, crack, shake, splats, float, toast, seal, enso, markGlyph, fitCard, watchFit };
+  return { pop, crack, shake, splats, float, floatCoin, glyph, toast, seal, enso, markGlyph, fitCard, watchFit };
 })();

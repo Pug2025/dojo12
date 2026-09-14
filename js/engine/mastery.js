@@ -17,10 +17,59 @@ D.mastery = (function () {
   }
   function peek(id) { return D.state.facts[id] || null; }
 
-  /* ---- thresholds ---- */
+  /* ---- thresholds ----
+     The fast line is the child's own (§13.3): RT_OWN_SHARE of their median unaided
+     time for answers of that length, never slower than RT_OWN_MAX and never faster
+     than the fixed line. It starts where the child is and moves in as they speed
+     up, so a careful four-second child can seal a question and the check-ins
+     re-test it against the tighter line later. Beyond keeps the fixed line: it
+     has no ring and the answers take thinking. */
   function threshold(id) {
     const f = D.facts.get(id);
+    if (!f) return cfg.RT_BASE;
+    const raw = rawThreshold(f);
+    if (f.lane === 'beyond') return raw;
+    const med = ownMedian(f);
+    if (med === null) return raw;
+    return Math.max(raw, Math.min(cfg.RT_OWN_MAX, Math.round(cfg.RT_OWN_SHARE * med)));
+  }
+  // The child's typical time on this fact's table: the median of that table's
+  // facts' own averages (a fact in two tables takes the slower of the two), so
+  // quick twos and tens do not set the bar on the sevens, and an even child is
+  // fast on about half of a table on any day (replay 2026-09-14: pooled by answer
+  // length and cut to 85 %, 8 × 8 at 3.2 s went from red to grey as her twos sped
+  // up, and a child with no spread never sealed anything). Falls back to the
+  // child's recent answers of that length while a table has fewer than
+  // RT_OWN_MIN_SAMPLES facts with an average.
+  let ownCache = null;
+  function ownMedian(f) {
+    if (!ownCache) {
+      ownCache = {};
+      const pools = {};
+      for (const id of Object.keys(D.state.facts)) {
+        const r = D.state.facts[id], g = D.facts.get(id);
+        if (!g || !r || r.ewma === null || r.seen < 2 || g.lane !== 'muldiv') continue;
+        for (const t of (g.tables || [])) (pools[t] = pools[t] || []).push(r.ewma);
+      }
+      for (const k of Object.keys(pools)) if (pools[k].length >= cfg.RT_OWN_MIN_SAMPLES) ownCache[k] = D.u.median(pools[k]);
+    }
+    const lines = (f.tables || []).map(t => ownCache[t]).filter(x => x !== undefined);
+    if (lines.length) return Math.max.apply(null, lines);
+    const samples = ownBucket(f);
+    return samples.length >= cfg.RT_OWN_MIN_SAMPLES ? D.u.median(samples) : null;
+  }
+  // The fixed line, for the black belt test and the parent's view.
+  function fixedThreshold(id) {
+    const f = D.facts.get(id);
     return f ? rawThreshold(f) : cfg.RT_BASE;
+  }
+  // Every unaided right answer of this length, last RT_SAMPLES, for the child's own line.
+  function ownBucket(f) {
+    const lane = f.lane === 'beyond' ? 'beyond' : 'muldiv';
+    const key = 'd' + Math.min(f.digits, 4);
+    const all = D.state.rtAll || (D.state.rtAll = {});
+    const b = all[lane] || (all[lane] = {});
+    return b[key] || (b[key] = []);
   }
 
   // The child's own median ewma across auto facts of the same lane and answer
@@ -28,7 +77,7 @@ D.mastery = (function () {
   // a fact is genuinely automatic, so a uniformly slow child cannot bank speed
   // on the absolute bar alone. Recomputed lazily; record() dirties it.
   let relCache = null;
-  function dirty() { relCache = null; }
+  function dirty() { relCache = null; ownCache = null; }
   function relativeMedians() {
     if (relCache) return relCache;
     const buckets = {};
@@ -64,8 +113,11 @@ D.mastery = (function () {
     const m = relativeMedians()[f.lane];
     return m ? m * cfg.RT_RELATIVE * rawThreshold(f) : Infinity;
   }
+  // Fast is one line, the one the gold tick is drawn on (§13.3). The relative cap
+  // judged a second, invisible line and the same time came up red one card and grey
+  // the next (audit 2026-09-14).
   function isFastRt(id, ms) {
-    return ms !== null && ms !== undefined && ms <= threshold(id) && ms <= relativeCap(id);
+    return ms !== null && ms !== undefined && ms <= threshold(id);
   }
 
   function accuracyOk(r) {
@@ -188,9 +240,21 @@ D.mastery = (function () {
       r.streak++;
       r.lastMiss = false;
       if (!o.helped && typeof o.rt === 'number') {
-        r.ewma = r.ewma === null ? o.rt : Math.round((1 - cfg.EWMA_ALPHA) * r.ewma + cfg.EWMA_ALPHA * o.rt);
+        // An answer given after the ring ran out is not a clean measurement: it
+        // neither moves the average nor, below, judges the seal (replay 2026-09-14:
+        // "Out of time. You can still answer." and then "2 × 10 lost its seal.").
+        if (!o.late) r.ewma = r.ewma === null ? o.rt : Math.round((1 - cfg.EWMA_ALPHA) * r.ewma + cfg.EWMA_ALPHA * o.rt);
         if (r.best === null || o.rt < r.best) r.best = o.rt;
+        // The fast line is judged before this answer moves it.
         out.wasFast = isFastRt(id, o.rt);
+        {
+          const f = D.facts.get(id);
+          if (f && !o.warmup) {
+            const own = ownBucket(f);
+            own.push(o.rt);
+            while (own.length > cfg.RT_SAMPLES) own.shift();
+          }
+        }
         // Feed the child's own speed baseline, from settled facts only.
         if (r.days.length >= cfg.AUTO_DAYS || isFastRt(id, r.ewma)) {
           const b = rtBucket(id);
@@ -200,7 +264,7 @@ D.mastery = (function () {
       }
       const dueToday = r.days.length === 0 || isDue(id, day);
       const missedToday = r.lastMissDay === day;
-      if (!o.helped && !o.warmup && !o.comeback && out.wasFast && r.streak >= 2 &&
+      if (!o.helped && !o.comeback && out.wasFast && r.streak >= 2 &&
           accuracyOk(r) && dueToday && !missedToday && !r.days.includes(day)) {
         r.days.push(day);
         while (r.days.length > cfg.MAX_DAYS_KEPT) r.days.shift();
@@ -214,7 +278,7 @@ D.mastery = (function () {
       // threshold loses the seal. Never on the answer that just added a day: judged
       // on that answer, a slow child watched the seal go on and come straight off
       // 58 per cent of the time (code review 2026-09-12).
-      if (!out.stamped && r.days.length >= cfg.AUTO_DAYS && !o.helped && r.ewma !== null &&
+      if (!out.stamped && !o.late && r.days.length >= cfg.AUTO_DAYS && !o.helped && r.ewma !== null &&
           r.ewma > cfg.SLOW_AUTO * threshold(id)) {
         emptyMark(r, out);
       }
@@ -284,10 +348,15 @@ D.mastery = (function () {
   /* A table's belt counts its divisions only once they have opened, so the
      "14 of 22 fast" line and the belt thresholds do not punish a child for
      content the game has not served yet. */
+  // Division opens at half the products fast, or at DIVISION_OPEN_KNOWN_PCT of them
+  // correct twice in a row (§13.3): on speed alone an average child saw 31
+  // divisions in three weeks (replay 2026-09-14).
   function divisionOpen(key) {
     const t = D.facts.table(key);
     if (!t) return false;
-    return statsFor(t.products).fastPct >= cfg.DIVISION_OPEN_PCT;
+    const st = statsFor(t.products);
+    return st.fastPct >= cfg.DIVISION_OPEN_PCT ||
+      (st.known + st.fastPlus) / Math.max(1, st.total) >= cfg.DIVISION_OPEN_KNOWN_PCT;
   }
   function activeItems(key) {
     const t = D.facts.table(key);
@@ -295,7 +364,7 @@ D.mastery = (function () {
     return divisionOpen(key) ? t.items.slice() : t.products.slice();
   }
 
-  return { blank, rec, peek, threshold, relativeCap, isFastRt, accuracyOk, status, isFast,
+  return { blank, rec, peek, threshold, fixedThreshold, relativeCap, isFastRt, accuracyOk, status, isFast,
            isKnownPlus, isDue, canCountToday, marks, sealState, isSealed, emptyMark, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
            statsFor, tableStats, divisionOpen, activeItems, dirty };
 })();

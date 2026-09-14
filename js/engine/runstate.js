@@ -31,9 +31,19 @@ D.runstate = (function () {
       spares: (plan.spares || []).slice(),
       redemption: false, redemptionQueue: [], finished: false,
       counted: false, table: o.table || null,
+      // The streak carries in from the last round (§13.3), and out again at the end.
+      combo: o.combo || 0,
+      pbFacts: [], coinsAnswers: 0, coinsBonus: 0,
+      carryComebacks: [], carryRetries: [],
+      // XP lands card by card, so the level at the start is what a level-up is judged against.
+      levelAtStart: D.xp.levelFor(D.state.progress.xp).level,
     };
+    r.bestCombo = 0;                        // the round's own longest streak, not the one carried in
     // A run that was interrupted comes back exactly where it was (PLAN §7.2).
     if (o.resume) for (const k of Object.keys(o.resume)) r[k] = o.resume[k];
+    for (const k of ['pbFacts', 'carryComebacks', 'carryRetries']) if (!Array.isArray(r[k])) r[k] = [];
+    if (typeof r.coinsAnswers !== 'number') r.coinsAnswers = 0;
+    if (typeof r.coinsBonus !== 'number') r.coinsBonus = 0;
     // A run saved mid-miss (closed at the buttons, in a rescue, or on the shown
     // answer) comes back on the shown answer for nothing. Coming back clean handed
     // the card out again with the answer already seen (exploit review 2026-09-10).
@@ -45,7 +55,9 @@ D.runstate = (function () {
     // Dealt again with a full timer, holding Leave and tapping Play bought unlimited
     // thinking time on any card and a fast answer at the end of it (code review
     // 2026-09-12).
-    if (o.resume && r.phase === 'card' && r.cardAtIndex === r.i && r.cards[r.i] && r.cards[r.i].ringKind) {
+    // Timed or not (§13.3): leaving on an untimed card bought unlimited thinking time
+    // and a fast answer at the end of it (audit 2026-09-14).
+    if (o.resume && r.phase === 'card' && r.cardAtIndex === r.i && r.cards[r.i]) {
       r.cardSpent = true;
     }
 
@@ -111,7 +123,7 @@ D.runstate = (function () {
       if (overtime) out.points = Math.round(base);
       else if (c.kind === 'comeback') out.points = Math.round(base * (c.comebackMult || cfg.COMEBACK_MULT));
       else if (c.kind === 'redemption') out.points = Math.round(baseFor(c, rt));
-      else if (c.slipRepair) out.points = Math.round(baseFor(c, rt));
+      else if (c.slipRepair) out.points = Math.round(baseFor(c, rt) * (c.last ? cfg.LAST_CARD_MULT : 1));   // the label still says double
       else out.points = Math.round(base * comboMult(r.combo));
       r.score += out.points;
       if (c.bonus) { out.coins += cfg.BONUS_COINS; out.marks.push('bonus'); }
@@ -129,7 +141,10 @@ D.runstate = (function () {
       // Answered well after the ring emptied on a card that stays up: the same as
       // timeout() having fired, for callers that never ran the clock.
       const ring = ringMs(c);
-      if (r.cardSpent && ring) { rt = Math.max(rt, ring + cfg.RING_GRACE_MS + 1); r.cardOvertime = true; }
+      if (r.cardSpent) {
+        rt = Math.max(rt, M().threshold(c.id) + 1, ring ? ring + cfg.RING_GRACE_MS + 1 : 0);
+        r.cardOvertime = true;
+      }
       if (ring && rt > ring + cfg.RING_GRACE_MS && overtimeKind(c)) r.cardOvertime = true;
       r.served++;
       r.rts.push(rt);
@@ -161,13 +176,20 @@ D.runstate = (function () {
         out.points = Math.round(baseFor(c, rt) * comboMult(r.combo));
         r.score += out.points;
         r.correct++;
+        // A right answer is a right answer: the coin and the XP are paid, so "one
+        // for every right answer" stays true (replay 2026-09-14). Nothing else moves.
+        out.xp = D.xp.answerXp(c.id);
+        gainXp(out.xp);
+        gainCoins(cfg.COINS_PER_CORRECT);
+        r.coinsAnswers += cfg.COINS_PER_CORRECT;
+        out.coins += cfg.COINS_PER_CORRECT;
         return advance(out);
       }
       const helped = r.cardHelped || c.kind === 'redemption' || !!c.slipRepair;
       const before = M().peek(c.id);
       const beforeBest = before ? before.best : null;
       const rec = M().record(c.id, { correct: true, rt: rt, helped: helped, day: r.day,
-                                     warmup: c.kind === 'warmup', comeback: c.kind === 'comeback' });
+                                     warmup: c.kind === 'warmup', comeback: c.kind === 'comeback', late: !!r.cardOvertime });
       r.correct++;
       if (!helped) { r.unaided++; }
       // A slip's re-serve holds the combo where it was, as decided in step 1, and so
@@ -179,21 +201,29 @@ D.runstate = (function () {
       }
       const pay = payCorrect(c, rt, overtime);
       out.points = pay.points; out.marks = pay.marks; out.coins += pay.coins;
-      if (pay.coins) gainCoins(pay.coins);
+      if (pay.coins) { gainCoins(pay.coins); r.coinsBonus += pay.coins; }
 
       if (!helped) {
         out.xp = D.xp.answerXp(c.id);
         gainXp(out.xp);
         gainCoins(cfg.COINS_PER_CORRECT);
+        r.coinsAnswers += cfg.COINS_PER_CORRECT;
         out.coins += cfg.COINS_PER_CORRECT;
         if (!r.fastestFact || rt < r.fastestFact.ms) r.fastestFact = { id: c.id, ms: rt };
         // Beating this question's best time is marked, never paid. Paid, answering
-        // slowly on purpose and shaving a little each time was worth doing.
+        // slowly on purpose and shaving a little each time was worth doing. Any
+        // improvement counts, fast or not (§13.3): a slow child getting quicker was
+        // the one thing the game never said (audit 2026-09-14).
         if (beforeBest !== null && before && before.ok >= cfg.GHOST_MIN_ATTEMPTS &&
-            rt <= beforeBest - cfg.GHOST_BEAT_MS && M().isFastRt(c.id, rt)) {
+            rt <= beforeBest - cfg.GHOST_BEAT_MS && !overtime) {
           out.marks.push('pb');
+          r.pbFacts.push({ id: c.id, ms: rt, from: beforeBest });
         }
       }
+      // What the seal on the card should show after this answer: a check-in on a
+      // sealed question adds a day without sealing it again, and the outline was
+      // painted over the stamp (audit 2026-09-14).
+      out.sealNow = M().sealState(c.id);
       // The seal: an outline on the first counted fast day, stamped on the second.
       out.fast = !!rec.wasFast;
       if (rec.stamped && !rec.sealed) { out.stamped = true; r.fastNew.push(c.id); }
@@ -241,11 +271,16 @@ D.runstate = (function () {
     function onWrong(c, f, rt, given, timedOut) {
       const out = { kind: 'miss', card: c, rt: rt, timeout: !!timedOut, points: 0, xp: 0,
                     line: null, buttons: false, slip: false, mandatory: false };
-      // Scouts stay silent both ways and never touch the combo.
+      // A wrong scout shows the answer to type, for nothing: no points, no streak
+      // change, no rescue, no comeback (§13.3). Silent, a missed 8 + 7 read as the
+      // game shrugging (audit 2026-09-14).
       if (c.kind === 'scout') {
         D.scheduler.noteScout(c.id, false, false);
-        out.silent = true;
-        return advance(out);
+        r.cardHelped = true;
+        r.phase = 'reveal';
+        out.reveal = true;
+        out.scout = true;
+        return out;
       }
       // A slip on a retrieved fact is repaired by retrieval, not derivation.
       const st = M().status(c.id);
@@ -279,23 +314,26 @@ D.runstate = (function () {
       if (missRec.lostSeal) { out.lostSeal = true; r.unsealed.push(c.id); }
       trimRepeats(c, true);
       // A warm-up is the ramp, not the test: missing one costs the card, never
-      // the combo, so card four is never reached at nothing (PLAN §2, §6.5).
+      // the combo, so card four is never reached at nothing (PLAN §2, §6.5). A
+      // rushed wrong answer loses the streak at once. Any other miss waits for the
+      // choice (§13.3): Break it down with every step right keeps the streak, a
+      // shown value drops it a step, Show me drops it to nothing. Judged before the
+      // choice, the two buttons cost the same at any streak under six and Show me was
+      // strictly the better tap (replay 2026-09-14).
       if (c.kind === 'warmup') { /* the combo holds */ }
       else if (fastWrong) { r.combo = 0; }
-      else { dropCombo(); }
       r.cardMissed = true;
       const diag = D.diagnose.read(c.id, given === null ? null : Number(given), { timeout: timedOut });
       r.cardDiagnosis = diag;
       if (timedOut && !r.outOfTimeShown) { r.outOfTimeShown = true; out.line = D.copy.run.outOfTime; }
       if (fastWrong && r.fastWrongs === 2) out.mandatory = true;
-      if (fastWrong && r.fastWrongs >= 2) out.line = out.line || D.copy.run.slowDown;
+      if (fastWrong && r.fastWrongs === 2) out.line = out.line || D.copy.run.slowDown;   // once a round
       out.buttons = true;
       out.mandatory = out.mandatory || false;
-      // The one line that explains what Rescue is, above the buttons, once ever.
-      if (!D.state.flags.firstRescueShown) {
-        D.state.flags.firstRescueShown = true;
-        out.intro = D.copy.rescue.first;
-      }
+      // The line that explains what Break it down is; the screen shows it the
+      // first few times (§13.3).
+      D.state.flags.firstRescueShown = true;
+      out.intro = D.copy.rescue.first;
       r.phase = 'miss';
       queueRedemption(c.id);
       return out;
@@ -346,18 +384,26 @@ D.runstate = (function () {
       D.scheduler.noteStepMiss(step.kind, r.day);
       if (!rc.sub && step.simpler && step.simpler.length) {
         rc.sub = step.simpler.slice(); rc.subAt = 0;
-        return { kind: 'step', step: currentStep() };
+        // The swap is seen (§13.3): silent, the child never learned the step was wrong.
+        return { kind: 'step', step: currentStep(), splat: true };
       }
       rc.failedTwice = true;
+      rc.shown = true;
       return { kind: 'stepValue', line: D.copy.rescue.stepValue(step.label, step.answer),
                step: { prompt: step.prompt, label: step.label, answer: step.answer, forced: true } };
     }
+    /* A shown value continues the chain it was in: the rest of a simpler chain still
+       gets to the answer. Dropped, 3 × 9 ended on 28 and "Got it." (audit 2026-09-14). */
     function stepForced(value) {
       const rc = r.rescue, step = currentStep();
       if (Number(value) !== step.answer) return { kind: 'stepValue', step: step, again: true,
         line: D.copy.rescue.stepValue(step.label, step.answer) };
       rc.failedTwice = false;
-      if (rc.sub) { rc.sub = null; rc.subAt = 0; }
+      if (rc.sub) {
+        rc.subAt++;
+        if (rc.subAt < rc.sub.length) return { kind: 'step', step: currentStep() };
+        rc.sub = null; rc.subAt = 0;
+      }
       rc.at++;
       if (rc.at < rc.steps.length) return { kind: 'step', step: currentStep() };
       return finishRescue();
@@ -365,9 +411,12 @@ D.runstate = (function () {
     function finishRescue() {
       const c = card(), rc = r.rescue;
       const clean = !rc.retried;
-      const zeroPaid = !clean || r.fastWrongs >= 3;
+      // Fifty points unless a value had to be shown (§13.3): a fumbled sub-step that
+      // still got there paid nothing with the same "Got it." as one that paid.
+      const zeroPaid = !!rc.shown || r.fastWrongs >= 3;
       const points = zeroPaid ? 0 : cfg.RESCUE_SCORE;
       r.score += points;
+      if (rc.shown) dropCombo();              // a shown value costs a step; every step right keeps the streak
       M().record(c.id, { correct: true, rt: null, helped: true, day: r.day });
       r.phase = 'card';
       const out = { kind: 'rescued', points: points, line: D.copy.rescue.done, clean: clean };
@@ -385,6 +434,8 @@ D.runstate = (function () {
       back.comebackMult = (clean && !r.cardFastWrong) ? diagMult : 1;
       const at = insert(back, cfg.COMEBACK_MIN, cfg.COMEBACK_MAX);
       if (at >= 0) dropFromRedemption(c.id);
+      // No room in a five-card round: it comes back in the next one, worth the same (§13.3).
+      else if (!r.carryComebacks.includes(c.id)) r.carryComebacks.push(c.id);
     }
 
     /* ---- skip and the shown answer ---- */
@@ -392,11 +443,14 @@ D.runstate = (function () {
       if (r.phase !== 'miss' && r.phase !== 'rescue') return null;
       const c = card();
       r.cardHelped = true;
-      // A skip resets the combo. Being shown the answer because the fact has no
-      // walkthrough is not a skip: the miss already cost a tier.
-      if (!fromEmptyScript) r.combo = 0;
+      // Show me drops the streak to nothing. Being shown the answer because the fact
+      // has no walkthrough is not a choice: that miss costs a step.
+      if (!fromEmptyScript) r.combo = 0; else dropCombo();
       r.phase = 'reveal';
       r.rescue = null;
+      // Shown the answer, the question comes back next round as an ordinary card,
+      // not a double comeback: that is the cost of Show me, and it is seen (§13.3).
+      if (c.kind !== 'scout' && !r.carryRetries.includes(c.id) && !r.carryComebacks.includes(c.id)) r.carryRetries.push(c.id);
       const f = D.facts.get(c.id);
       return { kind: 'reveal', line: D.copy.rescue.showAnswer(c.id, c.flip),
                answer: f.ans, input: f.input || 'number', forced: !!fromEmptyScript };
@@ -406,10 +460,9 @@ D.runstate = (function () {
       const c = card(), f = D.facts.get(c.id);
       if (!D.facts.check(c.id, value)) return { kind: 'reveal', again: true, answer: f.ans,
                                                line: D.copy.rescue.showAnswer(c.id, c.flip) };
-      const rec = M().rec(c.id);
-      rec.helpedLast = true;
+      if (c.kind !== 'scout') M().rec(c.id).helpedLast = true;
       r.phase = 'card';
-      return advance({ kind: 'revealed', points: 0 });
+      return advance({ kind: 'revealed', points: 0, scout: c.kind === 'scout' });
     }
 
     /* ---- redemption (PLAN §6.5) ---- */
@@ -438,7 +491,7 @@ D.runstate = (function () {
       return out;
     }
     function startRedemptionOrFinish(out) {
-      if (!r.redemption && r.redemptionQueue.length) {
+      if (!r.redemption && r.redemptionQueue.length && cfg.REDEMPTION_MAX > 0) {
         r.redemption = true;
         const list = r.redemptionQueue.slice(0, cfg.REDEMPTION_MAX);
         for (const id of list) {
@@ -497,6 +550,9 @@ D.runstate = (function () {
       missed: r.missed.slice(), bestCombo: r.bestCombo, medianRt: medianRt,
       fastestFact: r.fastestFact, day: r.day, table: r.table, fastWrongs: r.fastWrongs,
       counted: r.correct >= D.cfg.RUN_MIN_CORRECT,
+      pbFacts: (r.pbFacts || []).slice(), coinsAnswers: r.coinsAnswers || 0, coinsBonus: r.coinsBonus || 0,
+      combo: r.combo, carryComebacks: (r.carryComebacks || []).slice(), carryRetries: (r.carryRetries || []).slice(),
+      levelAtStart: r.levelAtStart,
     };
   }
 
@@ -509,17 +565,30 @@ D.runstate = (function () {
                   cards: sum.cards, medianRt: sum.medianRt });
     while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
     const extra = { pbs: [], belt: [] };
+    const levelBefore = typeof sum.levelAtStart === 'number' ? sum.levelAtStart : D.xp.levelFor(s.progress.xp).level;
     if (sum.counted) {
       D.xp.creditDay(sum.day);
       extra.pbs = D.xp.checkPbs(sum);
     }
     D.scheduler.adaptLearnSlots();
     D.scheduler.endPlacementRound();
+    D.scheduler.noteFocusDay(sum.day);
     D.scheduler.ensureProgression();
     // Stripes and belts are settled when the round ends, where there is room to
     // show them (rework 2026-09-10). A short round's seals still count.
-    extra.belt = D.belt.update();
-    sum.coins += extra.belt.reduce((n, e) => n + e.coins, 0);
+    extra.belt = (s.progress.pendingBelt || []).concat(D.belt.update());
+    s.progress.pendingBelt = [];
+    sum.coinsBelt = extra.belt.reduce((n, e) => n + e.coins, 0);
+    sum.coins += sum.coinsBelt;
+    sum.levelUp = D.xp.levelFor(s.progress.xp).level > levelBefore ? D.xp.levelFor(s.progress.xp).level : 0;
+    // What carries into the next round (§13.3): the streak, and the misses that had
+    // no room to come back in this one.
+    s.progress.carryCombo = sum.combo;
+    const old = s.progress.carry || { comebacks: [], retries: [] };
+    const merge = (a, b) => Array.from(new Set((a || []).concat(b || [])));
+    s.progress.carry = { comebacks: merge(old.comebacks, sum.carryComebacks), retries: merge(old.retries, sum.carryRetries).filter(id => !merge(old.comebacks, sum.carryComebacks).includes(id)) };
+    s.progress.fastToday = (s.progress.fastToday || 0) + sum.fastNew.length;
+    s.progress.sealedToday = (s.progress.sealedToday || 0) + sum.sealed.length;
     s.inRun = null;
     D.save.commit();
     sum.extra = extra;

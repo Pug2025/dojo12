@@ -193,6 +193,8 @@ D.save = (function () {
     s.rolloverEpoch = nowMs;
     s.progress.runsToday = 0;
     s.progress.fullXpToday = 0;
+    s.progress.fastToday = 0;
+    s.progress.sealedToday = 0;
     rollWeek(today);
     trimFastWrongs(today);
     commit();

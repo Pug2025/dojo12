@@ -82,6 +82,11 @@ D.audio = (function () {
     const worn = D.state && D.state.cosmetics ? D.state.cosmetics.equipped.sound : null;
     return VOICES[worn] || VOICES.plain;
   }
+  function preview(value) {
+    const v = VOICES[value] || VOICES.plain;
+    tone(SCALE[2] * v.mult, v.len, v.wave, v.vol);
+    tone(SCALE[4] * v.mult, v.len, v.wave, v.vol, 0.14);
+  }
   function correct(combo) {
     const v = voice();
     const i = Math.min(SCALE.length - 1, Math.max(0, (combo || 1) - 1));
@@ -100,5 +105,5 @@ D.audio = (function () {
     notes.forEach((f, i) => tone(f, 0.28, 'triangle', 0.16, i * 0.12));
   }
 
-  return { install, unlock, tone, correct, miss, gold, stamp, thump, bonus, lastCard, key, belt, enabled };
+  return { install, unlock, tone, correct, preview, miss, gold, stamp, thump, bonus, lastCard, key, belt, enabled };
 })();

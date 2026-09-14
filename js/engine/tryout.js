@@ -10,8 +10,19 @@ D.tryout = (function () {
 
   const EASY_FACTORS = [3, 4];
   const HARD_FACTORS = [6, 7, 8, 9];
-  // The four safety-net probes of §6.6, interleaved and never adjacent.
-  const SAFETY = ['add:8+7', 'sub:15-8', 'add:9+6', 'sub:13-6'];
+  // The four safety-net probes of §6.6, interleaved and never adjacent. Drawn per
+  // child from a pool of sums and take-aways near ten and twenty (§13.3): the same
+  // four for life read as the game only knowing 8 + 7 and 15 - 8.
+  const SAFETY_POOL = {
+    add: ['add:8+7', 'add:9+6', 'add:7+6', 'add:8+5', 'add:9+8', 'add:9+7', 'add:8+6', 'add:7+5'],
+    sub: ['sub:15-8', 'sub:13-6', 'sub:14-7', 'sub:16-9', 'sub:12-5', 'sub:17-8', 'sub:13-7', 'sub:15-6'],
+  };
+  function drawSafety() {
+    const adds = D.u.shuffle(SAFETY_POOL.add.filter(id => D.facts.get(id))).slice(0, 2);
+    const subs = D.u.shuffle(SAFETY_POOL.sub.filter(id => D.facts.get(id))).slice(0, 2);
+    return [adds[0], subs[0], adds[1], subs[1]].filter(Boolean);
+  }
+  const SAFETY = drawSafety();
   const SAFETY_AT = [5, 9, 13, 17];
 
   function openers() {
@@ -296,5 +307,5 @@ D.tryout = (function () {
              safetyMisses: st.safetyMisses, results: st.results };
   }
 
-  return { create, apply, activateSafety, openers, fillerId, SAFETY, easyFor, hardFor };
+  return { create, apply, activateSafety, openers, fillerId, SAFETY, SAFETY_POOL, drawSafety, easyFor, hardFor };
 })();

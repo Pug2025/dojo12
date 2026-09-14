@@ -26,14 +26,21 @@ D.belt = (function () {
   }
   // Sealed questions across everything the belt counts: the times tables and
   // Beyond, never the quiet addition lane.
-  function sealedCount() {
-    let n = 0;
+  function sealedCount() { return counts().sealed; }
+  // Questions the child has sealed, ever, and questions fast once that have not yet
+  // been sealed, across everything the belt counts. The belt counts a question once
+  // it has been sealed and never uncounts it (§13.3): a lost seal shows on the card,
+  // in the Grid and in the summary, but the belt's count is a record of reach, and
+  // counted live it walked backwards on the plate (replays 2026-09-14).
+  function counts() {
+    let sealed = 0, outlined = 0;
     for (const id of Object.keys(D.state.facts)) {
-      const f = D.facts.get(id);
-      if (!f || f.lane === 'addsub') continue;
-      if (D.mastery.isSealed(id)) n++;
+      const f = D.facts.get(id), r = D.state.facts[id];
+      if (!f || f.lane === 'addsub' || !r) continue;
+      if (r.doneOnce || D.mastery.isSealed(id)) sealed++;
+      else if (D.mastery.sealState(id) === 'fast') outlined++;
     }
-    return n;
+    return { sealed: sealed, outlined: outlined };
   }
   function stepFor(sealed) {
     let s = 0;
@@ -48,11 +55,11 @@ D.belt = (function () {
 
   /* Where the child stands and what comes next, for Home and the round's end. */
   function info() {
-    const st = state(), sealed = sealedCount(), d = describe(st.step, st.black);
+    const st = state(), c = counts(), sealed = c.sealed, d = describe(st.step, st.black);
     const next = st.black || st.step >= lastStep() ? null : cfg.BELT_STEPS[st.step];
     const nextKind = st.black ? null : st.step >= lastStep() ? 'test' : ((st.step + 1) % 5 === 0 ? 'belt' : 'stripe');
     const nextBelt = nextKind === 'belt' ? cfg.BELT_NAMES[(st.step + 1) / 5] : nextKind === 'test' ? 'black' : d.belt;
-    return { step: st.step, belt: d.belt, stripes: d.stripes, black: st.black, sealed: sealed,
+    return { step: st.step, belt: d.belt, stripes: d.stripes, black: st.black, sealed: sealed, outlined: c.outlined,
              prevAt: st.step > 0 ? cfg.BELT_STEPS[st.step - 1] : 0, nextAt: next,
              nextKind: nextKind, nextBelt: nextBelt, testOpen: testOpen() };
   }
@@ -95,6 +102,6 @@ D.belt = (function () {
     return { kind: 'belt', belt: 'black', stripes: 0, step: st.step, coins: cfg.COINS_BELT };
   }
 
-  return { state, coreIds, sealedCount, stepFor, describe, info, update, sync, testOpen,
+  return { state, coreIds, sealedCount, counts, stepFor, describe, info, update, sync, testOpen,
            stampTest, passBlack, lastStep };
 })();

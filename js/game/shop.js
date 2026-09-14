@@ -52,6 +52,9 @@ D.shop = (function () {
     u().clear(root);
     if (!root.__shopOpen) pending = null;
     apply();
+    // Home's nudge stands down once the Shop has been seen with these coins.
+    D.state.flags.shopSeenCoins = D.state.progress.coins;
+    D.state.flags.shopSeenLevel = D.xp.levelFor(D.state.progress.xp).level;
     const list = u().el('div', { class: 'col', style: { gap: '9px' } });
     const groups = {};
     for (const item of items()) {
@@ -69,9 +72,12 @@ D.shop = (function () {
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'row between' }, [
         u().el('div', { class: 'titlebar' }, D.copy.shop.title),
-        u().el('div', { class: 'row', style: { gap: '7px' } }, [
-          u().el('i', { class: 'coin' }),
-          u().el('div', { class: 't17 num' }, D.copy.shop.coins(D.state.progress.coins)),
+        u().el('div', { class: 'col', style: { alignItems: 'flex-end', gap: '2px' } }, [
+          u().el('div', { class: 'row', style: { gap: '7px' } }, [
+            u().el('i', { class: 'coin' }),
+            u().el('div', { class: 't17 num' }, D.copy.shop.coins(D.state.progress.coins)),
+          ]),
+          u().el('div', { class: 't13 dim' }, D.copy.shop.owned(D.state.cosmetics.owned.length, items().length)),
         ]),
       ]),
       u().el('div', { class: 'wrapx grow' }, [list]),
@@ -103,17 +109,22 @@ D.shop = (function () {
     const on = equipped(item.kind) === item.value;
     const canSee = available(item);
     const asking = pending === item.id;
+    const short = !have && canSee && !afford(item);
     const right = have ? (on ? D.copy.shop.inUse : D.copy.shop.use)
       : !canSee ? D.copy.shop.lockedRow(item.level, item.price)
+      : short ? D.copy.shop.shortRow(item.price, D.state.progress.coins)
       : asking ? D.copy.shop.confirm(item.price) : D.copy.shop.price(item.price);
+    // A row the child cannot afford is dimmed like a locked one, with the shortfall
+    // on it (§13.3): drawn at full strength it read as buyable (audit 2026-09-14).
     const node = u().el('button', {
-      class: 'btn wide shopitem' + (on ? ' on' : '') + (!have && !canSee ? ' dim' : ''),
+      class: 'btn wide shopitem' + (on ? ' on' : '') + (!have && (!canSee || short) ? ' dim' : ''),
       type: 'button',
     }, [
       u().el('span', { class: 'row', style: { gap: '11px' } }, [swatch(item), u().el('span', {}, D.copy.shop.names[item.id])]),
       u().el('span', { class: 'right' + (asking ? ' ask' : '') }, right),
     ]);
     node.addEventListener('click', () => {
+      if (item.kind === 'sound') D.audio.preview(item.value);   // heard before it is bought
       if (have) {
         pending = null;
         if (on) unequip(item.kind); else equip(item);
@@ -169,5 +180,16 @@ D.shop = (function () {
     return svg;
   }
 
-  return { render, apply, buy, equip, unequip, owned, equipped, available, items, paperSwatch };
+  // The cheapest thing the child could buy now and has not seen the Shop with, for Home.
+  function nudge() {
+    const lvl = D.xp.levelFor(D.state.progress.xp).level;
+    const seenCoins = D.state.flags.shopSeenCoins || 0, seenLevel = D.state.flags.shopSeenLevel || 1;
+    const can = items().filter(it => !owned(it.id) && available(it) && afford(it)).sort((a, b) => a.price - b.price);
+    if (!can.length) return null;
+    const it = can[0];
+    const fresh = it.price > seenCoins || it.level > seenLevel;
+    return fresh ? it : null;
+  }
+
+  return { render, apply, buy, equip, unequip, owned, equipped, available, items, paperSwatch, nudge };
 })();

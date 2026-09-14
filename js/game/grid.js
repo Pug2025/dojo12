@@ -17,9 +17,12 @@ D.grid = (function () {
   function cellFor(a, b) {
     return op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
   }
+  // Never asked is blank, so the board reads left to right: blank, outline, half,
+  // seal (§13.3). Drawn as a filled square, "not sealed" looked more done than
+  // "fast once" (audit 2026-09-14).
   function cellClass(id) {
     const rec = D.mastery.peek(id);
-    if (rec && rec.provisional) return 'na';
+    if (!rec || rec.seen === 0 || rec.provisional) return 'na';
     const st = D.mastery.sealState(id);
     return st === 'sealed' ? 's-sealed' : st === 'fast' ? 's-fast' : '';
   }
@@ -62,6 +65,8 @@ D.grid = (function () {
         const cls = cellClass(id);
         const td = u().el('td', { class: cls });
         td.addEventListener('pointerdown', () => {
+          t.querySelectorAll('td.pick').forEach(x => x.classList.remove('pick'));
+          td.classList.add('pick');
           detail.textContent = cls === 'na' ? D.copy.grid.cellUnasked(id, false)
             : D.copy.grid.cell(id, false, D.mastery.sealState(id), rec && rec.best);
         });
@@ -74,7 +79,7 @@ D.grid = (function () {
 
   function legend() {
     const box = u().el('div', { class: 'legend' });
-    const items = [['', 'none'], ['s-fast', 'fast'], ['s-sealed', 'sealed'], ['na', 'unasked']];
+    const items = [['na', 'unasked'], ['', 'none'], ['s-fast', 'fast'], ['s-sealed', 'sealed']];
     for (const [cls, key] of items) {
       box.appendChild(u().el('span', {}, [u().el('i', { class: cls }), D.copy.grid.legend[key]]));
     }

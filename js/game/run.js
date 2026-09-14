@@ -1,19 +1,22 @@
 /* Dojo 12 — the round screen. This file binds an engine (D.runstate, or
-   D.roundone for round 1) to the DOM; every rule about scoring, seals, rescues,
-   comebacks and redemption lives in the engine. The screen shows four things and
-   nothing else: the points, the streak, where the round is up to, and the card
-   with its seal. */
+   D.roundone for the placement rounds) to the DOM; every rule about scoring,
+   seals, rescues and comebacks lives in the engine. The screen shows four things
+   and nothing else: the points, the streak, where the round is up to, and the
+   card with its seal. */
 "use strict";
 D.run = (function () {
   const u = () => D.u;
   let rs = null, dom = null, enso = null, raf = 0, deadline = 0, t0 = 0,
-      pad = null, lateTimer = 0, done = null, onLeave = null, expired = false, holdTimer = 0;
+      pad = null, lateTimer = 0, done = null, onLeave = null, expired = false, holdTimer = 0,
+      teachQueue = [], spentCard = false, taughtThisRound = null;
 
   function start(root, opts) {
     const o = opts || {};
     rs = o.rs;
     done = o.onDone;
     onLeave = o.onLeave;
+    teachQueue = [];
+    taughtThisRound = new Set();
     build(root);
     if (rs.raw.phase === 'reveal') { paintTop(); showCard(true); showReveal(rs.revealInfo()); return; }
     showCard();
@@ -28,8 +31,8 @@ D.run = (function () {
     bindHold(dom.leave);
     dom.score = u().el('div', { class: 'runscore num' }, '0');
     dom.streakN = u().el('div', { class: 'label' }, '');
-    dom.ticks = u().el('div', { class: 'ticks' }, [u().el('i'), u().el('i'), u().el('i')]);
     dom.mult = u().el('div', { class: 'mult hidden' }, '');
+    dom.streak = u().el('div', { class: 'streak' }, [dom.streakN, dom.mult]);
     dom.pips = u().el('div', { class: 'pips' });
     for (let i = 0; i < total; i++) dom.pips.appendChild(u().el('i'));
 
@@ -37,7 +40,7 @@ D.run = (function () {
     dom.question = u().el('div', { class: 'question' }, '');
     dom.typed = u().el('div', { class: 'typed' }, '');
     dom.slots = u().el('div', { class: 'slots' });
-    dom.seal = u().el('div', { class: 'cardseal' }, [u().el('i', {}, '12')]);
+    dom.seal = u().el('div', { class: 'cardseal' }, [u().el('i')]);
     dom.time = u().el('div', { class: 'cardtime' }, '');
     dom.card = u().el('div', { class: 'card' }, [dom.seal, dom.label, dom.question, dom.typed, dom.slots, dom.time]);
     dom.wrap = u().el('div', { class: 'cardwrap' }, [dom.card]);
@@ -53,7 +56,7 @@ D.run = (function () {
     root.appendChild(u().el('div', { class: 'screen fit' }, [
       u().el('div', { class: 'runtop' }, [
         u().el('div', { class: 'row', style: { gap: '11px' } }, [dom.leave, dom.score]),
-        u().el('div', { class: 'streak' }, [dom.streakN, dom.ticks, dom.mult]),
+        dom.streak,
       ]),
       dom.pips, dom.wrap, dom.line, dom.buttons, dom.pad,
     ]));
@@ -88,6 +91,36 @@ D.run = (function () {
     dom.line.textContent = text || '';
     refit();
   }
+  /* The lines that teach a rule the first few times it matters (§13.3). They take
+     the line slot when it is free and wait for the next card when it is not, and
+     each one is counted only when it was actually on the screen. Written into one
+     slot and flagged regardless, the first "Sealed" line was replaced in the same
+     frame by "Bonus card" and never came back (audit 2026-09-14). */
+  function teach(key, text) {
+    const taught = D.state.flags.taught || (D.state.flags.taught = {});
+    if ((taught[key] || 0) >= D.cfg.TEACH_TIMES) return false;
+    // Once a round: an occasion is a round, not a card, or the streak line would
+    // run on every card of a streak.
+    if (taughtThisRound.has(key) || teachQueue.some(q => q.key === key)) return false;
+    taughtThisRound.add(key);
+    if (!dom.line.textContent) { taught[key] = (taught[key] || 0) + 1; setLine(text); return true; }
+    teachQueue.push({ key: key, text: text });
+    return false;
+  }
+  function teachNext() {
+    if (dom.line.textContent || !teachQueue.length) return;
+    const q = teachQueue.shift();
+    const taught = D.state.flags.taught || (D.state.flags.taught = {});
+    taught[q.key] = (taught[q.key] || 0) + 1;
+    setLine(q.text);
+  }
+  // A teaching line queued behind a game line on the same card follows it on that
+  // card, so the seal and the sentence about it are on the screen together.
+  function teachAfter(ms) {
+    if (!teachQueue.length) return 0;
+    setTimeout(() => { setLine(''); teachNext(); }, ms);
+    return 1300;
+  }
   function paintSlots(typedCount) {
     Array.from(dom.slots.children).forEach((k, i) => k.classList.toggle('on', i < typedCount));
   }
@@ -101,11 +134,6 @@ D.run = (function () {
     const mult = rs.comboMult();
     const tier = D.cfg.COMBO_TIERS.indexOf(mult);
     dom.streakN.textContent = r.combo > 0 ? D.copy.run.streak(r.combo) : '';
-    dom.ticks.classList.toggle('hidden', r.combo === 0);
-    const into = r.combo % D.cfg.COMBO_STEP;
-    Array.from(dom.ticks.children).forEach((tick, i) => {
-      tick.classList.toggle('on', r.combo > 0 && (into === 0 ? true : i < into));
-    });
     dom.mult.textContent = D.copy.run.times(mult);
     dom.mult.classList.toggle('hidden', mult <= 1);
     if (enso) enso.thickness(tier);
@@ -155,13 +183,20 @@ D.run = (function () {
     paintSeal(card);
     dom.time.textContent = '';
     dom.time.className = 'cardtime';
+    spentCard = !!rs.raw.cardSpent;
     if (c.intro) setLine(c.intro);
+    teachNext();
     if (c.last) D.audio.lastCard();
 
     t0 = performance.now();
     if (quiet) return;
     if (c.ringMs && !c.overtime) startRing(c);
-    else lateTimer = setTimeout(offerHelp, D.cfg.RESCUE_BUTTON_MS);
+    else {
+      // A card that came back after Leave, or whose ring already ran out, shows the
+      // ring emptied: the reason it will not count as fast is on the card (§13.3).
+      if (c.ringMs && c.overtime) { enso = D.fx.enso(dom.card, { goldAt: 0, bestAt: 0 }); enso.set(0); }
+      lateTimer = setTimeout(offerHelp, D.cfg.RESCUE_BUTTON_MS);
+    }
   }
   function setQuestion(text) {
     dom.question.textContent = text;
@@ -180,15 +215,14 @@ D.run = (function () {
   function startRing(c) {
     const card = rs.raw.cards[rs.raw.i];
     const rec = D.mastery.peek(card.id);
-    const goldAt = D.u.clamp(1 - D.mastery.threshold(card.id) / c.ringMs, 0, 1);
+    // The gold tick sits exactly where fast is judged (§13.3), and the black tick
+    // is always drawn, at the ring's edge when the best is longer than the ring.
+    const goldAt = D.u.clamp(1 - D.mastery.threshold(card.id) / c.ringMs, 0.03, 0.97);
     const bestAt = rec && rec.best && rec.ok >= D.cfg.GHOST_MIN_ATTEMPTS
-      ? D.u.clamp(1 - rec.best / c.ringMs, 0, 1) : 0;
+      ? (rec.best >= c.ringMs ? 0.03 : D.u.clamp(1 - rec.best / c.ringMs, 0.03, 0.97)) : 0;
     enso = D.fx.enso(dom.card, { goldAt: goldAt, bestAt: bestAt });
     enso.thickness(D.cfg.COMBO_TIERS.indexOf(rs.comboMult()));
-    if (bestAt > 0.02 && !D.state.flags.seenTick) {
-      D.state.flags.seenTick = true;
-      setLine(D.copy.run.firstTick);
-    }
+    if (bestAt > 0.02) teach('tick', D.copy.run.firstTick);
     deadline = performance.now() + c.ringMs;
     const span = c.ringMs;
     (function tick() {
@@ -203,9 +237,8 @@ D.run = (function () {
     cancelAnimationFrame(raf);
     if (enso) { enso.remove(); enso = null; }
   }
-  /* A second of grace after the ring empties. A question this child is still slow
-     on then stays up and keeps taking the answer; a fast or settled one is a
-     miss (Jamie, rework 2026-09-10). */
+  /* A second of grace after the ring empties. On every card the card then stays
+     up and keeps taking the answer, as slow (§13.3). */
   function onExpired() {
     if (expired) return;
     expired = true;
@@ -221,10 +254,7 @@ D.run = (function () {
   }
   function onOvertime() {
     if (enso) enso.set(0);
-    if (!D.state.flags.seenOvertime) {
-      D.state.flags.seenOvertime = true;
-      setLine(D.copy.run.overtime);
-    }
+    teach('overtime', D.copy.run.overtime);
     clearTimeout(lateTimer);
     lateTimer = setTimeout(offerHelp, Math.max(0, D.cfg.RESCUE_BUTTON_MS - (performance.now() - t0)));
   }
@@ -254,17 +284,22 @@ D.run = (function () {
       return;
     }
     if (out.kind === 'miss') {
+      // A slip on a settled question: the digits shake off and the same card comes
+      // back, no crack, no buzz (§13.3). Cracked and re-dealt in silence, it read
+      // as the game refusing to talk (audit 2026-09-14).
+      if (out.slip) { D.fx.shake(dom.card); D.audio.key(); commitAnd(out, 300); return; }
       D.fx.crack(dom.card);
       D.audio.miss();
       markMiss(out);
       if (out.lostSeal) liftSeal(out);
-      if (out.slip || out.silent) { commitAnd(out, 520); return; }
-      if (out.reveal) {                       // round 1: the answer, then type it
+      if (out.silent) { commitAnd(out, 520); return; }
+      if (out.reveal) {                       // a placement round or a scout: the answer, then type it
         saveNow();
         setTimeout(() => showReveal(rs.revealInfo()), 520);
         return;
       }
-      if (out.line || out.intro) setLine(out.line || out.intro);
+      if (out.line) setLine(out.line);
+      if (out.intro) teach('rescue', out.intro);
       showMissButtons(out);
       saveNow();                              // the miss is on the record before any choice
       return;
@@ -277,43 +312,40 @@ D.run = (function () {
     D.audio.correct(rs.raw.combo);
     let wait = 420;
     if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points));
+    // Coins are seen arriving, in the shape they have on Home (§13.3).
+    if (out.coins) D.fx.floatCoin(dom.card, out.coins);
     if (out.marks.indexOf('bonus') >= 0) D.audio.bonus();
     if (out.marks.indexOf('pb') >= 0) D.fx.toast(D.copy.run.pb, 1100);
     // How long it took, always, and red when it was fast: this is what "fast" means.
-    if (typeof out.rt === 'number' && !(out.card && out.card.slipRepair)) {
+    // A card that came back spent prints no time: the ring was already empty.
+    if (typeof out.rt === 'number' && !(out.card && out.card.slipRepair) && !spentCard) {
       dom.time.textContent = D.copy.run.time(out.rt);
       dom.time.className = 'cardtime' + (out.fast ? ' fast' : '');
     }
-    if (out.stamped) {
-      dom.seal.className = 'cardseal fast press';
-      D.audio.stamp();
-      wait = 700;
-      if (!D.state.flags.seenStamp) { D.state.flags.seenStamp = true; setLine(D.copy.run.firstStamp); wait = 1500; }
-    }
-    if (out.sealed) {
-      dom.seal.className = 'cardseal sealed press';
-      D.audio.thump();
-      wait = 1000;
-      if (!D.state.flags.seenSeal) { D.state.flags.seenSeal = true; setLine(D.copy.run.firstSeal); wait = 1500; }
+    // The seal as it now stands. A check-in on a sealed question adds a day without
+    // sealing it again; painted from "stamped" alone, the outline went over the
+    // stamp (audit 2026-09-14).
+    // The game's own line first (a comeback won, a bonus card), then the teaching
+    // lines, which queue behind it and follow on the same card.
+    if (out.line) { setLine(out.line); wait = Math.max(wait, 800); }
+    if (out.stamped || out.sealed) {
+      const now = out.sealNow || (out.sealed ? 'sealed' : 'fast');
+      dom.seal.className = 'cardseal ' + now + ' press';
+      if (now === 'sealed') { D.audio.thump(); wait = Math.max(wait, 1000); } else { D.audio.stamp(); wait = Math.max(wait, 700); }
+      if (out.sealed && teach('seal', D.copy.run.firstSeal)) wait = Math.max(wait, 1500);
+      else if (out.stamped && !out.sealed && now === 'fast' && teach('stamp', D.copy.run.firstStamp)) wait = Math.max(wait, 1500);
     }
     if (out.lostSeal) liftSeal(out);
     const mult = rs.comboMult();
-    if (mult > 1 && !D.state.flags.seenStreak) {
-      D.state.flags.seenStreak = true;
-      setLine(D.copy.run.firstStreak(mult));
-      wait = Math.max(wait, 1200);
-    }
-    if (out.line) { setLine(out.line); wait = Math.max(wait, 800); }
+    if (mult > 1 && teach('streak', D.copy.run.firstStreak(mult))) wait = Math.max(wait, 1200);
+    wait += teachAfter(wait);
     commitAnd(out, wait);
   }
 
-  /* A seal that comes off is seen coming off, and said once. */
+  /* A seal that comes off is seen coming off, and said the first few times. */
   function liftSeal(out) {
     dom.seal.className = 'cardseal sealed lift';
-    if (!D.state.flags.seenLostSeal) {
-      D.state.flags.seenLostSeal = true;
-      setLine(D.copy.run.lostSeal(out.card.id));
-    }
+    teach('lostSeal', D.copy.run.lostSeal(out.card.id));
   }
   function markMiss(out) {
     // The card that was missed, which is not always the one the cursor is on: a
@@ -390,10 +422,13 @@ D.run = (function () {
     pad.setLive(true);
     showStep(rs.currentStep());
   }
+  // Show me costs the streak, and the streak is seen going (§13.3).
   function onSkip() {
     dom.buttons.classList.add('idle');
     const out = rs.chooseSkip();
     if (!out) return;
+    paintTop();
+    D.u.pulse(dom.streak, 'pop', 200);
     saveNow();
     showReveal(out);
   }
@@ -429,7 +464,12 @@ D.run = (function () {
     if (!out) return;
     pad.clear();
     dom.typed.textContent = '';
-    if (out.kind === 'step') { dom.forced = false; setLine(''); return showStep(out.step); }
+    if (out.kind === 'step') {
+      dom.forced = false;
+      setLine('');
+      if (out.splat) D.fx.splats(dom.card, 1);   // a wrong step is seen, then asked smaller
+      return showStep(out.step);
+    }
     if (out.kind === 'stepValue') {
       dom.forced = true;
       setLine(out.line);

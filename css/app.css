@@ -112,30 +112,39 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
   transform: rotate(-3deg);
 }
 .seal.big { font-size: 17px; padding: 8px 9px; }
+/* The coin: an old Japanese coin, gold with a square hole, the same drawing everywhere (§13.3). */
 .coin {
-  display: inline-block; width: 13px; height: 13px; border-radius: 50%;
-  border: 2px solid var(--ink); position: relative; vertical-align: -2px;
+  display: inline-block; width: 15px; height: 15px; border-radius: 50%;
+  border: 1.5px solid var(--ink); background: var(--kin); position: relative; vertical-align: -2px; flex: none;
 }
-.coin::after { content: ""; position: absolute; inset: 3.5px; background: var(--ink); }
-.beltband { display: flex; align-items: stretch; height: 22px; border: 1.5px solid var(--ink); border-radius: 2px; overflow: hidden; }
-.beltband.tall { height: 30px; }
-.beltband > .cloth { flex: 1 1 auto; background: var(--belt-white); }
-.beltband > .bar { flex: 0 0 42%; background: var(--belt-bar); display: flex; align-items: center; gap: 4px; padding: 0 6px; }
-.beltband > .bar > i { width: 4px; height: 100%; background: var(--belt-tape); }
-.b-white > .cloth { background: var(--belt-white); }
-.b-blue > .cloth { background: var(--belt-blue); }
-.b-purple > .cloth { background: var(--belt-purple); }
-.b-brown > .cloth { background: var(--belt-brown); }
-.b-black > .cloth { background: var(--belt-black); }
+.coin::after { content: ""; position: absolute; inset: 4px; border: 1.5px solid var(--ink); background: var(--paper); }
+/* The belt drawn as a belt: two loose tips, the cloth, the black bar the stripes are taped on. */
+.beltband { display: flex; align-items: stretch; height: 24px; }
+.beltband.tall { height: 32px; }
+.beltband > .tip { flex: 0 0 14px; background: var(--belt-white); border: 1.5px solid var(--ink); border-radius: 2px 0 0 2px; transform: skewX(-18deg); margin-right: -3px; }
+.beltband > .tip:last-child { border-radius: 0 2px 2px 0; transform: skewX(18deg); margin-right: 0; margin-left: -3px; background: var(--belt-bar); }
+.b-black > .tip:last-child { background: var(--shu); }
+.beltband > .cloth { flex: 1 1 auto; background: var(--belt-white); border: 1.5px solid var(--ink); border-right: 0; }
+.beltband > .bar { flex: 0 0 40%; background: var(--belt-bar); border: 1.5px solid var(--ink); border-left: 0; display: flex; align-items: center; gap: 5px; padding: 0 7px; }
+.beltband > .bar > i { width: 7px; height: 100%; background: var(--belt-tape); }
+.beltband > .bar > i.new { animation: stripeOn 520ms ease-out; }
+@keyframes stripeOn { 0% { transform: scaleY(0); } 60% { transform: scaleY(1.2); } 100% { transform: scaleY(1); } }
+.b-white > .tip:first-child, .b-white > .cloth { background: var(--belt-white); }
+.b-blue > .tip:first-child, .b-blue > .cloth { background: var(--belt-blue); }
+.b-purple > .tip:first-child, .b-purple > .cloth { background: var(--belt-purple); }
+.b-brown > .tip:first-child, .b-brown > .cloth { background: var(--belt-brown); }
+.b-black > .tip:first-child, .b-black > .cloth { background: var(--belt-black); }
 .b-black > .bar { background: var(--shu); }
-.bar-fill { height: 7px; background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 2px; overflow: hidden; }
-.bar-fill > i { display: block; height: 100%; background: var(--ink); }
+/* The bar under the belt: sealed questions solid, questions fast once pale. */
+.bar-fill { height: 9px; background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 2px; overflow: hidden; position: relative; }
+.bar-fill > i { display: block; height: 100%; background: var(--ink); position: absolute; left: 0; top: 0; transition: width 400ms ease; }
+.bar-fill > i.pale { background: var(--ink2); opacity: 0.45; }
 
 /* ---- home ---- */
 .home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .home-name { font-family: "Shippori Mincho", "Hiragino Mincho ProN", serif; font-weight: 600; font-size: 30px; }
-.xpline { height: 3px; background: var(--paper2); overflow: hidden; }
-.xpline > i { display: block; height: 100%; background: var(--shu); }
+.xpline { height: 5px; background: var(--paper2); border: 1px solid var(--rule); overflow: hidden; border-radius: 2px; }
+.xpline > i { display: block; height: 100%; background: var(--ink); }
 .plate { position: relative; border: 1.5px solid var(--ink); border-radius: 4px; padding: 13px 14px; display: flex; flex-direction: column; gap: 9px; background: var(--paper); }
 .plate.lift { box-shadow: 2px 2px 0 var(--ink); }
 .mark { width: 22px; height: 22px; display: inline-block; }
@@ -145,9 +154,6 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .runtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
 .runscore { font-size: 22px; font-weight: 900; }
 .streak { display: flex; align-items: center; gap: 7px; }
-.streak .ticks { display: flex; gap: 3px; }
-.streak .ticks > i { width: 5px; height: 13px; border: 1.5px solid var(--ink); background: transparent; }
-.streak .ticks > i.on { background: var(--ink); }
 .mult { background: var(--shu); color: var(--onInk); font-weight: 900; font-size: 13px; padding: 3px 6px; border-radius: 3px; }
 [data-combo="ink"] .mult { background: var(--ink); }
 [data-combo="round"] .mult { border-radius: 50%; padding: 5px 6px; }
@@ -155,7 +161,7 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .pips { display: flex; gap: 3px; flex-wrap: nowrap; justify-content: center; padding: 2px 0; }
 .pips > i { width: 6px; height: 6px; background: var(--paper2); border: 1px solid var(--rule); }
 .pips > i.done { background: var(--ink); border-color: var(--ink); }
-.pips > i.now { background: var(--shu); border-color: var(--ink); transform: scale(1.35); }
+.pips > i.now { background: var(--paper); border: 1.5px solid var(--ink); transform: scale(1.35); }
 .pips > i.miss { background: var(--paper); border: 1.5px solid var(--ink); }
 
 .cardwrap { flex: 1 1 0px; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -181,13 +187,6 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .slots > i.on { background: var(--ink); }
 .stepline { font-size: 17px; font-weight: 700; text-align: center; padding: 0 14px; }
 
-/* Two dots on every question: one for each counted day. */
-.dots { display: flex; gap: 9px; align-items: center; min-height: 18px; }
-.dots > i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--ink2); background: transparent; }
-.dots > i.on { background: var(--ink); border-color: var(--ink); }
-.dots > i.lit { border: 2.5px solid var(--shu); }
-.dots > i.stamp { animation: stamp 180ms ease-out; }
-@keyframes stamp { 0% { transform: scale(1.9); opacity: 0.2; } 60% { transform: scale(0.92); opacity: 1; } 100% { transform: scale(1); } }
 
 /* The ensō: one brush circle, open, drawn in one breath. */
 .enso { position: absolute; inset: 7%; pointer-events: none; overflow: visible; }
@@ -222,7 +221,7 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 }
 .key:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
 .key.fn { font-size: 17px; font-weight: 700; background: var(--paper); }
-.key.go { background: var(--shu); color: var(--onInk); }
+.key.go { background: var(--ink); color: var(--onInk); }
 .key.no { background: var(--paper); color: var(--ink); }
 
 /* ---- the end of a round ---- */
@@ -232,23 +231,24 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 /* ---- the grid ---- */
 table.grid { border-collapse: collapse; }
 table.grid th { font-size: 13px; font-weight: 500; color: var(--ink2); padding: 2px 4px; }
-table.grid td {
-  width: 26px; height: 26px; padding: 0;
-  background: var(--paper2); border: 1px solid var(--rule);
-}
-table.grid td.s-fast { background: var(--paper); border: 1.5px solid var(--ink2); }
-table.grid td.s-sealed { background: var(--shu); border-color: var(--ink); }
-table.grid td.na { background: var(--paper); border: 1px dashed var(--ink2); }
+/* One square a question, reading left to right: blank, an outline, half, the seal (§13.3). */
+table.grid td { width: 26px; height: 26px; padding: 0; background: transparent; border: 1px solid var(--rule); position: relative; }
+table.grid td::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; }
+table.grid td.na::after { display: none; }
+table.grid td:not(.na):not(.s-fast):not(.s-sealed)::after { border: 1.5px solid var(--ink2); }
+table.grid td.s-fast::after { border: 1.5px solid var(--ink); background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+table.grid td.s-sealed::after { background: var(--shu); box-shadow: inset 0 0 0 2px var(--shu), inset 0 0 0 3.5px var(--paper); }
+table.grid td.pick { border: 2px solid var(--ink); }
 table.grid th:first-child { white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--ink2); align-items: center; }
 .legend span { display: flex; align-items: center; gap: 6px; }
-.legend i { width: 15px; height: 15px; background: var(--paper2); border: 1px solid var(--rule); display: block; }
-.legend i.s-fast { background: var(--paper); border: 1.5px solid var(--ink2); }
-.legend i.s-sealed { background: var(--shu); border-color: var(--ink); }
-.legend i.na { background: var(--paper); border: 1px dashed var(--ink2); }
+.legend i { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--ink2); display: block; }
+.legend i.na { border: 1px solid var(--rule); border-radius: 0; }
+.legend i.s-fast { border-color: var(--ink); background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.legend i.s-sealed { background: var(--shu); border-color: var(--shu); box-shadow: inset 0 0 0 2px var(--shu), inset 0 0 0 3.5px var(--paper); }
 .seg { display: flex; gap: 9px; }
 .seg > button { flex: 1; }
-.seg > button.on { background: var(--shu); color: var(--onInk); }
+.seg > button.on { background: var(--ink); color: var(--onInk); }
 
 /* ---- the belt ladder ---- */
 .rung { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); }
@@ -309,15 +309,12 @@ table.grid th:first-child { white-space: nowrap; }
 /* ---- the seal on a card (2026-09-14): an outline once a question has been fast,
    stamped red once it has been fast on two days. Red outline: fast now seals it. ---- */
 .cardseal { position: absolute; top: 7%; right: 7%; pointer-events: none; }
-.cardseal > i {
-  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 3px;
-  font: 900 13px/1 "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-style: normal;
-  transform: rotate(-4deg); visibility: hidden;
-}
-.cardseal.fast > i { visibility: visible; border: 2px solid var(--ink2); color: var(--ink2); }
-.cardseal.fast.lit > i { border-color: var(--shu); color: var(--shu); }
-.cardseal.sealed > i { visibility: visible; background: var(--shu); color: var(--onInk); border: 2px solid var(--shu);
-  box-shadow: inset 0 0 0 2px var(--shu), inset 0 0 0 3px var(--paper); }
+/* A brush circle, no text (§13.3): the box with 12 in it read as a number to type. */
+.cardseal > i { display: block; width: 28px; height: 28px; border-radius: 50%; transform: rotate(-4deg); visibility: hidden; }
+.cardseal.fast > i { visibility: visible; border: 2.5px solid var(--ink2); }
+.cardseal.fast.lit > i { border-color: var(--shu); border-width: 3px; }
+.cardseal.sealed > i { visibility: visible; background: var(--shu); border: 2.5px solid var(--shu);
+  box-shadow: inset 0 0 0 2.5px var(--shu), inset 0 0 0 4.5px var(--paper); }
 .cardseal.press > i { animation: slam 160ms ease-out; }
 .cardseal.lift > i { animation: lift 420ms ease-in forwards; }
 @keyframes lift { 0% { transform: rotate(-4deg) translateY(0); opacity: 1; } 100% { transform: rotate(8deg) translateY(-14px); opacity: 0.35; } }
@@ -326,6 +323,14 @@ table.grid th:first-child { white-space: nowrap; }
 .key:disabled { cursor: default; }
 .padwrap.off .key { box-shadow: none; transform: none; }
 .shopitem .right.ask { color: var(--shu); font-weight: 700; }
-.howto { display: flex; flex-direction: column; gap: 14px; }
+.howto { display: flex; flex-direction: column; gap: 16px; }
+.howrow { display: flex; gap: 12px; align-items: flex-start; }
+.howglyph { flex: 0 0 96px; }
+.howglyph svg { width: 96px; height: 40px; display: block; }
+.fastticks { display: flex; gap: 3px; }
+.fastticks > i { width: 5px; height: 14px; background: var(--shu); border-radius: 1px; }
+.floatcoin { display: flex; align-items: center; gap: 4px; font-size: 17px; color: var(--ink); }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.shake { animation: shake 240ms ease-in-out; }
 .howto h3 { margin: 0 0 3px; font: 600 17px/1.3 "Shippori Mincho", "Hiragino Mincho ProN", serif; }
 .howto p { margin: 0; font-size: 15px; line-height: 1.5; }

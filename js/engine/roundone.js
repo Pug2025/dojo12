@@ -22,13 +22,20 @@ D.roundone = (function () {
     const o = opts || {};
     const tr = D.tryout.create({ noSafety: true });
     const N = cfg.ROUND_ONE_CARDS;
+    // The placement runs behind PLACEMENT_ROUNDS rounds of five (§13.3); the second
+    // picks up the tryout where the first left it.
+    const half = D.state.placementHalf || null;
     const r = {
-      roundOne: true,
+      roundOne: true, roundNo: half ? (half.roundsDone || 0) + 1 : 1,
       cards: [], i: 0, phase: 'card', day: D.u.gameDay(),
-      score: 0, combo: 0, bestCombo: 0, served: 0, correct: 0,
+      score: 0, combo: (D.state.progress && D.state.progress.carryCombo) || 0, bestCombo: 0, served: 0, correct: 0,
       xpGained: 0, coinsGained: 0, fastNew: [], sealedIds: [], unsealed: [], gotBack: [], missed: [], rts: [],
       fastestFact: null, cardOvertime: false, finished: false, tryoutDone: false, cut: false,
+      coinsAnswers: 0, coinsBonus: 0, pbFacts: [], carryComebacks: [], carryRetries: [],
+      levelAtStart: D.xp.levelFor(D.state.progress.xp).level,
     };
+    r.bestCombo = r.combo;
+    if (half && !o.resume) { Object.assign(tr.state, half.tryout || {}); r.tryoutDone = !!half.tryoutDone; }
     for (let i = 0; i < N; i++) r.cards.push({ id: null, kind: 'roundone', slot: i, ringKind: null, last: i === N - 1 });
     let current = null;
     // Picked up where it was left: the cards so far, the placement questions
@@ -165,7 +172,9 @@ D.roundone = (function () {
         xp: r.xpGained, coins: r.coinsGained, fastNew: shown(r.fastNew), sealed: shown(r.sealedIds),
         unsealed: [], gotBack: [], missed: r.missed.slice(), bestCombo: r.bestCombo,
         medianRt: D.u.median(r.rts), fastestFact: r.fastestFact, day: r.day, table: null,
-        fastWrongs: 0, counted: r.correct >= cfg.RUN_MIN_CORRECT, roundOne: true,
+        fastWrongs: 0, counted: r.correct >= cfg.RUN_MIN_CORRECT, roundOne: true, roundNo: r.roundNo,
+        pbFacts: [], coinsAnswers: r.coinsGained, coinsBonus: 0, combo: r.combo,
+        carryComebacks: [], carryRetries: [],
       };
     }
 
@@ -181,10 +190,29 @@ D.roundone = (function () {
     return self;
   }
 
-  /* Close round 1: the placement, the run record, bests, the belt. */
+  /* Close a placement round. Before the last one, the tryout is kept for the next
+     round and the round is scored like any other (§13.3). */
   function finishRound(ro) {
     const sum = ro.summary();
     const tr = ro.tryout, st = tr.state;
+    const s = D.state;
+    const roundsDone = ro.raw.roundNo;
+    if (roundsDone < cfg.PLACEMENT_ROUNDS) {
+      s.placementHalf = { tryout: JSON.parse(JSON.stringify(st)), roundsDone: roundsDone, tryoutDone: ro.raw.tryoutDone };
+      s.runs.push({ day: sum.day, table: null, score: sum.score, correct: sum.correct,
+                    cards: sum.cards, medianRt: sum.medianRt, roundOne: true });
+      while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
+      s.progress.carryCombo = sum.combo;
+      s.progress.fastToday = (s.progress.fastToday || 0) + sum.fastNew.length;
+      s.progress.runsToday = (s.progress.runsToday || 0) + 1;
+      s.inRun = null;
+      D.save.commit();
+      sum.extra = { pbs: [], belt: [] };
+      sum.placementContinues = true;
+      sum.coinsBelt = 0; sum.levelUp = 0;
+      return sum;
+    }
+    s.placementHalf = null;
     const placed = tr.apply();
     // Tables with no easy question yet, when the stop rules had not already said
     // enough: those were cut off by the card count, not by the child.
@@ -192,21 +220,26 @@ D.roundone = (function () {
     const untried = D.facts.TABLE_ORDER.filter(k => !D.scheduler.isOpen(k) && !(st.results[k] && st.results[k].easy));
     D.state.placement = {
       tables: ro.raw.cut && !stopped ? untried : [],
-      safety: D.tryout.SAFETY.slice(), safetyMisses: 0,
+      safety: D.tryout.drawSafety(), safetyMisses: 0,
       runsLeft: cfg.PLACEMENT_RUNS, results: {}, pending: {},
     };
-    const s = D.state;
     s.runs.push({ day: sum.day, table: null, score: sum.score, correct: sum.correct,
                   cards: sum.cards, medianRt: sum.medianRt, roundOne: true });
     while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
     const extra = { pbs: [], belt: [] };
-    if (sum.counted) {
-      D.xp.creditDay(sum.day);
-      extra.pbs = D.xp.checkPbs(sum);
-    }
+    const levelBefore = typeof ro.raw.levelAtStart === 'number' ? ro.raw.levelAtStart : D.xp.levelFor(s.progress.xp).level;
+    if (sum.counted) D.xp.creditDay(sum.day);
+    // Placement rounds set no personal best: they are longer or shorter than a real
+    // round and were setting records a real round could never beat (audit 2026-09-14).
     D.scheduler.ensureProgression();
     extra.belt = D.belt.update();
-    sum.coins += extra.belt.reduce((n, e) => n + e.coins, 0);
+    sum.coinsBelt = extra.belt.reduce((n, e) => n + e.coins, 0);
+    sum.coins += sum.coinsBelt;
+    sum.levelUp = D.xp.levelFor(s.progress.xp).level > levelBefore ? D.xp.levelFor(s.progress.xp).level : 0;
+    s.progress.carryCombo = sum.combo;
+    s.progress.fastToday = (s.progress.fastToday || 0) + sum.fastNew.length;
+    s.progress.sealedToday = (s.progress.sealedToday || 0) + sum.sealed.length;
+    s.progress.runsToday = (s.progress.runsToday || 0) + 1;
     s.inRun = null;
     D.save.commit();
     sum.extra = extra;

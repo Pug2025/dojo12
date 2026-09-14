@@ -122,7 +122,7 @@ D.copy = (function () {
        time it happens (2026-09-14). ---- */
     intro: {
       title: 'Times and divide, up to 12 × 12.',
-      body: 'Type the answer and tap Go. Round 1 has no timer. It works out where you start.',
+      body: 'Type the answer and tap Go. Five cards a round. The first two rounds have no timer and work out where you start.',
       start: 'Start round 1',
     },
 
@@ -131,10 +131,12 @@ D.copy = (function () {
       title: 'How it works',
       sections: [
         ['The card', 'Type the answer and tap Go. Get one wrong and you can break it into smaller questions, or be shown the answer and type it.'],
-        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer. Answer before it reaches the gold tick and that counts as fast.'],
-        ['The seal', 'Answer a question fast and it gets an outline of a seal. Answer it fast again on another day and the seal is stamped. A sealed question comes back now and then to check. Miss it and the seal comes off until you get it fast again.'],
-        ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The black belt is a test.'],
-        ['The streak', 'Three right in a row and your points count 1.5 times, then 2, then 3. A miss drops it a step.'],
+        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer with a gold tick on it. Beat the tick and the time shows in red: that is fast. The tick starts where you are and moves in as you get quicker.'],
+        ['Out of time', 'When the timer runs out the card stays up. Answer it and it still counts, just not as fast.'],
+        ['The seal', 'Answer a question fast and it gets the outline of a seal. Answer it fast again on another day and the seal is stamped. A sealed question comes back now and then to check. Miss it and the seal comes off until you get it fast again.'],
+        ['Your belt', 'Every question you seal moves your belt. A question that is fast once shows on the bar as a half mark. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The black belt is a test.'],
+        ['The streak', 'Three right in a row and your points count 1.5 times, then 2, then 3. It carries from round to round. A rushed wrong answer drops it to nothing.'],
+        ['A wrong answer', 'Break it down with every step right and you keep your streak, and the question comes back a few cards later worth double. Show me loses the streak, and the question comes back later as an ordinary card.'],
         ['Coins and levels', 'Every right answer pays a coin to spend in the Shop. Right answers also add XP, and each new level puts more in the Shop.'],
         ['The black tick', 'The small black tick on the timer is your best time on that question.'],
       ],
@@ -150,12 +152,13 @@ D.copy = (function () {
     /* ---- the end of round 1 ---- */
     roundOne: {
       title: 'Round 1 done.',
+      titleN: n => 'Round ' + n + ' done.',
       start: keys => 'You start on ' + keys.map(k => tableName(k) + ', like ' + tableExample(k)).join(', and ') + '.',
       allOpen: 'Every table is open. The next rounds check what you know.',
       rest: 'The other tables come in as you play.',
       coins: 'Coins: one for every right answer. Spend them in the Shop.',
       xp: 'XP: every right answer adds some. Each new level puts more in the Shop.',
-      play: 'Play round 2',
+      play: 'Next round',
       home: 'Home',
     },
 
@@ -171,13 +174,14 @@ D.copy = (function () {
       outOfTime: 'Out of time.',
       overtime: 'Out of time. You can still answer.',
       slowDown: 'Slow down. Look at it properly.',
-      comebackLabel: 'Comeback',
+      comebackLabel: 'Comeback. Double points.',
       comebackWin: 'Got it back.',
       bonus: 'Bonus card. Triple points.',
       bonusLabel: 'Bonus',
       redemption: 'The ones you missed, with more time.',
       pb: 'Your best time',
-      firstStreak: m => 'Three right in a row, so points count ' + m + ' times. A miss drops it a step.',
+      firstStreak: m => 'Three right in a row, so points count ' + m + ' times. Miss one and Break it down keeps it; Show me loses it.',
+      carried: n => 'streak ' + n + ' carries on',
       firstTick: 'The small black tick is your best time on this question.',
       time: ms => secs(ms),
       firstStamp: "Fast. Get it fast again tomorrow and it's sealed.",
@@ -209,15 +213,24 @@ D.copy = (function () {
       points: 'points',
       best: n => 'Best ' + num(n),
       newBest: d => 'New best, ' + num(d) + ' more points',
-      streak: (n, best) => 'Longest streak ' + n + (best > n ? ' (best ' + best + ')' : ''),
+      streak: (n, best) => 'Longest streak ' + n + (n >= best && best > 0 ? ', your best' : ''),
       sealed: list => 'Sealed: ' + list.join(', ') + '.',
       fastNew: n => 'Fast on ' + count(n, 'new question', 'new questions') + '.',
       unsealed: list => 'Lost a seal: ' + list.join(', ') + '.',
       gotBack: list => 'Missed, then got right: ' + list.join(', ') + '.',
       xp: n => '+' + num(n) + ' XP',
       coins: n => '+' + count(n, 'coin', 'coins'),
-      levelUp: n => 'Level ' + n + '.',
-      again: 'Play again',
+      levelUp: (n, names) => 'Level ' + n + '.' + (names && names.length ? ' New in the Shop: ' + names.join(', ') + '.' : ''),
+      fastToday: n => 'Fast today: ' + n,
+      bestTime: (id, ms, from) => factText(id, false) + ' in ' + secs(ms) + ', your best. Was ' + secs(from) + '.',
+      coinsLine: (answers, bonus, belt) => {
+        const parts = [];
+        if (answers) parts.push(answers + ' for right answers');
+        if (bonus) parts.push(bonus + ' for the bonus card');
+        if (belt) parts.push(belt + ' for the belt');
+        return '+' + count(answers + bonus + belt, 'coin', 'coins') + (parts.length > 1 ? '. ' + cap(parts.join(', ')) + '.' : '');
+      },
+      again: 'Next round',
       home: 'Home',
     },
 
@@ -227,15 +240,19 @@ D.copy = (function () {
       names: { white: 'White', blue: 'Blue', purple: 'Purple', brown: 'Brown', black: 'Black' },
       now: (belt, n) => beltName(belt, n),
       stripeTied: (belt, n) => 'Stripe ' + n + ' on your ' + belt + ' belt.',
+      stripesTied: (belt, from, to) => 'Stripes ' + from + ' and ' + to + ' on your ' + belt + ' belt.',
       beltTied: belt => cap(belt) + ' belt!',
       blackBelt: 'Black belt!',
-      toNext: (n, kind, belt) => kind === 'test' ? 'Your black belt test is open.'
-        : count(n, 'more question', 'more questions') + ' to seal for your ' + (kind === 'belt' ? belt + ' belt' : 'next stripe') + '.',
+      toNext: info => info.nextKind === 'test' ? 'Your black belt test is open.'
+        : 'Sealed ' + info.sealed + ' of ' + info.nextAt + ' for ' +
+          (info.nextKind === 'belt' ? 'your ' + info.nextBelt + ' belt' : 'stripe ' + (info.stripes + 1)) + '.' +
+          (info.outlined ? ' ' + info.outlined + (info.outlined === 1 ? ' is' : ' are') + ' fast once.' : ''),
       filled: n => 'You have sealed ' + count(n, 'question', 'questions') + '.',
       how: 'Every question you seal moves your belt. Four stripes, then the next colour.',
       testTitle: 'Black belt test',
       testRules: '24 questions from across the grid. Get 22 right, with 20 of them fast. No Break it down.',
       testLocked: 'Opens when your brown belt has four stripes.',
+      far: n => 'That is ' + n + ' questions sealed.',
       testTaken: 'You took it today. Try again tomorrow.',
       start: 'Start the test',
       failCount: (got, total) => got + ' of ' + total + '. Try again tomorrow.',
@@ -249,10 +266,18 @@ D.copy = (function () {
       coins: n => count(n, 'coin', 'coins'),
       sealed: n => count(n, 'question', 'questions') + ' sealed',
       best: n => 'Best round ' + num(n),
-      working: (key, next) => 'Working on ' + tableName(key) + '.' +
-        (next ? ' ' + tableNameCap(next) + ' open after.' : ''),
-      workingTwo: (a, b) => 'Working on ' + tableName(a) + ' and ' + tableName(b) + '.',
+      working: (key, sealed, total, next, days) => 'Working on ' + tableName(key) + ', ' + sealed + ' of ' + total + ' sealed.' +
+        (next ? ' ' + tableNameCap(next) + ' open ' + (days > 1 ? 'in ' + days + ' days.' : days === 1 ? 'tomorrow.' : 'next.') : ''),
+      workingTwo: (a, sealed, total, b, next, days) => 'Working on ' + tableName(a) + ', ' + sealed + ' of ' + total + ' sealed, and ' + tableName(b) + '.' +
+        (next ? ' ' + tableNameCap(next) + ' open ' + (days > 1 ? 'in ' + days + ' days.' : days === 1 ? 'tomorrow.' : 'next.') : ''),
+      today: (rounds, fastNew, canSeal) => rounds
+        ? 'Today: ' + count(rounds, 'round', 'rounds') + ', ' + fastNew + ' fast for the first time.' +
+          (canSeal ? ' ' + count(canSeal, 'question', 'questions') + ' can seal.' : '')
+        : (canSeal ? count(canSeal, 'question', 'questions') + ' can seal today.' : ''),
+      nudge: (name, price, have) => name + ' is ' + count(price, 'coin', 'coins') + '. You have ' + num(have) + '.',
+      xpline: (into, need) => num(into) + ' / ' + num(need) + ' XP',
       play: 'Play',
+      carryOn: 'Carry on',
       grid: 'Grid', belt: 'Belt', shop: 'Shop', settings: 'Settings',
     },
 
@@ -285,7 +310,9 @@ D.copy = (function () {
       bought: 'Bought. It is in use now.',
       confirm: price => 'Tap again to buy for ' + count(price, 'coin', 'coins'),
       lockedRow: (level, price) => 'Level ' + level + ' · ' + count(price, 'coin', 'coins'),
-      groups: { theme: 'Paper', skin: 'Card', ring: 'Timer', combo: 'Streak', sound: 'Sound', mark: 'Seal' },
+      shortRow: (price, have) => count(price, 'coin', 'coins') + ' · ' + count(price - have, 'more', 'more'),
+      owned: (n, total) => n + ' of ' + total,
+      groups: { theme: 'Paper', skin: 'Card', ring: 'Timer', combo: 'Streak', sound: 'Sound', mark: 'Mark' },
       notes: {
         theme: 'Changes the whole look.',
         skin: 'The paper every card is printed on.',
@@ -302,8 +329,8 @@ D.copy = (function () {
         'skin:hemp': 'Stars', 'skin:gilt': 'Gold edge',
         'ring:brush': 'Brush', 'ring:thin': 'Pen', 'ring:double': 'Double', 'ring:dotted': 'Dotted',
         'ring:gold': 'Gold',
-        'combo:red': 'Red seal', 'combo:ink': 'Ink seal', 'combo:round': 'Round seal',
-        'combo:gold': 'Gold seal',
+        'combo:red': 'Red', 'combo:ink': 'Ink', 'combo:round': 'Round',
+        'combo:gold': 'Gold',
         'sound:plain': 'Tick', 'sound:bell': 'Bell', 'sound:wood': 'Wood', 'sound:glass': 'Glass',
         'sound:deep': 'Drum',
         'mark:circle': 'Circle', 'mark:triangle': 'Triangle', 'mark:square': 'Square',
@@ -375,8 +402,9 @@ D.copy = (function () {
       on: 'On',
       off: 'Off',
       paper: 'Paper',
-      backup: 'Send Dad a copy',
-      backupHow: 'Pick Dad in Messages and send it. If this phone ever loses the game, his copy brings it back.',
+      backup: 'Save a copy with Dad',
+      backupNote: 'Puts a link in Messages. If this phone ever loses the game, the link brings it back.',
+      backupHow: 'Pick Dad in Messages and send it.',
       copied: 'Link copied. Paste it into a message to Dad.',
       saveFile: 'Save a file instead',
       forDad: 'For Dad',

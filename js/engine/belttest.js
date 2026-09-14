@@ -51,7 +51,7 @@ D.belttest = (function () {
       const c = r.cards[r.i];
       if (!c) return null;
       const correct = D.facts.check(c.id, value);
-      const fast = correct && rt <= M().threshold(c.id);
+      const fast = correct && rt <= M().fixedThreshold(c.id);   // the test keeps the fixed line (§13.3)
       r.rts.push(rt);
       const rec = M().record(c.id, { correct: correct, rt: rt, helped: false, day: D.u.gameDay() });
       const out = { kind: correct ? 'correct' : 'miss', points: 0, xp: 0, coins: 0, card: c,

@@ -71,8 +71,11 @@ D.scheduler = (function () {
     if (s.focus.primary && s.focus.primary === s.focus.secondary) s.focus.secondary = null;
     if (!s.focus.primary && s.focus.secondary) { s.focus.primary = s.focus.secondary; s.focus.secondary = null; }
 
-    // Graduate a finished primary.
-    if (s.focus.primary && M().tableStats(s.focus.primary).fastPct >= cfg.FOCUS_PROMOTE_PCT) {
+    // Graduate a finished primary: 80 % fast, or five days of play on it (§13.3).
+    // On mastery alone an average child sat on the twos and tens for three weeks and
+    // the sevens never opened (audit 2026-09-14).
+    if (s.focus.primary && (M().tableStats(s.focus.primary).fastPct >= cfg.FOCUS_PROMOTE_PCT ||
+        focusDays(s.focus.primary) >= cfg.FOCUS_MAX_DAYS)) {
       tableState(s.focus.primary).status = 'open';
       s.focus.primary = s.focus.secondary;
       s.focus.secondary = null;
@@ -101,11 +104,46 @@ D.scheduler = (function () {
     const open = openTables().filter(k => !taken(k));
     const marked = open.find(k => tableState(k).status === 'focus');
     if (marked) return marked;
-    const slipped = open.find(k => M().tableStats(k).fastPct < cfg.TABLE_REOPEN_PCT);
-    if (slipped) return slipped;
+    // An unopened table comes before a slipped one (§13.3): a table that graduated on
+    // the five-day clock is under the slip line by definition, and taken first it
+    // swapped seats with its neighbour for ever while the sevens never opened
+    // (replay 2026-09-14). A slipped table's facts still come back through the
+    // relapsed pool.
     const next = nextUnopened();
     if (next) return next;
+    const slipped = open.find(k => M().tableStats(k).fastPct < cfg.TABLE_REOPEN_PCT);
+    if (slipped) return slipped;
     return open.find(k => hasUntaught(k)) || null;
+  }
+  // Game days on which a round was played with this table as the primary.
+  function focusDays(key) { return ((tableState(key).focusDays) || []).length; }
+  function noteFocusDay(day) {
+    const k = D.state.focus && D.state.focus.primary;
+    if (!k) return;
+    const t = tableState(k);
+    t.focusDays = t.focusDays || [];
+    if (!t.focusDays.includes(day)) t.focusDays.push(day);
+  }
+  // Days of play left before the primary graduates on the clock, for Home.
+  function daysUntilNext() {
+    const k = D.state.focus && D.state.focus.primary;
+    if (!k) return null;
+    return Math.max(0, cfg.FOCUS_MAX_DAYS - focusDays(k));
+  }
+  // Questions fast once that a fast answer today would seal (§13.3). They get first
+  // claim on a round; left to the promote block, fifteen of them sat undealt for a
+  // day (audit 2026-09-14).
+  function sealablePool(day) {
+    const d = day || D.u.gameDay();
+    const out = [];
+    for (const key of openTables()) {
+      for (const id of M().activeItems(key)) {
+        if (M().sealState(id) !== 'fast') continue;
+        if (M().status(id) === 'learning') continue;
+        if (M().canCountToday(id, d)) out.push(id);
+      }
+    }
+    return dedupe(out);
   }
   function hasUntaught(key) {
     return M().activeItems(key).some(id => {
@@ -213,6 +251,18 @@ D.scheduler = (function () {
       }
     }
     for (const id of dedupe(relapsed).slice(0, cfg.HOT_SET)) out.push(id);
+    // Facts nobody has taught in a table that has graduated, its divisions above all
+    // (§13.3): on the five-day clock a table leaves focus before its divisions open,
+    // and waiting for the whole grid to open meant thirty divisions in three weeks
+    // (replay 2026-09-14). Two at a time, like a small hot set.
+    const untaught = [];
+    for (const key of openTables()) {
+      if (focusKeys().indexOf(key) >= 0) continue;
+      for (const id of M().activeItems(key)) {
+        if (M().status(id) === 'new' && out.indexOf(id) < 0) untaught.push(id);
+      }
+    }
+    for (const id of D.u.shuffle(dedupe(untaught)).slice(0, 2)) out.push(id);
     // A table whose scouts keep coming back wrong gets served properly instead.
     for (const key of D.facts.TABLE_ORDER) {
       if (isOpen(key)) continue;
@@ -307,6 +357,10 @@ D.scheduler = (function () {
     fast.sort((a, b) => (b.days - a.days) || (a.ewma - b.ewma));
     const quartile = Math.max(4, Math.ceil(fast.length / 4));
     let pool = fast.slice(0, quartile).map(x => x.id);
+    // A warm-up never earns a mark, so a question that could seal today is not spent on one.
+    const sealable = sealablePool();
+    const unspent = pool.filter(id => !sealable.includes(id));
+    if (unspent.length >= 3) pool = unspent;
     if (fast.length >= 12) {
       const hard = pool.filter(id => {
         const f = D.facts.get(id);
@@ -361,6 +415,8 @@ D.scheduler = (function () {
     p.lastWarmups = warm.map(c => c.id);
 
     let L = D.u.clamp(p.learnSlots || cfg.LEARN_START, cfg.LEARN_MIN, cfg.LEARN_MAX);
+    // While the placement is still trying tables, they come before a second learning card.
+    if (placementActive()) L = Math.min(L, 1);
     const beyondSlots = D.state.lanes.beyond.open ? Math.round(mixCount * cfg.BEYOND_SHARE) : 0;
     const safety = safetyPool();
     // The quiet lane never takes more than half the learning slots, or at four
@@ -369,29 +425,60 @@ D.scheduler = (function () {
       ? Math.min(cfg.SAFETY_MAX, Math.floor(L * cfg.SAFETY_SHARE), safety.length) : 0;
     L = Math.max(0, L - safetySlots);
 
-    const used = [];
+    const used = warm.map(c => c.id);                      // no room in five cards for a warm-up twice
     const body = new Array(mixCount - 1).fill(null);      // one slot is held for the last card
     const pick = (pool, n, weightFn) => D.u.take(pool.filter(id => !used.includes(id)), n, weightFn || (() => 1));
     const claim = ids => { for (const id of ids) used.push(id); return ids; };
+    const free = () => body.filter(x => !x).length;
 
-    const learnIds = claim(pick(learningPool(), L));
-    const safeIds = safetySlots ? claim(pick(safety, safetySlots)) : [];
-    // Tables round 1 ran out of cards for are tried first, an easy and a hard
-    // question each, as round 1 would have (rework 2026-09-10).
-    // A ten-card round keeps at least one slot for everything else.
-    const room = Math.max(1, body.length - learnIds.length - safeIds.length - 1);
+    // What the last round left (§13.3): a miss that had no room to come back
+    // comes back here worth double, and a question shown after Show me comes back
+    // as an ordinary card.
+    const carry = p.carry || { comebacks: [], retries: [] };
+    const carried = [];
+    for (const id of (carry.comebacks || []).slice(0, cfg.CARRY_COMEBACKS)) {
+      if (!D.facts.get(id) || used.includes(id)) continue;
+      const c = card(id, 'comeback'); c.ringKind = 'comeback'; c.comebackMult = cfg.COMEBACK_MULT;
+      used.push(id); carried.push(c);
+    }
+    for (const id of (carry.retries || []).slice(0, Math.max(0, cfg.CARRY_COMEBACKS - carried.length))) {
+      if (!D.facts.get(id) || used.includes(id)) continue;
+      const c = card(id, 'maintenance');
+      used.push(id); carried.push(c);
+    }
+    // What did not fit waits for the round after.
+    const taken = new Set(carried.map(c => c.id));
+    p.carry = { comebacks: (carry.comebacks || []).filter(id => !taken.has(id)), retries: (carry.retries || []).filter(id => !taken.has(id)) };
+    for (const c of carried) placeAnywhere(body, c);
+
+    // Questions that can seal today come next, before anything else (§13.3).
+    const sealIds = claim(pick(sealablePool(day), Math.min(cfg.DUE_MAX, Math.max(0, free() - 1))));
+    for (const id of sealIds) placeAnywhere(body, card(id, 'due'));
+
+    // Each group is placed as it is claimed, so nothing is claimed for a slot that
+    // is not there. The Beyond lane keeps its share ahead of a second learning card.
+    const beyondIds = (beyondSlots && D.beyond && free() > 1) ? claim(D.beyond.pick(Math.min(beyondSlots, free() - 1), used)) : [];
+    for (const id of beyondIds) placeAnywhere(body, card(id, 'beyond'));
+    const learnIds = claim(pick(learningPool(), Math.min(L, free())));
+    for (const id of learnIds) placeAnywhere(body, card(id, 'learning'));
+    const safeIds = safetySlots ? claim(pick(safety, Math.min(safetySlots, free()))) : [];
+    for (const id of safeIds) placeAnywhere(body, card(id, 'safety'));
+    // Tables the placement rounds ran out of cards for are tried next, an easy and
+    // a hard question each, as round 1 would have (rework 2026-09-10). Otherwise
+    // one scout every other round (§13.3).
+    const room = free();
     const scoutIds = placementActive()
       ? claim(placementScouts().filter(id => !used.includes(id))
           .slice(0, Math.min(cfg.PLACEMENT_SCOUTS + cfg.PLACEMENT_SAFETY, room)))
-      : claim(pick(scoutPool(), cfg.SCOUTS));
-    const beyondIds = (beyondSlots && D.beyond) ? claim(D.beyond.pick(beyondSlots, used)) : [];
+      : ((D.state.runs || []).length % 2 === 0 && room > 0 ? claim(pick(scoutPool(), cfg.SCOUTS)) : []);
+    for (const id of scoutIds) placeAnywhere(body, card(id, 'scout'));
+
 
     // Whatever is left goes to short-lag repetition on correct-but-slow facts:
     // three serves each, which is the only path from known to fast (PLAN §6.5).
-    const fixed = learnIds.length + safeIds.length + scoutIds.length + beyondIds.length;
-    const spare = Math.max(0, body.length - fixed);
+    const spare = free();
     const perPick = 1 + cfg.PROMOTE_LAGS.length;
-    const wantPicks = Math.max(0, Math.floor(spare / perPick));
+    const wantPicks = Math.min(cfg.PROMOTE_SLOTS, Math.max(0, Math.floor(spare / perPick)));
     const promoteIds = claim(pick(promotePool(), wantPicks, promoteWeight));
 
     // Place each promote fact and its two repeats at fixed lag, avoiding a slot
@@ -418,11 +505,8 @@ D.scheduler = (function () {
         body[j + lag] = again;
       }
     }
-    for (const id of learnIds) placeAnywhere(body, card(id, 'learning'));
-    for (const id of safeIds) placeAnywhere(body, card(id, 'safety'));
-    for (const id of scoutIds) placeAnywhere(body, card(id, 'scout'));
-    for (const id of beyondIds) placeAnywhere(body, card(id, 'beyond'));
-    const dueIds = claim(pick(duePool(day), cfg.DUE_MAX));
+    // Check-ins on sealed questions take what is left, up to the cap with the sealable ones.
+    const dueIds = claim(pick(duePool(day), Math.max(0, Math.min(cfg.DUE_MAX - sealIds.length, free()))));
     for (const id of dueIds) placeAnywhere(body, card(id, 'due'));
     // Whatever is still empty is filled from the widest pool available, always
     // taking the fact this run has served least. On a brand new save there are
@@ -446,16 +530,16 @@ D.scheduler = (function () {
     }
 
     // The last card is drawn from due or promote only, so there is nothing to set up.
-    const lastPool = duePool(day).concat(promotePool()).filter(id => !used.includes(id));
+    const lastPool = sealablePool(day).concat(duePool(day), promotePool()).filter(id => !used.includes(id));
     const lastId = lastPool.length ? D.u.choice(lastPool)
-                 : (maintenancePool().filter(id => !used.includes(id))[0] || warm[0].id);
+                 : (maintenancePool().concat(learningPool(), D.facts.table('2').products).filter(id => !used.includes(id))[0] || warm[0].id);
     const lastCard = card(lastId, duePool(day).includes(lastId) ? 'due' : 'promote');
     lastCard.last = true;
 
     settle(body);
-    // One hidden bonus card, never the last card, never a scout.
-    const bonusIdx = body.map((c, i) => i).filter(i => body[i].kind !== 'scout');
-    if (bonusIdx.length) body[D.u.choice(bonusIdx)].bonus = true;
+    // One hidden bonus card in some rounds, never the last card, a scout or a comeback (§13.3).
+    const bonusIdx = body.map((c, i) => i).filter(i => body[i].kind !== 'scout' && body[i].kind !== 'comeback');
+    if (bonusIdx.length && Math.random() < cfg.BONUS_CHANCE) body[D.u.choice(bonusIdx)].bonus = true;
 
     const cards = warm.concat(body, [lastCard]);
     for (let i = 0; i < cards.length; i++) cards[i].slot = i;
@@ -576,17 +660,23 @@ D.scheduler = (function () {
     const p = D.state.placement;
     p.pending = {};
     const out = [];
-    // The quiet plus-and-minus checks that used to sit in round 1 go first, one a round.
+    // A five-card round has room for one thing: a table's easy and hard question, or
+    // one quiet plus-and-minus check. They take turns, tables on the odd rounds
+    // (§13.3; listed third, the check never fired, replay 2026-09-14).
+    const tablesTurn = (p.tables || []).length && ((p.runsLeft % 2 === 0) || !(p.safety || []).length);
+    if (tablesTurn) {
+      for (const key of (p.tables || []).slice(0, Math.max(1, Math.floor(cfg.PLACEMENT_SCOUTS / 2)))) {
+        const easy = D.tryout.easyFor(key, out), hard = D.tryout.hardFor(key, out.concat([easy]));
+        p.pending[easy] = { key: key, kind: 'easy' };
+        p.pending[hard] = { key: key, kind: 'hard' };
+        out.push(easy, hard);
+      }
+      return out;
+    }
     for (const id of (p.safety || []).slice(0, cfg.PLACEMENT_SAFETY)) {
       if (!D.facts.get(id)) continue;
       p.pending[id] = { safety: true };
       out.push(id);
-    }
-    for (const key of (p.tables || []).slice(0, 2)) {
-      const easy = D.tryout.easyFor(key, out), hard = D.tryout.hardFor(key, out.concat([easy]));
-      p.pending[easy] = { key: key, kind: 'easy' };
-      p.pending[hard] = { key: key, kind: 'hard' };
-      out.push(easy, hard);
     }
     return out;
   }
@@ -657,5 +747,6 @@ D.scheduler = (function () {
            promotePool, promoteWeight, duePool, maintenancePool, scoutPool, safetyPool, warmupPool,
            plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
            activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, nextFocus,
-           placementActive, placementScouts, endPlacementRound };
+           placementActive, placementScouts, endPlacementRound,
+           sealablePool, focusDays, noteFocusDay, daysUntilNext };
 })();

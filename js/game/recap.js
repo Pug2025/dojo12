@@ -18,10 +18,13 @@ D.recap = (function () {
     return out;
   }
 
-  // The biggest honest drop in a question's own average time since the week began.
+  // The biggest honest drop in a question's own average time over last week.
+  // rollWeek writes this week's snapshot at the same rollover the recap follows,
+  // so the newest one is this morning's; last week's is the one before it
+  // (audit 2026-09-14: "Most improved" could never fire).
   function mostImproved() {
     const keys = Object.keys(D.state.snapshots || {}).sort();
-    const shot = D.state.snapshots[keys[keys.length - 1]];
+    const shot = keys.length >= 2 ? D.state.snapshots[keys[keys.length - 2]] : null;
     if (!shot) return null;
     let best = null;
     for (const id of Object.keys(shot)) {

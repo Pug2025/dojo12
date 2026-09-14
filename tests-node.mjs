@@ -119,6 +119,7 @@ function playAll(rs, opts) {
       if (o.onMiss === "skip") { rs.chooseSkip(); rs.typedAnswer(f.ans); }
       else { rescueThrough(rs, true); }
     }
+    if (out && out.reveal) rs.typedAnswer(f.ans);
   }
   return rs.summary();
 }
@@ -200,22 +201,52 @@ h2("reward paths");
   const rs = D.runstate.create(handPlan(ids));
   missCard(rs, 3000);
   const res = rescueThrough(rs, false);         // first step wrong, then correct
-  t("a rescue with a retried step pays nothing", res && res.points === 0, res && "points " + res.points);
+  t("a rescue with a retried step still pays fifty (§13.3)", res && res.points === D.cfg.RESCUE_SCORE, res && "points " + res.points);
+}
+{
+  // Only a shown value zeroes the rescue.
+  newState();
+  const ids = ["mul:3x4", "mul:3x5", "mul:3x6", "mul:3x7"];
+  ids.forEach(id => seedFast(id));
+  const rs = D.runstate.create(handPlan(ids));
+  missCard(rs, 3000);
+  rs.chooseRescue();
+  let res = null, guard = 0;
+  while (guard++ < 20) {
+    const step = rs.currentStep();
+    if (!step) break;
+    const out = rs.stepSubmit(step.answer + 1);
+    if (!out) break;
+    if (out.kind === "stepValue") { res = rs.stepForced(out.step.answer); while (res && res.kind === "step") res = rs.stepForced(rs.currentStep().answer); break; }
+  }
+  t("a rescue that had to show a value pays nothing", !!res && res.kind === "rescued" && res.points === 0, res && res.kind + " " + res.points);
 }
 {
   // Combo tiers: any miss drops one tier, a rescue neither restores nor resets it.
   newState();
   const ids = [];
   for (let i = 2; i <= 12; i++) ids.push(mid(2, i));
+  for (let i = 4; i <= 12; i++) ids.push(mid(3, i));
   ids.forEach(id => seedFast(id));
   const rs = D.runstate.create(handPlan(ids));
   for (let i = 0; i < 7; i++) answer(rs, true, 700);
   t("seven in a row is the two times multiplier", rs.comboMult() === 2, "mult " + rs.comboMult());
   missCard(rs, 3000);
-  t("a miss drops one tier", rs.comboMult() === 1.5, "mult " + rs.comboMult());
+  t("a miss waits for the choice before it touches the streak (§13.3)", rs.comboMult() === 2, "mult " + rs.comboMult());
   rescueThrough(rs, true);
-  t("a rescue does not restore the tier", rs.comboMult() === 1.5, "mult " + rs.comboMult());
-  t("a rescue does not reset the tier either", rs.comboMult() !== 1);
+  t("a clean Break it down keeps the streak", rs.comboMult() === 2, "mult " + rs.comboMult());
+  missCard(rs, 3000);
+  const r2 = rescueThrough(rs, false);           // a step wrong once, then right: clean unless a value had to be shown
+  t("a retried step keeps the streak unless a value was shown", rs.comboMult() === (r2 && r2.points ? 2 : 1.5), "mult " + rs.comboMult() + " points " + (r2 && r2.points));
+  const tierBefore = D.cfg.COMBO_TIERS.indexOf(rs.comboMult());
+  missCard(rs, 3000);
+  rs.chooseRescue();
+  { let g = 0; while (g++ < 20) { const st = rs.currentStep(); if (!st) break; const o = rs.stepSubmit(st.answer + 1); if (!o) break;
+      if (o.kind === "stepValue") { let o2 = rs.stepForced(o.step.answer); while (o2 && o2.kind === "step") o2 = rs.stepForced(rs.currentStep().answer); break; } } }
+  t("a shown value drops the streak one tier", D.cfg.COMBO_TIERS.indexOf(rs.comboMult()) === Math.max(0, tierBefore - 1), "mult " + rs.comboMult());
+  const m4 = missCard(rs, 3000);
+  if (m4 && m4.buttons) { rs.chooseSkip(); rs.typedAnswer(D.facts.get(m4.card.id).ans); }
+  t("Show me drops the streak to nothing", !!m4 && rs.comboMult() === 1 && rs.raw.combo === 0, "combo " + rs.raw.combo);
 }
 {
   newState();
@@ -406,7 +437,7 @@ h2("mastery");
   const id = "mul:8x12";
   seedFast(id);
   D.mastery.record(id, { correct: true, rt: 700, day: D.u.gameDay(), warmup: true });
-  t("a warm-up never earns a day", D.mastery.rec(id).days.length === 0);
+  t("a warm-up can earn a day when the question is due (§13.3)", D.mastery.rec(id).days.length === 1);
 }
 {
   // Evening then morning is a new day; a clock wound forward inside a sitting is not.
@@ -440,9 +471,9 @@ h2("mastery");
   newState();
   const id = "mul:9x12";
   const r = seedAuto(id);
-  r.ewma = D.mastery.threshold(id) * 2;
+  r.ewma = D.mastery.threshold(id) * (D.cfg.SLOW_AUTO + 0.5);
   D.mastery.dirty();
-  D.mastery.record(id, { correct: true, rt: D.mastery.threshold(id) * 2, day: D.u.gameDay() });
+  D.mastery.record(id, { correct: true, rt: D.mastery.threshold(id) * (D.cfg.SLOW_AUTO + 0.5), day: D.u.gameDay() });
   t("settling into slow answers on a sealed question takes the seal off", D.mastery.sealState(id) === "fast",
     D.mastery.sealState(id));
 }
@@ -455,25 +486,25 @@ h2("mastery");
   t("a seeded fact is marked provisional", D.mastery.rec(id).provisional === true);
 }
 {
-  // The relative bar only applies once the child has ten settled facts to compare with.
+  // The fast line is the child's own (§13.3): with no samples it is the fixed line;
+  // with a slow child's samples it sits at 85 % of their median, capped at 5 s, and
+  // never below the fixed line.
   newState();
-  const id = "mul:12x12";
-  const r = D.mastery.rec(id); r.ewma = 2600; r.seen = 6; r.ok = 6; r.streak = 3; r.window = [1,1,1,1,1,1,1,1];
+  const id = "mul:6x7";
+  const fixed = D.mastery.fixedThreshold(id);
+  t("with no samples the fast line is the fixed line", D.mastery.threshold(id) === fixed, D.mastery.threshold(id) + " vs " + fixed);
+  const r = D.mastery.rec(id); r.ewma = 2200; r.seen = 6; r.ok = 6; r.streak = 3; r.window = [1,1,1,1,1,1,1,1];
   D.mastery.dirty();
-  t("with no baseline a fact inside the absolute bar is fast", D.mastery.status(id) === "fast", D.mastery.status(id));
-  let n = 0;
-  for (let a = 2; a <= 12 && n < 12; a++) for (let b = a; b <= 12 && n < 12; b++) {
-    const oid = mid(a, b);
-    if (oid === id) continue;
-    const rr = D.mastery.rec(oid);
-    rr.seen = 6; rr.ok = 6; rr.streak = 3; rr.window = [1,1,1,1,1,1,1,1];
-    rr.ewma = Math.round(D.mastery.threshold(oid) * 0.5);
-    rr.days = ["2026-09-01", "2026-09-03", "2026-09-05"];
-    n++;
-  }
-  D.mastery.dirty();
-  t("with a baseline the same fact is only known", n >= 10 && D.mastery.status(id) === "known",
-    "n " + n + " status " + D.mastery.status(id));
+  t("with no baseline a fact inside the fixed line is fast", D.mastery.status(id) === "fast", D.mastery.status(id));
+  for (let i = 0; i < 8; i++) D.mastery.record(mid(7, 8), { correct: true, rt: 4000, day: D.u.gameDay() });
+  const own = D.mastery.threshold(id);
+  t("a four-second child's line sits at their own median", own === Math.round(D.cfg.RT_OWN_SHARE * 4000), "line " + own);
+  t("the gold tick and the judged line are one line", D.mastery.isFastRt(id, own - 100) && !D.mastery.isFastRt(id, own + 100));
+  for (let i = 0; i < 8; i++) D.mastery.record(mid(7, 8), { correct: true, rt: 9000, day: D.u.gameDay() });
+  t("the line never sits slower than five seconds", D.mastery.threshold(id) === D.cfg.RT_OWN_MAX, "line " + D.mastery.threshold(id));
+  for (let i = 0; i < 20; i++) D.mastery.record(mid(7, 8), { correct: true, rt: 900, day: D.u.gameDay() });
+  t("a quick child's line is the fixed line", D.mastery.threshold(id) === fixed, "line " + D.mastery.threshold(id));
+  t("the black belt test keeps the fixed line", D.mastery.fixedThreshold(id) === fixed);
 }
 
 /* ================= 3. scheduler (PLAN §6.5) ================= */
@@ -482,10 +513,10 @@ h2("scheduler");
   newState();
   D.scheduler.ensureProgression();
   const p = D.scheduler.plan();
-  t("a round is ten cards", p.cards.length === D.cfg.RUN_CARDS && D.cfg.RUN_CARDS === 10, "cards " + p.cards.length);
+  t("a round is five cards", p.cards.length === D.cfg.RUN_CARDS && D.cfg.RUN_CARDS === 5, "cards " + p.cards.length);
   t("the first cards are warm-ups", p.cards.slice(0, D.cfg.WARMUPS).every(c => c.kind === "warmup"));
   t("scouts stay within their share", p.cards.filter(c => c.kind === "scout").length <= D.cfg.SCOUTS);
-  t("exactly one bonus card", p.cards.filter(c => c.bonus).length === 1);
+  t("at most one bonus card", p.cards.filter(c => c.bonus).length <= 1);
   t("the bonus card is never the last card", !p.cards[p.cards.length - 1].bonus);
   t("no fact twice in a row", p.cards.every((c, i) => i === 0 || c.id !== p.cards[i - 1].id));
   t("no two neighbours share an answer", p.cards.every((c, i) =>
@@ -501,20 +532,20 @@ h2("scheduler");
   D.scheduler.ensureProgression();
   const p = D.scheduler.plan();
   const rs = D.runstate.create(p);
-  for (let i = 0; i < 3; i++) answer(rs, true, 700);
-  t("card four never starts at nothing", rs.raw.combo === 3, "combo " + rs.raw.combo);
+  for (let i = 0; i < D.cfg.WARMUPS; i++) answer(rs, true, 700);
+  t("the round proper never starts at nothing", rs.raw.combo === D.cfg.WARMUPS, "combo " + rs.raw.combo);
   t("warm-ups pay score", rs.raw.score > 0);
 }
 {
   // The learning load follows the child's own accuracy, inside its floor and ceiling.
   newState();
-  D.state.progress.learnSlots = 3;
+  D.state.progress.learnSlots = D.cfg.LEARN_MAX;
   D.state.runs = [{ cards: 10, correct: 5 }, { cards: 10, correct: 6 }, { cards: 10, correct: 6 }];
   D.scheduler.adaptLearnSlots();
-  t("a hard run lowers the learning load", D.state.progress.learnSlots === 2);
+  t("a hard run lowers the learning load", D.state.progress.learnSlots === D.cfg.LEARN_MAX - 1);
   D.state.runs = [{ cards: 10, correct: 10 }, { cards: 10, correct: 10 }, { cards: 10, correct: 10 }];
   D.scheduler.adaptLearnSlots();
-  t("an easy run raises the learning load", D.state.progress.learnSlots === 3);
+  t("an easy run raises the learning load", D.state.progress.learnSlots === D.cfg.LEARN_MAX);
   D.state.progress.learnSlots = D.cfg.LEARN_MIN;
   D.state.runs = [{ cards: 10, correct: 2 }, { cards: 10, correct: 2 }, { cards: 10, correct: 2 }];
   D.scheduler.adaptLearnSlots();
@@ -536,7 +567,8 @@ h2("scheduler");
   if (out && out.buttons) rescueThrough(rs, true);
   t("a comeback replaces a slot instead of adding one", rs.raw.cards.length === total,
     "cards " + rs.raw.cards.length);
-  t("a comeback is queued after a clean rescue", rs.raw.cards.some(c => c.kind === "comeback"));
+  t("a comeback is queued after a clean rescue, in this round or the next",
+    rs.raw.cards.some(c => c.kind === "comeback") || rs.raw.carryComebacks.length === 1);
 }
 {
   // A skip yields no comeback.
@@ -546,13 +578,15 @@ h2("scheduler");
   for (let i = 0; i < 3; i++) answer(rs, true, 700);
   const out = missNext(rs);
   if (out && out.buttons) { rs.chooseSkip(); rs.typedAnswer(D.facts.get(out.card.id).ans); }
-  t("a skip yields no comeback", !rs.raw.cards.some(c => c.kind === "comeback"));
+  t("a skip yields no comeback", !rs.raw.cards.some(c => c.kind === "comeback") && rs.raw.carryComebacks.length === 0);
+  t("a skipped question comes back next round as an ordinary card", rs.raw.carryRetries.length === 1);
 }
 {
   // The bonus card is revealed only on a correct answer.
   newState();
   D.scheduler.ensureProgression();
-  const p = D.scheduler.plan();
+  let p = D.scheduler.plan(), tries = 0;
+  while (!p.cards.some(c => c.bonus) && tries++ < 40) p = D.scheduler.plan();
   const bonusAt = p.cards.findIndex(c => c.bonus);
   const rs = D.runstate.create(p);
   let revealed = false, guard = 0;
@@ -593,24 +627,19 @@ h2("scheduler");
   t("the safety net never takes a warm-up slot", p.cards.slice(0, D.cfg.WARMUPS).every(c => c.kind === "warmup"));
 }
 {
-  // Promote cards come back at short lag.
+  // A five-card round has no in-round repeat; a correct-but-slow fact stays in the
+  // promote pool and is served again by a later round (§13.3).
   newState();
   for (let i = 2; i <= 12; i++) D.mastery.seedKnown(mid(2, i));
   D.scheduler.ensureProgression();
   const p = D.scheduler.plan();
+  t("no question is booked twice in a five-card round", !p.cards.some(c => c.repeat) && D.cfg.PROMOTE_LAGS.length === 0);
   const rs = D.runstate.create(p);
-  let firstPromote = -1, guard = 0;
-  while (!rs.isDone() && guard++ < 60) {
-    const cur = rs.present();
-    if (!cur) break;
-    if (firstPromote < 0 && cur.card.kind === "promote" && !cur.card.repeat) firstPromote = cur.index;
-    const out = answer(rs, true, 4200);            // still slow: the repeat keeps its job
-    if (firstPromote >= 0 && cur.index === firstPromote) {
-      const repeats = rs.raw.cards.map((c, i) => (c.repeat ? i : -1)).filter(i => i > firstPromote);
-      t("a known fact comes back at short lag", repeats.length >= 1, "repeats " + JSON.stringify(repeats));
-      break;
-    }
-  }
+  playAll(rs, { correct: true, ms: 4200 });
+  D.runstate.finishRun(rs);
+  const served = p.cards.filter(c => c.kind === "promote").map(c => c.id);
+  t("a known fact answered slowly stays in the promote pool for the next round",
+    served.every(id => D.scheduler.promotePool().includes(id)), served.join(","));
 }
 
 /* ================= 4. rescue and diagnosis (PLAN §6.7) ================= */
@@ -841,6 +870,7 @@ function botRun(bot, log) {
       out = rs.submit(b.correct ? f.ans : f.ans * 10 + 3, b.rt);
     }
     if (out && out.kind === "correct") bot.learn(id, "correct");
+    if (out && out.reveal) { rs.typedAnswer(f.ans); elapsed += 2500; }   // a wrong scout: the answer, typed
     if (out && out.buttons) {
       if (bot.profile.onMiss === "skip") {
         rs.chooseSkip();
@@ -946,8 +976,10 @@ h2("rework R1");
   t("an answer after the timer scores base points only",
     !!late && late.points === Math.round(D.cfg.BASE_SCORE * D.facts.weight(slow)), "points " + (late && late.points));
   t("an answer after the timer still pays XP", !!late && late.xp > 0);
-  const miss = rs.timeout();
-  t("an empty timer on a fast question is still a miss", !!miss && miss.kind === "miss", String(miss && miss.kind));
+  const over2 = rs.timeout();
+  t("an empty timer on a fast question also leaves the card up (§13.3)", !!over2 && over2.kind === "overtime", String(over2 && over2.kind));
+  const late2 = rs.submit(D.facts.get(quick).ans, 9000);
+  t("the right answer typed late on a fast question is slow, never a miss", !!late2 && late2.kind === "correct" && !late2.fast);
 }
 {
   // A booked repeat keeps its card only while it has a job left.
@@ -980,23 +1012,30 @@ h2("rework R1");
 
 /* ================= round one (PLAN §13.1 R4) ================= */
 h2("round one");
+/* The placement runs behind PLACEMENT_ROUNDS rounds (§13.3): this plays every
+   round but the last, and hands the last one back unfinished so a test can close it. */
 function playRoundOne(p, q, opts) {
   const o = opts || {};
-  const ro = D.roundone.create();
-  const log = { cards: 0, ringed: 0, misses: 0, reveals: 0, revealPoints: 0 };
-  let g = 0;
-  while (!ro.isDone() && g++ < 60) {
-    const cur = ro.present();
-    if (!cur) break;
-    log.cards++;
-    if (cur.ringMs) log.ringed++;
-    const f = D.facts.get(cur.card.id);
-    const right = o.known ? o.known(f) : Math.random() < p;
-    const out = ro.submit(right ? f.ans : f.ans * 10 + 3, Math.random() < q ? 900 : 4200);
-    if (out && out.kind === "miss") {
-      log.misses++;
-      if (out.reveal) { log.reveals++; const back = ro.typedAnswer(f.ans); log.revealPoints += (back && back.points) || 0; }
+  const log = { cards: 0, ringed: 0, misses: 0, reveals: 0, revealPoints: 0, rounds: 0, sums: [] };
+  let ro = null;
+  for (let round = 1; round <= D.cfg.PLACEMENT_ROUNDS; round++) {
+    ro = D.roundone.create();
+    log.rounds++;
+    let g = 0;
+    while (!ro.isDone() && g++ < 60) {
+      const cur = ro.present();
+      if (!cur) break;
+      log.cards++;
+      if (cur.ringMs) log.ringed++;
+      const f = D.facts.get(cur.card.id);
+      const right = o.known ? o.known(f) : Math.random() < p;
+      const out = ro.submit(right ? f.ans : f.ans * 10 + 3, Math.random() < q ? 900 : 4200);
+      if (out && out.kind === "miss") {
+        log.misses++;
+        if (out.reveal) { log.reveals++; const back = ro.typedAnswer(f.ans); log.revealPoints += (back && back.points) || 0; }
+      }
     }
+    if (round < D.cfg.PLACEMENT_ROUNDS) log.sums.push(D.roundone.finishRound(ro));
   }
   return { ro: ro, log: log };
 }
@@ -1005,7 +1044,8 @@ function playRoundOne(p, q, opts) {
   Math.random = mulberry(11);
   newState();
   const { ro, log } = playRoundOne(0.5, 0.5);
-  t("round one is twelve cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
+  t("the placement is two rounds of five", log.cards === D.cfg.ROUND_ONE_CARDS * D.cfg.PLACEMENT_ROUNDS && log.rounds === 2, "cards " + log.cards);
+  t("the first placement round ends without placing", log.sums[0] && log.sums[0].placementContinues === true && D.state.flags.tryoutDone !== true);
   t("round one has no timer on any card", log.ringed === 0);
   t("a miss in round one shows the answer to type", log.misses > 0 && log.reveals === log.misses,
     log.misses + " misses, " + log.reveals + " shown");
@@ -1014,7 +1054,8 @@ function playRoundOne(p, q, opts) {
   t("round one pays points, XP and coins like any round", sum.score > 0 && sum.xp > 0 && sum.coins > 0,
     sum.score + " points, " + sum.xp + " XP, " + sum.coins + " coins");
   t("round one answers go on the record",
-    Object.keys(D.state.facts).filter(id => D.state.facts[id].seen > 0).length >= 8);
+    Object.keys(D.state.facts).filter(id => D.state.facts[id].seen > 0).length >= 5);
+  t("placement rounds set no personal best", D.state.pbs.score === 0 && D.state.pbs.combo === 0);
   t("round one places the child", D.state.flags.tryoutDone === true && D.scheduler.openTables().length > 0);
   Math.random = saved;
 }
@@ -1048,7 +1089,7 @@ function playRoundOne(p, q, opts) {
   const known = f => f.op === "mul" && (f.a === 2 || f.b === 2 || f.a === 10 || f.b === 10);
   const { ro, log } = playRoundOne(0, 1, { known: known });
   D.roundone.finishRound(ro);
-  t("a struggling child's round one is still twelve cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
+  t("a struggling child's placement is still two rounds of five", log.cards === D.cfg.ROUND_ONE_CARDS * D.cfg.PLACEMENT_ROUNDS, "cards " + log.cards);
   t("a struggling child gets no extra table scouts", !D.state.placement || !D.state.placement.tables.length);
   Math.random = saved;
 }
@@ -1102,11 +1143,11 @@ h2("seal and review fixes");
   Math.random = mulberry(21);
   newState();
   const ro = D.roundone.create();
-  for (let k = 0; k < 5; k++) { const cur = ro.present(); ro.submit(D.facts.get(cur.card.id).ans, 900); }
+  for (let k = 0; k < 3; k++) { const cur = ro.present(); ro.submit(D.facts.get(cur.card.id).ans, 900); }
   const snap = ro.snapshot();
-  t("round one saves itself card by card", !!snap && snap.roundOne === true && snap.round.i === 5);
+  t("round one saves itself card by card", !!snap && snap.roundOne === true && snap.round.i === 3);
   const back = D.roundone.create({ resume: JSON.parse(JSON.stringify(snap)) });
-  t("round one picks up on the card it was left on", back.raw.i === 5 && back.raw.score === ro.raw.score);
+  t("round one picks up on the card it was left on", back.raw.i === 3 && back.raw.score === ro.raw.score);
   let g = 0;
   while (!back.isDone() && g++ < 40) { const cur = back.present(); if (!cur) break; back.submit(D.facts.get(cur.card.id).ans, 900); }
   t("a picked-up round one still ends at its length", back.raw.i === D.cfg.ROUND_ONE_CARDS, "i " + back.raw.i);
@@ -1169,7 +1210,7 @@ h2("improving-learner bots");
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
   const accFrom3 = [], durations = [], maxFocus = [], comboFour = [], goldCounts = [], autoKept = [];
   for (const seed of SEEDS) {
-    const r = runBot("novice", seed, 30, 6);
+    const r = runBot("novice", seed, 30, 12);
     const later = r.log.slice(2);
     accFrom3.push(medianOf(later.map(x => x.correct / Math.max(1, x.cards))));
     durations.push(medianOf(r.log.map(x => x.ms)));
@@ -1196,7 +1237,7 @@ h2("improving-learner bots");
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
   const opened = [], allAuto = [];
   for (const seed of SEEDS) {
-    const r = runBot("strong", seed, 12, 6);
+    const r = runBot("strong", seed, 12, 12);
     opened.push(D.scheduler.openTables().length);
     const anyAllAuto = r.log.some(x => false);
     allAuto.push(anyAllAuto);
@@ -1206,27 +1247,26 @@ h2("improving-learner bots");
   t("a strong player never gets a run of nothing but settled facts", allAuto.every(x => !x));
 }
 {
+  // The fast line is the child's own (§13.3), so a slow but correct player seals
+  // questions and the belt moves; on the fixed line alone it never did.
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
-  const pcts = [];
+  const sealed = [], steps = [];
   for (const seed of SEEDS) {
-    const r = runBot("slowCorrect", seed, 10, 6);
-    const primary = D.state.focus.primary;
-    const done = D.facts.TABLE_ORDER.filter(k => D.scheduler.tableState(k).status === "open");
-    const best = done.length ? Math.max.apply(null, done.concat(primary ? [primary] : [])
-      .map(k => D.mastery.tableStats(k).fastPct)) : D.mastery.tableStats(primary).fastPct;
-    pcts.push(best);
+    runBot("slowCorrect", seed, 10, 12);
+    sealed.push(D.belt.info().sealed);
+    steps.push(D.belt.info().step);
   }
-  t("a slow but correct player gets a table to eighty per cent fast in ten days",
-    medianOf(pcts) >= 0.8, "median " + medianOf(pcts).toFixed(2));
+  t("a slow but correct player seals questions inside ten days", medianOf(sealed) >= 8, "median sealed " + medianOf(sealed));
+  t("a slow but correct player's belt moves inside ten days", medianOf(steps) >= 3, "median step " + medianOf(steps));
 }
 {
   const noviceXp = [], noviceSparks = [], guessXp = [], guessSparks = [], skipXp = [], skipSparks = [];
   for (const seed of [1, 2, 3, 4]) {
-    runBot("novice", seed, 10, 6);
+    runBot("novice", seed, 10, 12);
     noviceXp.push(D.state.progress.xp); noviceSparks.push(D.state.progress.coins);
-    runBot("guesser", seed, 10, 6);
+    runBot("guesser", seed, 10, 12);
     guessXp.push(D.state.progress.xp); guessSparks.push(D.state.progress.coins);
-    runBot("skipper", seed, 10, 6);
+    runBot("skipper", seed, 10, 12);
     skipXp.push(D.state.progress.xp); skipSparks.push(D.state.progress.coins);
   }
   const nXp = medianOf(noviceXp), nSp = medianOf(noviceSparks);
@@ -1241,7 +1281,7 @@ h2("improving-learner bots");
   // A fact that is right today and wrong a week later drops back and returns as due.
   const regressed = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("forgetter", seed, 20, 4);
+    const r = runBot("forgetter", seed, 20, 8);
     let backToLearning = 0;
     for (const id of Object.keys(D.state.facts)) {
       const rec = D.state.facts[id];
@@ -1256,7 +1296,7 @@ h2("improving-learner bots");
   // What a novice settles, a novice mostly keeps.
   const kept = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("novice", seed, 30, 6);
+    const r = runBot("novice", seed, 30, 12);
     let everAuto = 0, stillAuto = 0;
     for (const id of Object.keys(D.state.facts)) {
       const rec = D.state.facts[id];
@@ -1271,7 +1311,7 @@ h2("improving-learner bots");
   // How often a question comes up three times in a round without being missed.
   const perRound = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("strong", seed, 6, 6);
+    const r = runBot("strong", seed, 6, 12);
     for (const run of r.log) {
       const n = {};
       for (const c of run.cardList) if (c.kind !== "redemption") n[c.id] = (n[c.id] || 0) + 1;
@@ -1775,9 +1815,10 @@ h2("weekly recap");
   t("a quiet week has no recap", D.recap.lines().length < 2);
   const id = mid(7, 8);
   const r = seedFast(id, 4100);
-  D.state.progress.doneThisWeek = 6;
-  D.save.rollWeek("2026-09-14");
+  D.save.rollWeek("2026-09-14");           // the week begins with 7 × 8 at 4.1 s
   r.ewma = 2000;
+  D.state.progress.doneThisWeek = 6;
+  D.save.rollWeek("2026-09-21");           // and ends at 2.0 s
   D.state.pbs.fastestFact = { id: mid(6, 7), ms: 1400 };
   const lines = D.recap.lines();
   t("the recap counts last week's questions with both dots", lines.some(l => l === D.copy.recap.done(6)),
@@ -1807,13 +1848,22 @@ h2("approved lines");
     [D.copy.summary.sealed([D.facts.display(m78, false)]), "Sealed: 7 × 8."],
     [D.copy.summary.fastNew(3), "Fast on 3 new questions."],
     [D.copy.summary.gotBack([D.facts.display(m78, false)]), "Missed, then got right: 7 × 8."],
-    [D.copy.summary.streak(11, 14), "Longest streak 11 (best 14)"],
+    [D.copy.summary.streak(11, 14), "Longest streak 11"],
+    [D.copy.summary.streak(14, 14), "Longest streak 14, your best"],
     [D.copy.belt.stripeTied("white", 2), "Stripe 2 on your white belt."],
     [D.copy.belt.beltTied("blue"), "Blue belt!"],
-    [D.copy.belt.toNext(3, "stripe", "white"), "3 more questions to seal for your next stripe."],
+    [D.copy.belt.toNext({ sealed: 3, nextAt: 5, nextKind: "stripe", stripes: 2, outlined: 4 }), "Sealed 3 of 5 for stripe 3. 4 are fast once."],
+    [D.copy.belt.toNext({ sealed: 10, nextAt: 12, nextKind: "belt", nextBelt: "blue", stripes: 4, outlined: 0 }), "Sealed 10 of 12 for your blue belt."],
+    [D.copy.summary.coinsLine(5, 5, 10), "+20 coins. 5 for right answers, 5 for the bonus card, 10 for the belt."],
+    [D.copy.summary.coinsLine(4, 0, 0), "+4 coins"],
+    [D.copy.summary.bestTime(m78, 2100, 2600), "7 × 8 in 2.1 s, your best. Was 2.6 s."],
+    [D.copy.summary.levelUp(5, ["Hexagon"]), "Level 5. New in the Shop: Hexagon."],
+    [D.copy.home.today(3, 4, 6), "Today: 3 rounds, 4 fast for the first time. 6 questions can seal."],
+    [D.copy.home.today(0, 0, 9), "9 questions can seal today."],
     [D.copy.belt.failCount(19, 24), "19 of 24. Try again tomorrow."],
     [D.copy.belt.failSlow(24, 24, 4), "24 of 24, but four were too slow. Try again tomorrow."],
-    [D.copy.home.working("2", "5"), "Working on the twos. The fives open after."],
+    [D.copy.home.working("5", 8, 22, "7", 2), "Working on the fives, 8 of 22 sealed. The sevens open in 2 days."],
+    [D.copy.home.workingTwo("5", 8, 22, "7", "8", 1), "Working on the fives, 8 of 22 sealed, and the sevens. The eights open tomorrow."],
     [D.copy.home.sealed(83), "83 questions sealed"],
     [D.copy.roundOne.start(["5", "7"]), "You start on the fives, like 5 × 6, and the sevens, like 7 × 6."],
     [D.copy.settings.clockMoved("2026-09-14"), "Clock moved. No new days until 14 September."],
@@ -2109,7 +2159,7 @@ h2("correctness review");
   const plan = D.scheduler.plan();
   const safety = plan.cards.filter(c => c.kind === "safety").length;
   const learning = plan.cards.filter(c => c.kind === "learning").length;
-  t("the quiet lane takes at most half the learning slots", safety <= 2 && learning >= 2,
+  t("the quiet lane takes at most half the learning slots", safety <= Math.floor(D.cfg.LEARN_MAX / 2) && learning >= safety,
     safety + " safety, " + learning + " learning");
 }
 {
@@ -2225,7 +2275,8 @@ h2("exploit review");
   seedFast(mid(2, 3)); seedFast(mid(2, 4));
   const rs = D.runstate.create(handPlan([id, mid(2, 3), mid(2, 4)]));
   const out = rs.submit(D.facts.get(id).ans, 5800);
-  t("beating a slow ghost outside the fast line pays no spark", out.marks.indexOf("pb") < 0);
+  t("beating a slow best outside the fast line is marked and pays nothing extra (§13.3)",
+    out.marks.indexOf("pb") >= 0 && out.coins === D.cfg.COINS_PER_CORRECT && !out.fast);
 }
 {
   newState();

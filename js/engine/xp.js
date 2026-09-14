@@ -60,6 +60,7 @@ D.xp = (function () {
      so any margin counts. */
   function checkPbs(run) {
     const pbs = D.state.pbs, out = [];
+    if (run.roundOne) return out;          // placement rounds set nothing (§13.3)
     const first = !pbs.score && !pbs.combo;
     if (run.score > pbs.score) {
       if (!first) out.push({ kind: 'score', delta: run.score - pbs.score });
