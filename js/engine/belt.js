@@ -24,20 +24,20 @@ D.belt = (function () {
     }
     return core.slice();
   }
-  // Dots filled across everything the belt counts: the times tables and Beyond,
-  // never the quiet addition lane.
-  function dotsFilled() {
+  // Sealed questions across everything the belt counts: the times tables and
+  // Beyond, never the quiet addition lane.
+  function sealedCount() {
     let n = 0;
     for (const id of Object.keys(D.state.facts)) {
       const f = D.facts.get(id);
       if (!f || f.lane === 'addsub') continue;
-      n += D.mastery.dots(id);
+      if (D.mastery.isSealed(id)) n++;
     }
     return n;
   }
-  function stepFor(dots) {
+  function stepFor(sealed) {
     let s = 0;
-    while (s < cfg.BELT_STEPS.length && dots >= cfg.BELT_STEPS[s]) s++;
+    while (s < cfg.BELT_STEPS.length && sealed >= cfg.BELT_STEPS[s]) s++;
     return s;
   }
   function describe(step, black) {
@@ -48,20 +48,20 @@ D.belt = (function () {
 
   /* Where the child stands and what comes next, for Home and the round's end. */
   function info() {
-    const st = state(), dots = dotsFilled(), d = describe(st.step, st.black);
+    const st = state(), sealed = sealedCount(), d = describe(st.step, st.black);
     const next = st.black || st.step >= lastStep() ? null : cfg.BELT_STEPS[st.step];
     const nextKind = st.black ? null : st.step >= lastStep() ? 'test' : ((st.step + 1) % 5 === 0 ? 'belt' : 'stripe');
     const nextBelt = nextKind === 'belt' ? cfg.BELT_NAMES[(st.step + 1) / 5] : nextKind === 'test' ? 'black' : d.belt;
-    return { step: st.step, belt: d.belt, stripes: d.stripes, black: st.black, dots: dots,
+    return { step: st.step, belt: d.belt, stripes: d.stripes, black: st.black, sealed: sealed,
              prevAt: st.step > 0 ? cfg.BELT_STEPS[st.step - 1] : 0, nextAt: next,
              nextKind: nextKind, nextBelt: nextBelt, testOpen: testOpen() };
   }
 
-  /* Raise the belt to what the dots now say. It never lowers. Every stripe and
+  /* Raise the belt to what the sealed questions now say. It never lowers. Every stripe and
      belt it passes pays coins, and the list says what happened. */
   function update() {
     const st = state();
-    const target = stepFor(dotsFilled());
+    const target = stepFor(sealedCount());
     const events = [];
     while (st.step < target) {
       st.step++;
@@ -73,10 +73,10 @@ D.belt = (function () {
     }
     return events;
   }
-  // After a migration or a restore: the belt the dots already earned, unpaid.
+  // After a migration or a restore: the belt the seals already earned, unpaid.
   function sync() {
     const st = state();
-    st.step = Math.max(st.step || 0, stepFor(dotsFilled()));
+    st.step = Math.max(st.step || 0, stepFor(sealedCount()));
     delete st.needsSync;
     return st.step;
   }
@@ -95,6 +95,6 @@ D.belt = (function () {
     return { kind: 'belt', belt: 'black', stripes: 0, step: st.step, coins: cfg.COINS_BELT };
   }
 
-  return { state, coreIds, dotsFilled, stepFor, describe, info, update, sync, testOpen,
+  return { state, coreIds, sealedCount, stepFor, describe, info, update, sync, testOpen,
            stampTest, passBlack, lastStep };
 })();

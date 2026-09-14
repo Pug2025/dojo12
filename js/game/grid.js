@@ -1,6 +1,7 @@
-/* Dojo 12 — the grid. One square per question, showing its dots: none, one, or
-   both. Only opened tables are drawn, so the screen is never a wall of things
-   the child cannot do yet (PLAN §2), and a line says why a row is missing. */
+/* Dojo 12 — the grid. One square per question, showing its seal: nothing, fast
+   once, or sealed. Only opened tables are drawn, so the screen is never a wall
+   of things the child cannot do yet (PLAN §2), and a line says why a row is
+   missing. */
 "use strict";
 D.grid = (function () {
   const u = () => D.u;
@@ -11,8 +12,16 @@ D.grid = (function () {
       .map(Number).sort((a, b) => a - b);
   }
   function cols() { const out = []; for (let n = 2; n <= 12; n++) out.push(n); return out; }
+  // Times: row times column. Divide: the row's number divides row times column,
+  // so the column is the answer.
   function cellFor(a, b) {
     return op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
+  }
+  function cellClass(id) {
+    const rec = D.mastery.peek(id);
+    if (rec && rec.provisional) return 'na';
+    const st = D.mastery.sealState(id);
+    return st === 'sealed' ? 's-sealed' : st === 'fast' ? 's-fast' : '';
   }
 
   function render(root, onBack) {
@@ -32,7 +41,8 @@ D.grid = (function () {
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.grid.title),
       seg, body, detail, legend(),
-      u().el('div', { class: 't13 dim' }, D.copy.grid.rowsNote(D.scheduler.nextUnopened())),
+      op === 'div' ? u().el('div', { class: 't13 dim' }, D.copy.grid.divideNote) : null,
+      u().el('div', { class: 't13 dim' }, D.copy.grid.rowsNote),
       u().el('div', { class: 'grow' }),
       back,
     ]));
@@ -45,17 +55,15 @@ D.grid = (function () {
     for (const b of across) head.appendChild(u().el('th', {}, String(b)));
     t.appendChild(head);
     for (const a of keys) {
-      const row = u().el('tr', {}, [u().el('th', {}, String(a))]);
+      const row = u().el('tr', {}, [u().el('th', {}, (op === 'mul' ? '' : '÷ ') + a)]);
       for (const b of across) {
         const id = cellFor(a, b);
         const rec = D.mastery.peek(id);
-        const dots = D.mastery.dots(id);
-        const unasked = !!(rec && rec.provisional);
-        const cls = unasked ? 'na' : dots === 2 ? 'd2' : dots === 1 ? 'd1' : '';
+        const cls = cellClass(id);
         const td = u().el('td', { class: cls });
         td.addEventListener('pointerdown', () => {
-          detail.textContent = unasked ? D.copy.grid.cellUnasked(id, false)
-            : D.copy.grid.cell(id, false, dots, rec && rec.best);
+          detail.textContent = cls === 'na' ? D.copy.grid.cellUnasked(id, false)
+            : D.copy.grid.cell(id, false, D.mastery.sealState(id), rec && rec.best);
         });
         row.appendChild(td);
       }
@@ -66,7 +74,7 @@ D.grid = (function () {
 
   function legend() {
     const box = u().el('div', { class: 'legend' });
-    const items = [['', 'none'], ['d1', 'one'], ['d2', 'both'], ['na', 'unasked']];
+    const items = [['', 'none'], ['s-fast', 'fast'], ['s-sealed', 'sealed'], ['na', 'unasked']];
     for (const [cls, key] of items) {
       box.appendChild(u().el('span', {}, [u().el('i', { class: cls }), D.copy.grid.legend[key]]));
     }
@@ -78,5 +86,5 @@ D.grid = (function () {
     return b;
   }
 
-  return { render, rows, cols };
+  return { render, rows, cols, cellClass };
 })();

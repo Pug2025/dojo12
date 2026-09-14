@@ -19,20 +19,24 @@ D.tryout = (function () {
     const picks = [D.facts.mulId(2, 3), D.facts.mulId(10, 4), D.facts.mulId(5, 4), D.facts.mulId(2, 6)];
     return picks;
   }
+  // avoid: one id or a list of ids already claimed, so two probes are never the
+  // same question (code review 2026-09-12).
+  function avoided(avoid, id) { return Array.isArray(avoid) ? avoid.indexOf(id) >= 0 : id === avoid; }
   function easyFor(key, avoid) {
     const t = D.facts.table(key);
     for (const n of D.u.shuffle(EASY_FACTORS.slice())) {
       const id = key === 'sq' ? D.facts.mulId(n, n) : D.facts.mulId(Number(key), n);
-      if (D.facts.get(id) && id !== avoid) return id;
+      if (D.facts.get(id) && !avoided(avoid, id)) return id;
     }
-    return t.products[0];
+    return t.products.find(id => !avoided(avoid, id)) || t.products[0];
   }
-  function hardFor(key) {
+  function hardFor(key, avoid) {
     for (const n of D.u.shuffle(HARD_FACTORS.slice())) {
       const id = key === 'sq' ? D.facts.mulId(n, n) : D.facts.mulId(Number(key), n);
-      if (D.facts.get(id)) return id;
+      if (D.facts.get(id) && !avoided(avoid, id)) return id;
     }
-    return D.facts.table(key).products[D.facts.table(key).products.length - 1];
+    const all = D.facts.table(key).products;
+    return all.slice().reverse().find(id => !avoided(avoid, id)) || all[all.length - 1];
   }
   function divFor(key) {
     const t = D.facts.table(key);
@@ -53,7 +57,8 @@ D.tryout = (function () {
     return D.u.choice(next.length ? next : pool);
   }
 
-  function create() {
+  function create(opts) {
+    const o = opts || {};
     const order = D.facts.TABLE_ORDER.slice();
     const st = {
       served: 0,            // probes that count toward the cap
@@ -94,7 +99,9 @@ D.tryout = (function () {
         return show({ id: fillerId(st), kind: 'filler' });
       }
       // Safety-net probes at fixed, non-adjacent points.
-      if (st.safetyDone < SAFETY.length && st.total >= SAFETY_AT[st.safetyDone] && !st.lastMiss) {
+      // Round 1 leaves these out: its intro says times and divide, and the quiet
+      // checks move to the rounds after it (2026-09-14).
+      if (!o.noSafety && st.safetyDone < SAFETY.length && st.total >= SAFETY_AT[st.safetyDone] && !st.lastMiss) {
         const id = SAFETY[st.safetyDone++];
         if (D.facts.get(id)) return show({ id: id, kind: 'safety' });
       }

@@ -105,19 +105,27 @@ D.mastery = (function () {
     return D.u.daysBetween(last, day || D.u.gameDay()) >= cfg.REVIEW_INTERVALS[idx];
   }
 
-  /* Dots on a question: one per counted day, two at most (rework 2026-09-10). */
-  function dots(id) {
+  /* A question's seal (2026-09-14): nothing, an outline after one counted fast
+     day, stamped after AUTO_DAYS of them. marks() is the count behind it. */
+  function marks(id) {
     const r = peek(id);
     return r ? Math.min(r.days.length, cfg.AUTO_DAYS) : 0;
   }
-  /* A miss, or settling into slow answers, empties a dot. Whatever the fact held,
+  function sealState(id) {
+    const n = marks(id);
+    return n >= cfg.AUTO_DAYS ? 'sealed' : n > 0 ? 'fast' : 'none';
+  }
+  function isSealed(id) { return marks(id) >= cfg.AUTO_DAYS; }
+  /* A miss, or settling into slow answers, takes a mark off. Whatever the fact held,
      it keeps at most one, so the child sees the dot go and the check-ins start
      again from the first wait. Days beyond two were invisible, and shifting one
      off a well-reviewed fact changed nothing a child could see. */
-  function emptyDot(r) {
+  function emptyMark(r, out) {
     if (!r.days.length) return false;
+    const wasSealed = r.days.length >= cfg.AUTO_DAYS;
     const keep = Math.min(r.days.length - 1, cfg.AUTO_DAYS - 1);
     r.days = keep > 0 ? r.days.slice(-keep) : [];
+    if (out) { out.lostMark = true; out.lostSeal = wasSealed; }
     return true;
   }
 
@@ -165,7 +173,7 @@ D.mastery = (function () {
     const o = opts || {};
     const r = rec(id);
     const day = o.day || D.u.gameDay();
-    const out = { dotFilled: false, bothDots: false, firstBothDots: false, wasFast: false, lostDot: false };
+    const out = { stamped: false, sealed: false, firstSealed: false, wasFast: false, lostMark: false, lostSeal: false };
     r.seen++;
     // A slip stays out of the accuracy window. It is a typing error repaired by
     // retrieval, and warm-ups serve settled facts so often that counting every
@@ -196,17 +204,19 @@ D.mastery = (function () {
           accuracyOk(r) && dueToday && !missedToday && !r.days.includes(day)) {
         r.days.push(day);
         while (r.days.length > cfg.MAX_DAYS_KEPT) r.days.shift();
-        out.dotFilled = true;
+        out.stamped = true;
         if (r.days.length === cfg.AUTO_DAYS) {
-          out.bothDots = true;
-          if (!r.doneOnce) { out.firstBothDots = true; r.doneOnce = true; }
+          out.sealed = true;
+          if (!r.doneOnce) { out.firstSealed = true; r.doneOnce = true; }
         }
       }
-      // Settled but slow: a fact with both dots, answered well above its threshold
-      // on average, empties a dot.
-      if (r.days.length >= cfg.AUTO_DAYS && !o.helped && r.ewma !== null &&
+      // Sealed but slow: a sealed question whose average has drifted well above its
+      // threshold loses the seal. Never on the answer that just added a day: judged
+      // on that answer, a slow child watched the seal go on and come straight off
+      // 58 per cent of the time (code review 2026-09-12).
+      if (!out.stamped && r.days.length >= cfg.AUTO_DAYS && !o.helped && r.ewma !== null &&
           r.ewma > cfg.SLOW_AUTO * threshold(id)) {
-        out.lostDot = emptyDot(r);
+        emptyMark(r, out);
       }
       if (r.provisional) r.provisional = false;
     } else if (o.slip) {
@@ -220,7 +230,7 @@ D.mastery = (function () {
       r.streak = 0;
       r.lastMiss = true;
       r.lastMissDay = day;
-      if (r.days.length) out.lostDot = emptyDot(r);
+      if (r.days.length) emptyMark(r, out);
       if (r.missDays[r.missDays.length - 1] !== day) {
         r.missDays.push(day);
         while (r.missDays.length > 2) r.missDays.shift();
@@ -286,6 +296,6 @@ D.mastery = (function () {
   }
 
   return { blank, rec, peek, threshold, relativeCap, isFastRt, accuracyOk, status, isFast,
-           isKnownPlus, isDue, canCountToday, dots, emptyDot, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
+           isKnownPlus, isDue, canCountToday, marks, sealState, isSealed, emptyMark, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
            statsFor, tableStats, divisionOpen, activeItems, dirty };
 })();

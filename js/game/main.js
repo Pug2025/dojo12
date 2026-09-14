@@ -1,6 +1,7 @@
 /* Dojo 12 — screens and the flow between them (ART.md for the look, PLAN §7.1
    for what each screen holds). Four things a child tracks: points for the round,
-   coins to spend, a level that stocks the shop, and one belt moved by dots. */
+   coins to spend, a level that stocks the shop, and one belt moved by sealed
+   questions. */
 "use strict";
 D.main = (function () {
   const u = () => D.u;
@@ -36,7 +37,7 @@ D.main = (function () {
       D.save.commitNow();
     }
     D.scheduler.ensureProgression();
-    if (!D.state.flags.tryoutDone) return intro(0);
+    if (!D.state.flags.tryoutDone) return intro();
     home();
   }
 
@@ -86,7 +87,7 @@ D.main = (function () {
         D.state.cosmetics.free = 'theme:' + value;
         D.shop.apply();
         D.save.commitNow();
-        intro(0);
+        intro();
       });
       list.appendChild(b);
     }
@@ -99,38 +100,21 @@ D.main = (function () {
     ]));
   }
 
-  /* ---- the three screens before round 1 ---- */
-  function intro(step) {
+  /* ---- the one screen before round 1 (2026-09-14). The timer, the seal and the
+     streak are taught the first time each one happens. ---- */
+  function intro() {
     u().clear(root);
-    const art = u().el('div', { class: 'cardwrap', style: { maxHeight: '46vh' } });
-    const card = u().el('div', { class: 'card', style: { width: '210px', height: '210px', '--cs': '210px' } });
-    art.appendChild(card);
-    let title = '', body = '';
-    if (step === 0) {
-      title = D.copy.intro.card; body = D.copy.intro.cardHow;
-      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
-      card.appendChild(u().el('div', { class: 'slots' }, [u().el('i', { class: 'on' }), u().el('i')]));
-    } else if (step === 1) {
-      title = D.copy.intro.timer; body = D.copy.intro.timerHow;
-      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
-      const ring = D.fx.enso(card, { goldAt: 0.42, bestAt: 0 });
-      ring.set(0.62);
-    } else {
-      title = D.copy.intro.dots; body = D.copy.intro.dotsHow;
-      card.appendChild(u().el('div', { class: 'question' }, '7 × 8'));
-      card.appendChild(u().el('div', { class: 'dots' }, [u().el('i', { class: 'on' }), u().el('i', { class: 'lit' })]));
-    }
-    const last = step >= 2;
-    const go = u().el('button', { class: 'btn ink wide', type: 'button' },
-                      last ? D.copy.intro.start : D.copy.intro.next);
-    go.addEventListener('click', () => (last ? startRoundOne() : intro(step + 1)));
-    const marks = u().el('div', { class: 'pips' });
-    for (let i = 0; i < 3; i++) marks.appendChild(u().el('i', { class: i === step ? 'now' : i < step ? 'done' : '' }));
+    const card = u().el('div', { class: 'card', style: { width: '210px', height: '210px', '--cs': '210px' } }, [
+      u().el('div', { class: 'question' }, '7 × 8'),
+      u().el('div', { class: 'slots' }, [u().el('i', { class: 'on' }), u().el('i')]),
+    ]);
+    const go = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.intro.start);
+    go.addEventListener('click', startRoundOne);
     root.appendChild(u().el('div', { class: 'screen' }, [
-      marks, art,
-      u().el('div', { class: 'titlebar' }, title),
-      u().el('div', { class: 't15' }, body),
-      last ? u().el('div', { class: 't13 dim' }, D.copy.intro.roundOne) : null,
+      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'cardwrap', style: { flex: 'none' } }, [card]),
+      u().el('div', { class: 'titlebar' }, D.copy.intro.title),
+      u().el('div', { class: 't15' }, D.copy.intro.body),
       u().el('div', { class: 'grow' }),
       go,
     ]));
@@ -139,9 +123,12 @@ D.main = (function () {
   /* ---- round 1: the same screen as every round ---- */
   function startRoundOne() {
     D.audio.unlock();
-    const ro = D.roundone.create();
+    const saved = D.state.inRun && D.state.inRun.roundOne ? D.state.inRun : null;
+    const ro = D.roundone.create(saved ? { resume: saved } : {});
+    D.state.inRun = ro.snapshot();
+    D.save.commitNow();
     D.__rs = ro;
-    D.run.start(root, { rs: ro, onDone: roundOneEnd, onLeave: () => intro(2) });
+    D.run.start(root, { rs: ro, onDone: roundOneEnd, onLeave: intro });
   }
   function roundOneEnd(sum) {
     u().clear(root);
@@ -197,8 +184,12 @@ D.main = (function () {
       beltBand(info, true),
       u().el('div', { class: 't22' }, D.copy.belt.now(info.belt, info.stripes)),
       u().el('div', { class: 'bar-fill' }, [u().el('i', { style: { width: beltPct(info) + '%' } })]),
-      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.dots)
-        : D.copy.belt.toNext(Math.max(0, info.nextAt - info.dots), info.nextKind, info.nextBelt)),
+      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.sealed)
+        : D.copy.belt.toNext(Math.max(0, info.nextAt - info.sealed), info.nextKind, info.nextBelt)),
+    ]);
+    const counts = u().el('div', { class: 'sumline' }, [
+      u().el('span', {}, D.copy.home.sealed(info.sealed)),
+      D.state.pbs.score ? u().el('span', { class: 'dim' }, D.copy.home.best(D.state.pbs.score)) : null,
     ]);
 
     const focusKey = D.state.focus.primary;
@@ -220,7 +211,7 @@ D.main = (function () {
     root.appendChild(u().el('div', { class: 'screen' }, [
       head, xp,
       u().el('div', { class: 'grow' }),
-      belt,
+      belt, counts,
       workLine ? u().el('div', { class: 't15' }, workLine) : null,
       u().el('div', { class: 'row', style: { gap: '7px' } }, [
         u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
@@ -235,7 +226,7 @@ D.main = (function () {
   function beltPct(info) {
     if (info.black || !info.nextAt) return 100;
     const span = Math.max(1, info.nextAt - info.prevAt);
-    return D.u.clamp(Math.round(100 * (info.dots - info.prevAt) / span), 0, 100);
+    return D.u.clamp(Math.round(100 * (info.sealed - info.prevAt) / span), 0, 100);
   }
   function beltBand(info, tall) {
     const bar = u().el('div', { class: 'bar' });
@@ -274,42 +265,44 @@ D.main = (function () {
     summary(sum);
   }
 
-  /* ---- the end of a round ---- */
+  /* ---- the end of a round ----
+     One line leads, the most important thing that moved: a stripe or a belt, then
+     questions sealed, then a new best, then the streak (2026-09-14). */
   function summary(sum) {
     u().clear(root);
     const info = D.belt.info();
     const events = (sum.extra && sum.extra.belt) || [];
     const pbs = (sum.extra && sum.extra.pbs) || [];
     const scorePb = pbs.find(x => x.kind === 'score');
+    const ev = events[events.length - 1];
+    const listed = ids => ids.map(id => D.facts.display(id, false));
+
+    let lead = null, leadIsBelt = false;
+    if (ev) { lead = ev.kind === 'belt' ? D.copy.belt.beltTied(ev.belt) : D.copy.belt.stripeTied(ev.belt, ev.stripes); leadIsBelt = true; }
+    else if (sum.sealed.length) lead = D.copy.summary.sealed(listed(sum.sealed));
+    else if (scorePb) lead = D.copy.summary.newBest(scorePb.delta);
+    else if (sum.bestCombo >= D.cfg.COMBO_STEP) lead = D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo);
+
     const lines = u().el('div', { class: 'lines' });
-    const add = (text, cls) => { if (text) lines.appendChild(u().el('div', { class: cls || 't15' }, text)); };
+    const add = text => { if (text && text !== lead) lines.appendChild(u().el('div', { class: 't15' }, text)); };
+    if (sum.sealed.length && leadIsBelt) add(D.copy.summary.sealed(listed(sum.sealed)));
+    if (sum.fastNew.length) add(D.copy.summary.fastNew(sum.fastNew.length));
+    if (sum.unsealed.length) add(D.copy.summary.unsealed(listed(sum.unsealed)));
+    if (sum.gotBack.length) add(D.copy.summary.gotBack(listed(sum.gotBack)));
+    add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.state.pbs.score > sum.score ? D.copy.summary.best(D.state.pbs.score) : null);
 
-    add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.copy.summary.best(D.state.pbs.score), 't15 dim');
-    if (sum.bestCombo) add(D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo));
-    if (sum.dotted.length) add(D.copy.summary.dots(sum.dotted.length));
-    if (sum.done.length) add(D.copy.summary.done(sum.done.map(id => D.facts.display(id, false))));
-    if (sum.gotBack.length) add(D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false))));
-
-    const beltBox = u().el('div', { class: 'plate' }, [beltBand(info)]);
-    for (const ev of events) {
-      beltBox.appendChild(u().el('div', { class: 't22' },
-        ev.kind === 'belt' ? D.copy.belt.beltTied(ev.belt) : D.copy.belt.stripeTied(ev.belt, ev.stripes)));
-    }
-    beltBox.appendChild(u().el('div', { class: 'bar-fill' }, [u().el('i', { style: { width: beltPct(info) + '%' } })]));
-    beltBox.appendChild(u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.dots)
-      : D.copy.belt.toNext(Math.max(0, info.nextAt - info.dots), info.nextKind, info.nextBelt)));
-    if (events.length) { D.audio.belt(); D.fx.seal(beltBox); }
+    const beltBox = u().el('div', { class: 'plate' }, [
+      beltBand(info),
+      u().el('div', { class: 'bar-fill' }, [u().el('i', { style: { width: beltPct(info) + '%' } })]),
+      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.sealed)
+        : D.copy.belt.toNext(Math.max(0, info.nextAt - info.sealed), info.nextKind, info.nextBelt)),
+    ]);
+    if (events.length) { D.audio.belt(); D.fx.pop(beltBox); }
 
     const lvl = D.xp.levelFor(D.state.progress.xp);
-    const tail = u().el('div', { class: 'lines' }, [
-      sum.xp ? u().el('div', { class: 'sumline' }, [
-        u().el('span', {}, D.copy.summary.xp(sum.xp)),
-        u().el('span', { class: 'v' }, D.copy.home.level(lvl.level)),
-      ]) : null,
-      sum.coins ? u().el('div', { class: 'sumline' }, [
-        u().el('span', {}, D.copy.summary.coins(sum.coins)),
-        u().el('span', { class: 'v' }, D.copy.home.coins(D.state.progress.coins)),
-      ]) : null,
+    const tail = u().el('div', { class: 'sumline dim' }, [
+      u().el('span', {}, [D.copy.summary.xp(sum.xp), ' · ', D.copy.home.level(lvl.level)].join('')),
+      u().el('span', {}, [D.copy.summary.coins(sum.coins), ' · ', D.copy.home.coins(D.state.progress.coins)].join('')),
     ]);
 
     const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.again);
@@ -322,6 +315,7 @@ D.main = (function () {
         u().el('div', { class: 't64 num' }, D.copy.num(sum.score)),
         u().el('div', { class: 'label' }, D.copy.summary.points),
       ]),
+      lead ? u().el('div', { class: leadIsBelt ? 't30' : 't22' }, lead) : null,
       lines, beltBox, tail,
       u().el('div', { class: 'grow' }),
       again, back,
@@ -353,7 +347,7 @@ D.main = (function () {
       },
       answer: (v, rt) => {
         const out = test.submit(v, rt);
-        return { correct: out.kind === 'correct', points: out.points, bothDots: out.bothDots,
+        return { correct: out.kind === 'correct', points: out.points, sealed: out.sealed,
                  index: out.card ? test.raw.cards.indexOf(out.card) : -1,
                  done: out.done, streak: test.raw.correct };
       },
@@ -411,6 +405,7 @@ D.main = (function () {
     u().clear(root);
     const f = D.state.flags;
     const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
+      tile(D.copy.settings.howItWorks, howItWorks),
       toggle(D.copy.settings.sound, f.sound, v => { f.sound = v; D.save.commit(); }),
       toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }),
       tile(D.copy.settings.paper, () => D.shop.render(root, settings, 'theme')),
@@ -444,33 +439,70 @@ D.main = (function () {
     for (const evt of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(evt, cancel);
   }
 
+  /* ---- How it works: the rules, any time ---- */
+  function howItWorks() {
+    u().clear(root);
+    const box = u().el('div', { class: 'howto' });
+    for (const [head, body] of D.copy.howto.sections) {
+      box.appendChild(u().el('div', {}, [u().el('h3', {}, head), u().el('p', {}, body)]));
+    }
+    const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
+    back.addEventListener('click', settings);
+    root.appendChild(u().el('div', { class: 'screen' }, [
+      u().el('div', { class: 'titlebar' }, D.copy.howto.title),
+      box,
+      u().el('div', { class: 'grow' }),
+      back,
+    ]));
+  }
+
   function forDad() {
     u().clear(root);
     const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
       tile(D.copy.forDad.dashboard, () => D.dashboard.render(root, { onBack: forDad })),
     ]);
     const restore = tile(D.copy.forDad.restore, () => toggleRestore(rows));
-    const reset = u().el('button', { class: 'btn quiet wide', type: 'button' }, D.copy.forDad.reset);
-    reset.addEventListener('click', () => {
+    const rename = tile(D.copy.forDad.changeName, () => {
+      if (rows.querySelector('.namebox')) return;
+      const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
+                                      autocapitalize: 'words', maxlength: '14', value: D.state.profile.name });
+      const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.saveName);
+      const saveName = () => {
+        const name = (field.value || '').trim();
+        if (!name) { D.fx.toast(D.copy.first.nameNeeded, 1600); return; }
+        D.state.profile.name = name;
+        D.save.rememberProfile(D.state.profile);
+        D.save.commitNow();
+        D.fx.toast(D.copy.forDad.nameSaved, 1400);
+        forDad();
+      };
+      go.addEventListener('click', saveName);
+      field.addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
+      rows.appendChild(u().el('div', { class: 'col namebox', style: { gap: '8px' } }, [field, go]));
+    });
+    // Start over wipes this player's save and goes back to the name screen, so
+    // the whole first run can be seen again (Jamie, 2026-09-14).
+    const over = u().el('button', { class: 'btn quiet wide', type: 'button' }, D.copy.forDad.startOver);
+    over.addEventListener('click', () => {
       if (rows.querySelector('.resetbox')) return;
       const field = u().el('input', { class: 'field', type: 'text', autocapitalize: 'characters' });
-      const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.resetGo);
+      const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.startOver);
       go.addEventListener('click', () => {
         if ((field.value || '').trim().toUpperCase() !== D.copy.forDad.resetWord) return;
         D.save.reset();
         location.reload();
       });
       rows.appendChild(u().el('div', { class: 'col resetbox', style: { gap: '8px' } }, [
-        u().el('div', { class: 't15' }, D.copy.forDad.resetAsk), field, go,
+        u().el('div', { class: 't15' }, D.copy.forDad.startOverAsk), field, go,
       ]));
     });
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
     back.addEventListener('click', settings);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.forDad.title),
-      rows, restore,
+      rows, restore, rename,
       u().el('div', { class: 'grow' }),
-      reset, back,
+      over, back,
     ]));
   }
 
@@ -570,7 +602,7 @@ D.main = (function () {
     }).catch(() => {});
   }
 
-  return { boot, home, startRun, summary, settings, startTest, intro };
+  return { boot, home, startRun, summary, settings, startTest, intro, howItWorks };
 })();
 
 document.addEventListener('DOMContentLoaded', D.main.boot);

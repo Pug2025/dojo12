@@ -135,6 +135,25 @@ D.save = (function () {
     if (D.state) D.state.lastSeenEpoch = Math.max(D.state.lastSeenEpoch || 0, D.u.now());
     try { localStorage.setItem(key, JSON.stringify(D.state)); }
     catch (e) { /* a full quota is not worth a crash mid-run */ }
+    writeMark();
+  }
+  /* The furthest this profile has ever got on this phone, kept outside the save,
+     so Start over cannot clear it. Without it, wiping the phone and bringing back
+     an older copy undid a failed black belt test (code review 2026-09-12). */
+  function markKey(slug) { return 'dojo12.mark.' + slug; }
+  function readMark(slug) {
+    try { return JSON.parse(localStorage.getItem(markKey(slug)) || 'null'); } catch (e) { return null; }
+  }
+  function writeMark() {
+    const s = D.state;
+    if (!s || !s.profile || !s.profile.slug) return;
+    const old = readMark(s.profile.slug) || { lastSeenEpoch: 0, answered: 0, tests: 0 };
+    let answered = 0;
+    for (const id of Object.keys(s.facts || {})) answered += (s.facts[id] && s.facts[id].seen) || 0;
+    const mark = { lastSeenEpoch: Math.max(old.lastSeenEpoch || 0, s.lastSeenEpoch || 0),
+                   answered: Math.max(old.answered || 0, answered),
+                   tests: Math.max(old.tests || 0, (s.tests || []).length) };
+    try { localStorage.setItem(markKey(s.profile.slug), JSON.stringify(mark)); } catch (e) {}
   }
   function reset() {
     if (key) localStorage.removeItem(key);
@@ -205,6 +224,6 @@ D.save = (function () {
   }
 
   return { fresh, migrate, slugify, profiles, rememberProfile, forgetProfile, loadProfile,
-           startProfile, commit, commitNow, reset, touchDay, rollWeek, trimFastWrongs, keyFor,
+           startProfile, commit, commitNow, reset, touchDay, rollWeek, trimFastWrongs, keyFor, readMark,
            get key() { return key; }, set key(v) { key = v; } };
 })();

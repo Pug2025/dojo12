@@ -16,7 +16,7 @@ D.belttest = (function () {
   function weakness(id) {
     const rank = { new: 0, learning: 1, known: 2, fast: 3, auto: 4 }[M().status(id)];
     const r = M().peek(id);
-    return M().dots(id) * 1000000 + rank * 100000 - (r && r.ewma ? Math.min(r.ewma, 99999) : 0);
+    return M().marks(id) * 1000000 + rank * 100000 - (r && r.ewma ? Math.min(r.ewma, 99999) : 0);
   }
   function build() {
     const ranked = D.belt.coreIds().sort((a, b) => weakness(a) - weakness(b));
@@ -55,7 +55,7 @@ D.belttest = (function () {
       r.rts.push(rt);
       const rec = M().record(c.id, { correct: correct, rt: rt, helped: false, day: D.u.gameDay() });
       const out = { kind: correct ? 'correct' : 'miss', points: 0, xp: 0, coins: 0, card: c,
-                    dot: !!rec.dotFilled, bothDots: !!rec.bothDots };
+                    stamped: !!rec.stamped && !rec.sealed, sealed: !!rec.sealed, fast: !!rec.wasFast };
       if (correct) {
         r.correct++;
         if (fast) r.inTime++; else r.slow++;
@@ -65,7 +65,7 @@ D.belttest = (function () {
         r.xp += out.xp;
         out.coins = D.xp.addCoins(cfg.COINS_PER_CORRECT);
         r.coins += out.coins;
-        if (rec.bothDots) D.state.progress.doneThisWeek = (D.state.progress.doneThisWeek || 0) + 1;
+        if (rec.sealed) D.state.progress.doneThisWeek = (D.state.progress.doneThisWeek || 0) + 1;
       } else {
         r.missed.push(c.id);
       }

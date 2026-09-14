@@ -378,8 +378,11 @@ D.scheduler = (function () {
     const safeIds = safetySlots ? claim(pick(safety, safetySlots)) : [];
     // Tables round 1 ran out of cards for are tried first, an easy and a hard
     // question each, as round 1 would have (rework 2026-09-10).
+    // A ten-card round keeps at least one slot for everything else.
+    const room = Math.max(1, body.length - learnIds.length - safeIds.length - 1);
     const scoutIds = placementActive()
-      ? claim(placementScouts().filter(id => !used.includes(id)).slice(0, cfg.PLACEMENT_SCOUTS))
+      ? claim(placementScouts().filter(id => !used.includes(id))
+          .slice(0, Math.min(cfg.PLACEMENT_SCOUTS + cfg.PLACEMENT_SAFETY, room)))
       : claim(pick(scoutPool(), cfg.SCOUTS));
     const beyondIds = (beyondSlots && D.beyond) ? claim(D.beyond.pick(beyondSlots, used)) : [];
 
@@ -567,14 +570,20 @@ D.scheduler = (function () {
      products seeded known, a wrong easy one leaves it for the normal order. */
   function placementActive() {
     const p = D.state.placement;
-    return !!(p && p.runsLeft > 0 && p.tables && p.tables.length);
+    return !!(p && p.runsLeft > 0 && ((p.tables && p.tables.length) || (p.safety && p.safety.length)));
   }
   function placementScouts() {
     const p = D.state.placement;
     p.pending = {};
     const out = [];
-    for (const key of p.tables.slice(0, 2)) {
-      const easy = D.tryout.easyFor(key), hard = D.tryout.hardFor(key);
+    // The quiet plus-and-minus checks that used to sit in round 1 go first, one a round.
+    for (const id of (p.safety || []).slice(0, cfg.PLACEMENT_SAFETY)) {
+      if (!D.facts.get(id)) continue;
+      p.pending[id] = { safety: true };
+      out.push(id);
+    }
+    for (const key of (p.tables || []).slice(0, 2)) {
+      const easy = D.tryout.easyFor(key, out), hard = D.tryout.hardFor(key, out.concat([easy]));
       p.pending[easy] = { key: key, kind: 'easy' };
       p.pending[hard] = { key: key, kind: 'hard' };
       out.push(easy, hard);
@@ -585,9 +594,16 @@ D.scheduler = (function () {
     const p = D.state.placement;
     if (!p || !p.pending || !p.pending[id]) return;
     const slot = p.pending[id];
+    if (slot.safety) {
+      p.safety = (p.safety || []).filter(x => x !== id);
+      if (!correct) p.safetyMisses = (p.safetyMisses || 0) + 1;
+      delete p.pending[id];
+      if ((p.safetyMisses || 0) >= cfg.SAFETY_TRIGGER_PROBES && !D.state.lanes.addsub.active) activateSafety();
+      return;
+    }
     const res = (p.results = p.results || {})[slot.key] || (p.results[slot.key] = {});
     res[slot.kind] = !correct ? 'wrong' : fast ? 'fast' : 'slow';
-    const settle = () => { p.tables = p.tables.filter(k => k !== slot.key); };
+    const settle = () => { p.tables = p.tables.filter(k => k !== slot.key); delete p.pending[id]; };
     if (res.easy === 'wrong') { settle(); return; }
     if (res.easy && res.hard) {
       if (res.hard !== 'wrong' && !isOpen(slot.key)) {
@@ -603,12 +619,14 @@ D.scheduler = (function () {
     if (!p) return;
     p.runsLeft--;
     p.pending = {};
-    if (p.runsLeft <= 0 || !p.tables.length) D.state.placement = null;
+    if (p.runsLeft <= 0 || (!(p.tables || []).length && !(p.safety || []).length)) D.state.placement = null;
   }
 
   /* Scout bookkeeping (PLAN §6.4). Silent both ways. */
   function noteScout(id, correct, fast) {
+    const placed = D.state.placement && D.state.placement.pending && D.state.placement.pending[id];
     notePlacement(id, correct, fast);
+    if (placed && placed.safety) return M().recordProbe(id, { correct: correct, fast: fast });
     const p = M().recordProbe(id, { correct: correct, fast: fast });
     const f = D.facts.get(id);
     const key = f.tables ? f.tables[0] : null;

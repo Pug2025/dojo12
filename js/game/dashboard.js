@@ -55,7 +55,7 @@ D.dashboard = (function () {
     for (let i = 0; i < info.stripes; i++) bar.appendChild(u().el('i'));
     return plate(D.copy.dash.belt, [
       u().el('div', { class: 'beltband b-' + info.belt }, [u().el('div', { class: 'cloth' }), bar]),
-      u().el('div', { class: 't15' }, D.copy.dash.beltLine(info.belt, info.stripes, info.dots)),
+      u().el('div', { class: 't15' }, D.copy.dash.beltLine(info.belt, info.stripes, info.sealed)),
       stat(D.copy.dash.coinsLabel, D.copy.num(s.progress.coins)),
     ]);
   }
@@ -103,8 +103,8 @@ D.dashboard = (function () {
       for (let b = 2; b <= 12; b++) {
         const id = op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
         const rec = D.mastery.peek(id);
-        const dots = D.mastery.dots(id);
-        const cls = rec && rec.provisional ? 'na' : dots === 2 ? 'd2' : dots === 1 ? 'd1' : '';
+        const cls = D.grid ? D.grid.cellClass(id)
+          : (rec && rec.provisional ? 'na' : ({ sealed: 's-sealed', fast: 's-fast' })[D.mastery.sealState(id)] || '');
         row.appendChild(u().el('td', { class: cls }));
       }
       t.appendChild(row);

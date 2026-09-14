@@ -101,7 +101,7 @@ D.cards = (function () {
       if (out.correct) {
         D.fx.pop(dom.question);
         D.audio.correct(out.streak || 1);
-        if (out.bothDots) { D.fx.seal(dom.card); D.audio.thump(); }
+        if (out.sealed) { D.fx.seal(dom.card); D.audio.thump(); }
         if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points));
       } else {
         D.audio.miss();

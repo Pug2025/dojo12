@@ -1,7 +1,7 @@
 /* Dojo 12. Every string the player reads, and nothing player-facing lives
    anywhere else (PLAN §10.1). Rewritten for the rework on 10 September 2026:
-   one belt, two dots on every question, coins, and round 1 played like any
-   round. Canadian hybrid spelling. Two exclamation marks in the whole file, for
+   one belt, a seal on every question, coins, and round 1 played like any
+   round. Ten questions a round and the seal came on 14 September. Canadian hybrid spelling. Two exclamation marks in the whole file, for
    a new belt colour and for the black belt. The gate counts every one of those
    marks in this file, so nothing here uses the negation operator.
    The house rule is silence. If a moment is not here, it has no text. */
@@ -118,17 +118,26 @@ D.copy = (function () {
       paperNote: 'You can change it later in the Shop.',
     },
 
-    /* ---- the three screens before round 1 ---- */
+    /* ---- the one screen before round 1. Everything else is taught the first
+       time it happens (2026-09-14). ---- */
     intro: {
-      card: 'Every card is a times or divide question, up to 12 × 12.',
-      cardHow: 'Type the answer and tap Go.',
-      timer: 'Some cards have a timer around them.',
-      timerHow: 'Answer before it reaches the gold tick and the answer counts as fast. A question you have never answered has no timer yet.',
-      dots: 'Every question has two dots.',
-      dotsHow: 'A fast answer fills one, and the second has to wait for another day. Every dot you fill moves your belt, from white to black.',
-      roundOne: 'Round 1 has no timer. It works out where you start.',
-      next: 'Next',
+      title: 'Times and divide, up to 12 × 12.',
+      body: 'Type the answer and tap Go. Round 1 has no timer. It works out where you start.',
       start: 'Start round 1',
+    },
+
+    /* ---- How it works, from Settings, any time ---- */
+    howto: {
+      title: 'How it works',
+      sections: [
+        ['The card', 'Type the answer and tap Go. Get one wrong and you can break it into smaller questions, or be shown the answer and type it.'],
+        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer. Answer before it reaches the gold tick and that counts as fast.'],
+        ['The seal', 'Answer a question fast and it gets an outline of a seal. Answer it fast again on another day and the seal is stamped. A sealed question comes back now and then to check. Miss it and the seal comes off until you get it fast again.'],
+        ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The black belt is a test.'],
+        ['The streak', 'Three right in a row and your points count 1.5 times, then 2, then 3. A miss drops it a step.'],
+        ['Coins and levels', 'Every right answer pays a coin to spend in the Shop. Right answers also add XP, and each new level puts more in the Shop.'],
+        ['The black tick', 'The small black tick on the timer is your best time on that question.'],
+      ],
     },
 
     /* ---- the placement questions inside round 1 (PLAN §6.6). Round 1 says
@@ -141,7 +150,7 @@ D.copy = (function () {
     /* ---- the end of round 1 ---- */
     roundOne: {
       title: 'Round 1 done.',
-      start: keys => 'You start on ' + keys.map(k => tableName(k) + ' (' + tableExample(k) + ')').join(' and ') + '.',
+      start: keys => 'You start on ' + keys.map(k => tableName(k) + ', like ' + tableExample(k)).join(', and ') + '.',
       allOpen: 'Every table is open. The next rounds check what you know.',
       rest: 'The other tables come in as you play.',
       coins: 'Coins: one for every right answer. Spend them in the Shop.',
@@ -170,8 +179,10 @@ D.copy = (function () {
       pb: 'Your best time',
       firstStreak: m => 'Three right in a row, so points count ' + m + ' times. A miss drops it a step.',
       firstTick: 'The small black tick is your best time on this question.',
-      firstDot: 'That filled a dot. The second one needs another day.',
-      firstBoth: 'Both dots filled. It comes back in a few days to check.',
+      time: ms => secs(ms),
+      firstStamp: "Fast. Get it fast again tomorrow and it's sealed.",
+      firstSeal: 'Sealed. It comes back now and then to check.',
+      lostSeal: id => factText(id, false) + ' lost its seal. Get it fast on another day to seal it again.',
     },
 
     /* ---- rescue (PLAN §6.7) ---- */
@@ -183,18 +194,26 @@ D.copy = (function () {
       divSubtracted: (p, d) => "That's " + p + ' take away ' + d + '. You need how many ' + plural(d) + ' make ' + p + '.',
       stepValue: (question, value) => question + ' is ' + value + '. Type ' + value + ' to keep going.',
       done: 'Got it.',
-      showAnswer: (id, flip) => factEquation(id, flip) + '. Type it to keep going.',
+      showAnswer: (id, flip) => {
+        const f = D.facts.get(id);
+        if (f && f.input === 'yesno') {
+          const say = f.ans ? D.copy.beyond.yes : D.copy.beyond.no;
+          return D.copy.beyond.question(f) + ' ' + say + '. Tap ' + say + ' to keep going.';
+        }
+        return factEquation(id, flip) + '. Type it to keep going.';
+      },
     },
 
     /* ---- the end of a round ---- */
     summary: {
       points: 'points',
       best: n => 'Best ' + num(n),
-      newBest: d => 'New best (+' + num(d) + ')',
+      newBest: d => 'New best, ' + num(d) + ' more points',
       streak: (n, best) => 'Longest streak ' + n + (best > n ? ' (best ' + best + ')' : ''),
-      dots: n => count(n, 'dot', 'dots') + ' filled',
-      done: list => 'Both dots: ' + list.join(', ') + '.',
-      gotBack: list => 'Got back: ' + list.join(', ') + '.',
+      sealed: list => 'Sealed: ' + list.join(', ') + '.',
+      fastNew: n => 'Fast on ' + count(n, 'new question', 'new questions') + '.',
+      unsealed: list => 'Lost a seal: ' + list.join(', ') + '.',
+      gotBack: list => 'Missed, then got right: ' + list.join(', ') + '.',
       xp: n => '+' + num(n) + ' XP',
       coins: n => '+' + count(n, 'coin', 'coins'),
       levelUp: n => 'Level ' + n + '.',
@@ -210,10 +229,10 @@ D.copy = (function () {
       stripeTied: (belt, n) => 'Stripe ' + n + ' on your ' + belt + ' belt.',
       beltTied: belt => cap(belt) + ' belt!',
       blackBelt: 'Black belt!',
-      toNext: (dots, kind, belt) => kind === 'test' ? 'Your black belt test is open.'
-        : count(dots, 'dot', 'dots') + ' to your ' + (kind === 'belt' ? belt + ' belt' : 'next stripe') + '.',
-      filled: n => 'You have filled ' + count(n, 'dot', 'dots') + '.',
-      how: 'Every dot you fill moves your belt. Four stripes, then the next colour.',
+      toNext: (n, kind, belt) => kind === 'test' ? 'Your black belt test is open.'
+        : count(n, 'more question', 'more questions') + ' to seal for your ' + (kind === 'belt' ? belt + ' belt' : 'next stripe') + '.',
+      filled: n => 'You have sealed ' + count(n, 'question', 'questions') + '.',
+      how: 'Every question you seal moves your belt. Four stripes, then the next colour.',
       testTitle: 'Black belt test',
       testRules: '24 questions from across the grid. Get 22 right, with 20 of them fast. No Break it down.',
       testLocked: 'Opens when your brown belt has four stripes.',
@@ -228,6 +247,8 @@ D.copy = (function () {
     home: {
       level: n => 'Level ' + n,
       coins: n => count(n, 'coin', 'coins'),
+      sealed: n => count(n, 'question', 'questions') + ' sealed',
+      best: n => 'Best round ' + num(n),
       working: (key, next) => 'Working on ' + tableName(key) + '.' +
         (next ? ' ' + tableNameCap(next) + ' open after.' : ''),
       workingTwo: (a, b) => 'Working on ' + tableName(a) + ' and ' + tableName(b) + '.',
@@ -240,12 +261,12 @@ D.copy = (function () {
       title: 'Grid',
       times: 'Times',
       divide: 'Divide',
-      legend: { none: 'No dots', one: 'One dot', both: 'Both dots', unasked: 'Not asked yet' },
+      legend: { none: 'Not sealed', fast: 'Fast once', sealed: 'Sealed', unasked: 'Not asked yet' },
       empty: 'Play a round first.',
-      rowsNote: next => 'A row shows up when its table opens.' +
-        (next ? ' Next up: ' + tableName(next) + '.' : ''),
-      cell: (id, flip, dots, best) => factText(id, flip) + ': ' +
-        (dots === 2 ? 'both dots' : dots === 1 ? 'one dot' : 'no dots') +
+      rowsNote: 'A row shows up when its table opens.',
+      divideNote: 'Each row divides by its number. Each column is the answer.',
+      cell: (id, flip, state, best) => factText(id, flip) + ': ' +
+        (state === 'sealed' ? 'sealed' : state === 'fast' ? 'fast once' : 'not sealed yet') +
         (best ? '. Best time ' + secs(best) + '.' : '.'),
       cellUnasked: (id, flip) => factText(id, flip) + ': not asked yet.',
     },
@@ -262,6 +283,8 @@ D.copy = (function () {
       tooDear: (price, have) => count(price, 'coin', 'coins') + '. You have ' + num(have) + '.',
       locked: n => 'This opens at level ' + n + '.',
       bought: 'Bought. It is in use now.',
+      confirm: price => 'Tap again to buy for ' + count(price, 'coin', 'coins'),
+      lockedRow: (level, price) => 'Level ' + level + ' · ' + count(price, 'coin', 'coins'),
       groups: { theme: 'Paper', skin: 'Card', ring: 'Timer', combo: 'Streak', sound: 'Sound', mark: 'Seal' },
       notes: {
         theme: 'Changes the whole look.',
@@ -336,7 +359,7 @@ D.copy = (function () {
     /* ---- the week's recap, after the first round of a new week ---- */
     recap: {
       title: 'Last week.',
-      done: n => count(n, 'question', 'questions') + ' got both dots.',
+      done: n => count(n, 'question', 'questions') + ' sealed.',
       improved: (id, flip, from, to) => 'Most improved: ' + factText(id, flip) + ', ' +
         secs(from) + ' to ' + secs(to) + '.',
       fastest: (id, flip, ms) => 'Fastest: ' + factText(id, flip) + ', ' + secs(ms) + '.',
@@ -346,6 +369,7 @@ D.copy = (function () {
     /* ---- settings ---- */
     settings: {
       title: 'Settings',
+      howItWorks: 'How it works',
       sound: 'Sound',
       autoSubmit: 'Send without tapping Go',
       on: 'On',
@@ -373,10 +397,12 @@ D.copy = (function () {
       restoreOlder: "That copy is older than this phone's game.",
       restoreBad: "That did not open a saved game.",
       restoreDone: 'Brought back. No belt test today.',
-      reset: 'Wipe this phone',
-      resetAsk: 'Type RESET to wipe everything on this phone.',
+      changeName: 'Change name',
+      saveName: 'Save',
+      nameSaved: 'Name changed.',
+      startOver: 'Start over',
+      startOverAsk: 'Type RESET to start over. Everything this phone has saved for this player goes.',
       resetWord: 'RESET',
-      resetGo: 'Wipe it',
     },
 
     /* ---- the parent dashboard (PLAN §9.5). Jamie reads this one, not the
@@ -384,7 +410,7 @@ D.copy = (function () {
     dash: {
       title: 'Dojo 12',
       belt: 'Belt',
-      beltLine: (belt, n, dots) => beltName(belt, n) + '. ' + count(dots, 'dot', 'dots') + ' filled.',
+      beltLine: (belt, n, sealed) => beltName(belt, n) + '. ' + count(sealed, 'question', 'questions') + ' sealed.',
       level: n => 'Level ' + n,
       coins: n => count(n, 'coin', 'coins'),
       coinsLabel: 'Coins',
@@ -392,7 +418,7 @@ D.copy = (function () {
       working: 'Working on',
       week: 'This week',
       runsThisWeek: 'Rounds this week',
-      doneThisWeek: 'Questions that got both dots',
+      doneThisWeek: 'Questions sealed',
       restores: 'Restores this week',
       fastWrongs: 'Fast wrong answers, last 7 days',
       daysPlayed: 'Days played',

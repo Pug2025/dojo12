@@ -1,8 +1,8 @@
 /* Dojo 12 — the round screen. This file binds an engine (D.runstate, or
-   D.roundone for round 1) to the DOM; every rule about scoring, dots, rescues,
+   D.roundone for round 1) to the DOM; every rule about scoring, seals, rescues,
    comebacks and redemption lives in the engine. The screen shows four things and
    nothing else: the points, the streak, where the round is up to, and the card
-   with its two dots. */
+   with its seal. */
 "use strict";
 D.run = (function () {
   const u = () => D.u;
@@ -37,8 +37,9 @@ D.run = (function () {
     dom.question = u().el('div', { class: 'question' }, '');
     dom.typed = u().el('div', { class: 'typed' }, '');
     dom.slots = u().el('div', { class: 'slots' });
-    dom.dots = u().el('div', { class: 'dots' }, [u().el('i'), u().el('i')]);
-    dom.card = u().el('div', { class: 'card' }, [dom.label, dom.question, dom.typed, dom.slots, dom.dots]);
+    dom.seal = u().el('div', { class: 'cardseal' }, [u().el('i', {}, '12')]);
+    dom.time = u().el('div', { class: 'cardtime' }, '');
+    dom.card = u().el('div', { class: 'card' }, [dom.seal, dom.label, dom.question, dom.typed, dom.slots, dom.time]);
     dom.wrap = u().el('div', { class: 'cardwrap' }, [dom.card]);
     dom.line = u().el('div', { class: 'diagline' }, '');
     dom.buttons = u().el('div', { class: 'missbtns idle' });
@@ -80,7 +81,7 @@ D.run = (function () {
   }
 
   // Whatever appears under the card, the card gives way to it. Left alone it kept
-  // the size it had when it was dealt and slid over the dots above it (the 375 by
+  // the size it had when it was dealt and slid over the marks above it (the 375 by
   // 667 overlap, rework 2026-09-10).
   function refit() { D.fx.fitCard(dom.wrap, dom.card); }
   function setLine(text) {
@@ -151,7 +152,9 @@ D.run = (function () {
     pad.setMode(fact.input || 'number');
     setSlots(fact.input === 'number' || !fact.input ? c.digits : 0);
     pad.setDigits(c.digits);
-    paintDots(card, c);
+    paintSeal(card);
+    dom.time.textContent = '';
+    dom.time.className = 'cardtime';
     if (c.intro) setLine(c.intro);
     if (c.last) D.audio.lastCard();
 
@@ -164,15 +167,14 @@ D.run = (function () {
     dom.question.textContent = text;
     dom.question.classList.toggle('words', /[a-z]{2,}/i.test(text));
   }
-  /* Two dots, and the next one outlined in red when a fast answer now would fill
-     it. That outline is the whole explanation of what the card is worth. */
-  function paintDots(card, view) {
-    const filled = D.mastery.dots(card.id);
+  /* The seal: nothing, an outline once the question has been fast, stamped once
+     it has been fast on two days. The outline is red when a fast answer now would
+     stamp it, which is the whole explanation of what this card is worth. */
+  function paintSeal(card) {
+    const state = D.mastery.sealState(card.id);
     const eligible = ['warmup', 'comeback', 'scout', 'redemption'].indexOf(card.kind) < 0;
-    const lit = eligible && filled < D.cfg.AUTO_DAYS && D.mastery.canCountToday(card.id, rs.raw.day);
-    Array.from(dom.dots.children).forEach((dot, i) => {
-      dot.className = i < filled ? 'on' : (lit && i === filled ? 'lit' : '');
-    });
+    const lit = eligible && state === 'fast' && D.mastery.canCountToday(card.id, rs.raw.day);
+    dom.seal.className = 'cardseal' + (state === 'none' ? '' : ' ' + state) + (lit ? ' lit' : '');
   }
 
   function startRing(c) {
@@ -255,13 +257,14 @@ D.run = (function () {
       D.fx.crack(dom.card);
       D.audio.miss();
       markMiss(out);
+      if (out.lostSeal) liftSeal(out);
       if (out.slip || out.silent) { commitAnd(out, 520); return; }
       if (out.reveal) {                       // round 1: the answer, then type it
         saveNow();
         setTimeout(() => showReveal(rs.revealInfo()), 520);
         return;
       }
-      setLine(out.line || out.intro || '');
+      if (out.line || out.intro) setLine(out.line || out.intro);
       showMissButtons(out);
       saveNow();                              // the miss is on the record before any choice
       return;
@@ -276,21 +279,24 @@ D.run = (function () {
     if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points));
     if (out.marks.indexOf('bonus') >= 0) D.audio.bonus();
     if (out.marks.indexOf('pb') >= 0) D.fx.toast(D.copy.run.pb, 1100);
-    // A dot fills where the child can see it, and both dots bring the seal down.
-    if (out.dot && out.card) {
-      const filled = D.mastery.dots(out.card.id);
-      const dot = dom.dots.children[filled - 1];
-      if (dot) { dot.className = 'on stamp'; }
-      D.audio.stamp();
-      wait = 640;
-      if (!D.state.flags.seenDot) { D.state.flags.seenDot = true; setLine(D.copy.run.firstDot); wait = 1000; }
+    // How long it took, always, and red when it was fast: this is what "fast" means.
+    if (typeof out.rt === 'number' && !(out.card && out.card.slipRepair)) {
+      dom.time.textContent = D.copy.run.time(out.rt);
+      dom.time.className = 'cardtime' + (out.fast ? ' fast' : '');
     }
-    if (out.bothDots) {
-      D.fx.seal(dom.card);
+    if (out.stamped) {
+      dom.seal.className = 'cardseal fast press';
+      D.audio.stamp();
+      wait = 700;
+      if (!D.state.flags.seenStamp) { D.state.flags.seenStamp = true; setLine(D.copy.run.firstStamp); wait = 1500; }
+    }
+    if (out.sealed) {
+      dom.seal.className = 'cardseal sealed press';
       D.audio.thump();
       wait = 1000;
-      if (!D.state.flags.seenBoth) { D.state.flags.seenBoth = true; setLine(D.copy.run.firstBoth); wait = 1400; }
+      if (!D.state.flags.seenSeal) { D.state.flags.seenSeal = true; setLine(D.copy.run.firstSeal); wait = 1500; }
     }
+    if (out.lostSeal) liftSeal(out);
     const mult = rs.comboMult();
     if (mult > 1 && !D.state.flags.seenStreak) {
       D.state.flags.seenStreak = true;
@@ -301,6 +307,14 @@ D.run = (function () {
     commitAnd(out, wait);
   }
 
+  /* A seal that comes off is seen coming off, and said once. */
+  function liftSeal(out) {
+    dom.seal.className = 'cardseal sealed lift';
+    if (!D.state.flags.seenLostSeal) {
+      D.state.flags.seenLostSeal = true;
+      setLine(D.copy.run.lostSeal(out.card.id));
+    }
+  }
   function markMiss(out) {
     // The card that was missed, which is not always the one the cursor is on: a
     // slip and a silent scout have already moved it along.

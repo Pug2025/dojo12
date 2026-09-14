@@ -4,6 +4,7 @@
 "use strict";
 D.shop = (function () {
   const u = () => D.u;
+  let pending = null;         // the item waiting for its second tap
 
   // The papers, so a swatch can show the paper itself. These match css/themes.css.
   const PAPER = { washi: '#EFE8D8', night: '#1B2436', matcha: '#E4E7D4', sakura: '#F2E3E1',
@@ -49,6 +50,7 @@ D.shop = (function () {
 
   function render(root, onBack, onlyKind) {
     u().clear(root);
+    if (!root.__shopOpen) pending = null;
     apply();
     const list = u().el('div', { class: 'col', style: { gap: '9px' } });
     const groups = {};
@@ -100,29 +102,43 @@ D.shop = (function () {
     const have = owned(item.id);
     const on = equipped(item.kind) === item.value;
     const canSee = available(item);
+    const asking = pending === item.id;
     const right = have ? (on ? D.copy.shop.inUse : D.copy.shop.use)
-      : canSee ? D.copy.shop.price(item.price) : D.copy.shop.levelNeeded(item.level);
+      : !canSee ? D.copy.shop.lockedRow(item.level, item.price)
+      : asking ? D.copy.shop.confirm(item.price) : D.copy.shop.price(item.price);
     const node = u().el('button', {
       class: 'btn wide shopitem' + (on ? ' on' : '') + (!have && !canSee ? ' dim' : ''),
       type: 'button',
     }, [
       u().el('span', { class: 'row', style: { gap: '11px' } }, [swatch(item), u().el('span', {}, D.copy.shop.names[item.id])]),
-      u().el('span', { class: 'right' }, right),
+      u().el('span', { class: 'right' + (asking ? ' ask' : '') }, right),
     ]);
     node.addEventListener('click', () => {
       if (have) {
+        pending = null;
         if (on) unequip(item.kind); else equip(item);
       } else if (!canSee) {
+        pending = null;
         D.fx.toast(D.copy.shop.locked(item.level), 1800);
         return;
       } else if (!afford(item)) {
+        pending = null;
         D.fx.toast(D.copy.shop.tooDear(item.price, D.state.progress.coins), 2200);
         return;
+      } else if (pending !== item.id) {
+        // One tap shows the price as a question; nothing is spent until the second.
+        pending = item.id;
       } else {
+        pending = null;
         buy(item);
         D.fx.toast(D.copy.shop.bought, 1600);
       }
+      root.__shopOpen = true;
+      const top = root.querySelector('.wrapx') ? root.querySelector('.wrapx').scrollTop : 0;
       render(root, onBack, onlyKind);
+      root.__shopOpen = false;
+      const again = root.querySelector('.wrapx');
+      if (again) again.scrollTop = top;
     });
     return node;
   }

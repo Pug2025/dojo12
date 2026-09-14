@@ -260,7 +260,7 @@ h2("reward paths");
   }
 }
 {
-  // A dot, then both dots, then a miss empties one.
+  // Fast on a second day seals a question; a miss takes the seal off.
   newState();
   const id = "mul:6x7";
   const r = seedFast(id, 900);
@@ -270,18 +270,18 @@ h2("reward paths");
   const xp0 = D.state.progress.xp, c0 = D.state.progress.coins;
   const rs = D.runstate.create(handPlan([id, "mul:6x8", "mul:6x9"]));
   const out = answer(rs, true, 800);
-  t("a fast answer on a later day fills the second dot",
-    !!out && out.dot === true && out.bothDots === true && D.mastery.dots(id) === 2);
-  t("both dots pay the same coin as any right answer",
+  t("a fast answer on a later day seals the question",
+    !!out && out.sealed === true && D.mastery.isSealed(id) && D.mastery.sealState(id) === "sealed");
+  t("sealing pays the same coin as any right answer",
     D.state.progress.coins === c0 + D.cfg.COINS_PER_CORRECT, "coins " + (D.state.progress.coins - c0));
-  t("both dots pay no XP beyond the answer's own",
+  t("sealing pays no XP beyond the answer's own",
     D.state.progress.xp === xp0 + out.xp && out.xp === Math.round(D.facts.weight(id) * D.cfg.XP_PER_CORRECT));
-  t("the first time a question has both dots stays on its record", D.mastery.rec(id).doneOnce === true);
+  t("the first seal stays on the question's record", D.mastery.rec(id).doneOnce === true);
   const rec = D.mastery.record(id, { correct: false, rt: 3000, day: D.u.gameDay() });
-  t("a miss empties a dot", rec.lostDot === true && D.mastery.dots(id) === 1);
+  t("a miss takes the seal off and leaves the outline", rec.lostSeal === true && D.mastery.sealState(id) === "fast");
   const rs2 = D.runstate.create(handPlan([id, "mul:6x8", "mul:6x9"]));
   const out2 = answer(rs2, true, 800);
-  t("a dot cannot refill on the day it was lost", !!out2 && out2.dot !== true && D.mastery.dots(id) === 1);
+  t("a seal cannot come back on the day it came off", !!out2 && out2.sealed !== true && !D.mastery.isSealed(id));
 }
 {
   // A deliberate miss on a known fact never beats answering it.
@@ -443,8 +443,8 @@ h2("mastery");
   r.ewma = D.mastery.threshold(id) * 2;
   D.mastery.dirty();
   D.mastery.record(id, { correct: true, rt: D.mastery.threshold(id) * 2, day: D.u.gameDay() });
-  t("settling into slow answers on a question with both dots empties a dot", D.mastery.dots(id) === 1,
-    "dots " + D.mastery.dots(id));
+  t("settling into slow answers on a sealed question takes the seal off", D.mastery.sealState(id) === "fast",
+    D.mastery.sealState(id));
 }
 {
   newState();
@@ -482,9 +482,9 @@ h2("scheduler");
   newState();
   D.scheduler.ensureProgression();
   const p = D.scheduler.plan();
-  t("a run is twenty cards", p.cards.length === D.cfg.RUN_CARDS, "cards " + p.cards.length);
-  t("the first three cards are warm-ups", p.cards.slice(0, 3).every(c => c.kind === "warmup"));
-  t("exactly two scouts", p.cards.filter(c => c.kind === "scout").length <= D.cfg.SCOUTS);
+  t("a round is ten cards", p.cards.length === D.cfg.RUN_CARDS && D.cfg.RUN_CARDS === 10, "cards " + p.cards.length);
+  t("the first cards are warm-ups", p.cards.slice(0, D.cfg.WARMUPS).every(c => c.kind === "warmup"));
+  t("scouts stay within their share", p.cards.filter(c => c.kind === "scout").length <= D.cfg.SCOUTS);
   t("exactly one bonus card", p.cards.filter(c => c.bonus).length === 1);
   t("the bonus card is never the last card", !p.cards[p.cards.length - 1].bonus);
   t("no fact twice in a row", p.cards.every((c, i) => i === 0 || c.id !== p.cards[i - 1].id));
@@ -506,23 +506,23 @@ h2("scheduler");
   t("warm-ups pay score", rs.raw.score > 0);
 }
 {
-  // The learning load follows the child's own accuracy.
+  // The learning load follows the child's own accuracy, inside its floor and ceiling.
   newState();
-  D.state.progress.learnSlots = 6;
-  D.state.runs = [{ cards: 20, correct: 10 }, { cards: 20, correct: 11 }, { cards: 20, correct: 12 }];
+  D.state.progress.learnSlots = 3;
+  D.state.runs = [{ cards: 10, correct: 5 }, { cards: 10, correct: 6 }, { cards: 10, correct: 6 }];
   D.scheduler.adaptLearnSlots();
-  t("a hard run lowers the learning load", D.state.progress.learnSlots === 5);
-  D.state.runs = [{ cards: 20, correct: 20 }, { cards: 20, correct: 19 }, { cards: 20, correct: 20 }];
+  t("a hard run lowers the learning load", D.state.progress.learnSlots === 2);
+  D.state.runs = [{ cards: 10, correct: 10 }, { cards: 10, correct: 10 }, { cards: 10, correct: 10 }];
   D.scheduler.adaptLearnSlots();
-  t("an easy run raises the learning load", D.state.progress.learnSlots === 6);
-  D.state.progress.learnSlots = 4;
-  D.state.runs = [{ cards: 20, correct: 4 }, { cards: 20, correct: 4 }, { cards: 20, correct: 4 }];
+  t("an easy run raises the learning load", D.state.progress.learnSlots === 3);
+  D.state.progress.learnSlots = D.cfg.LEARN_MIN;
+  D.state.runs = [{ cards: 10, correct: 2 }, { cards: 10, correct: 2 }, { cards: 10, correct: 2 }];
   D.scheduler.adaptLearnSlots();
-  t("the learning load never falls below four", D.state.progress.learnSlots === D.cfg.LEARN_MIN);
-  D.state.progress.learnSlots = 8;
-  D.state.runs = [{ cards: 20, correct: 20 }, { cards: 20, correct: 20 }, { cards: 20, correct: 20 }];
+  t("the learning load never falls below its floor", D.state.progress.learnSlots === D.cfg.LEARN_MIN);
+  D.state.progress.learnSlots = D.cfg.LEARN_MAX;
+  D.state.runs = [{ cards: 10, correct: 10 }, { cards: 10, correct: 10 }, { cards: 10, correct: 10 }];
   D.scheduler.adaptLearnSlots();
-  t("the learning load never rises above eight", D.state.progress.learnSlots === D.cfg.LEARN_MAX);
+  t("the learning load never rises above its ceiling", D.state.progress.learnSlots === D.cfg.LEARN_MAX);
 }
 {
   // A comeback replaces a slot: the run stays twenty cards.
@@ -589,8 +589,8 @@ h2("scheduler");
   D.scheduler.ensureProgression();
   const p = D.scheduler.plan();
   const safety = p.cards.filter(c => c.kind === "safety");
-  t("the safety net takes at most four cards", safety.length <= D.cfg.SAFETY_MAX, "cards " + safety.length);
-  t("the safety net never takes a warm-up slot", p.cards.slice(0, 3).every(c => c.kind === "warmup"));
+  t("the safety net stays within its share", safety.length <= D.cfg.SAFETY_MAX, "cards " + safety.length);
+  t("the safety net never takes a warm-up slot", p.cards.slice(0, D.cfg.WARMUPS).every(c => c.kind === "warmup"));
 }
 {
   // Promote cards come back at short lag.
@@ -604,7 +604,7 @@ h2("scheduler");
     const cur = rs.present();
     if (!cur) break;
     if (firstPromote < 0 && cur.card.kind === "promote" && !cur.card.repeat) firstPromote = cur.index;
-    const out = answer(rs, true, 800);
+    const out = answer(rs, true, 4200);            // still slow: the repeat keeps its job
     if (firstPromote >= 0 && cur.index === firstPromote) {
       const repeats = rs.raw.cards.map((c, i) => (c.repeat ? i : -1)).filter(i => i > firstPromote);
       t("a known fact comes back at short lag", repeats.length >= 1, "repeats " + JSON.stringify(repeats));
@@ -825,7 +825,7 @@ function botRun(bot, log) {
   while (!rs.isDone() && guard++ < 200) {
     const cur = rs.present();
     if (!cur) break;
-    if (cur.index === 3 && comboAtFour === null) comboAtFour = rs.raw.combo;
+    if (cur.index === D.cfg.WARMUPS && comboAtFour === null) comboAtFour = rs.raw.combo;
     const id = cur.card.id;
     const a = bot.profile.alwaysWrong ? { correct: false, rt: 500 } : bot.answerFor(id);
     const f = D.facts.get(id);
@@ -1005,7 +1005,7 @@ function playRoundOne(p, q, opts) {
   Math.random = mulberry(11);
   newState();
   const { ro, log } = playRoundOne(0.5, 0.5);
-  t("round one is twenty cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
+  t("round one is twelve cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
   t("round one has no timer on any card", log.ringed === 0);
   t("a miss in round one shows the answer to type", log.misses > 0 && log.reveals === log.misses,
     log.misses + " misses, " + log.reveals + " shown");
@@ -1032,7 +1032,7 @@ function playRoundOne(p, q, opts) {
   const plan = D.scheduler.plan();
   const scouts = plan.cards.filter(c => c.kind === "scout");
   t("the next round carries extra scout cards for them",
-    scouts.length >= 2 && scouts.length <= D.cfg.PLACEMENT_SCOUTS, "scouts " + scouts.length);
+    scouts.length >= 2 && scouts.length <= D.cfg.PLACEMENT_SCOUTS + D.cfg.PLACEMENT_SAFETY, "scouts " + scouts.length);
   const rs = D.runstate.create(plan);
   playAll(rs, { correct: true, ms: 800 });
   D.runstate.finishRun(rs);
@@ -1048,9 +1048,120 @@ function playRoundOne(p, q, opts) {
   const known = f => f.op === "mul" && (f.a === 2 || f.b === 2 || f.a === 10 || f.b === 10);
   const { ro, log } = playRoundOne(0, 1, { known: known });
   D.roundone.finishRound(ro);
-  t("a struggling child's round one is still twenty cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
-  t("a struggling child gets no extra scouts", !D.state.placement);
+  t("a struggling child's round one is still twelve cards", log.cards === D.cfg.ROUND_ONE_CARDS, "cards " + log.cards);
+  t("a struggling child gets no extra table scouts", !D.state.placement || !D.state.placement.tables.length);
   Math.random = saved;
+}
+
+/* ================= the seal and the 2026-09-12 review fixes ================= */
+h2("seal and review fixes");
+{
+  // Leaving a round, or closing the app, with a card on the screen hands it back spent.
+  newState();
+  const id = mid(6, 7);
+  seedFast(id, 900); seedFast(mid(6, 8), 900); seedFast(mid(6, 9), 900);
+  const rs = D.runstate.create(handPlan([mid(6, 8), id, mid(6, 9)]));
+  answer(rs, true, 700);
+  const view = rs.present();
+  t("the card on the screen has a timer", !!view.ringMs);
+  const back = D.runstate.resume(rs.snapshot());
+  const combo = back.raw.combo;
+  t("a card left on the screen comes back with its time already spent", back.present().overtime === true);
+  const out = back.submit(D.facts.get(id).ans, 600);
+  t("a spent card still takes the answer but never as fast",
+    !!out && out.kind === "correct" && out.fast !== true && out.stamped !== true && out.sealed !== true,
+    JSON.stringify({ fast: out && out.fast, rt: out && out.rt }));
+  t("a spent card does not step the streak", back.raw.combo === combo);
+}
+{
+  // The answer that seals a question never takes the seal straight back off.
+  newState();
+  const id = mid(7, 8);
+  const r = seedFast(id, 900);
+  r.days = ["2026-09-01"];
+  r.ewma = Math.round(D.mastery.threshold(id) * 1.8);
+  D.mastery.dirty();
+  const rec = D.mastery.record(id, { correct: true, rt: D.mastery.threshold(id) - 50, day: D.u.gameDay() });
+  t("the answer that seals a slow child's question keeps the seal on",
+    rec.sealed === true && D.mastery.isSealed(id), JSON.stringify({ sealed: rec.sealed, marks: D.mastery.marks(id) }));
+}
+{
+  // Start over cannot be used to bring back an older copy.
+  newState("Tester");
+  localStorage.setItem("dojo12.mark.tester", JSON.stringify({ lastSeenEpoch: D.u.now(), answered: 400, tests: 1 }));
+  const payload = D.save.fresh({ name: "Tester", slug: "tester" });
+  payload.facts[mid(3, 4)] = Object.assign(D.mastery.blank(), { seen: 300 });
+  payload.lastSeenEpoch = D.u.now() - 3600000;
+  t("a phone that was started over refuses a copy older than the furthest it got",
+    D.share.apply(payload).ok === false);
+  localStorage.removeItem("dojo12.mark.tester");
+}
+{
+  // Round 1 is saved card by card and picks up where it was left.
+  const saved = Math.random;
+  Math.random = mulberry(21);
+  newState();
+  const ro = D.roundone.create();
+  for (let k = 0; k < 5; k++) { const cur = ro.present(); ro.submit(D.facts.get(cur.card.id).ans, 900); }
+  const snap = ro.snapshot();
+  t("round one saves itself card by card", !!snap && snap.roundOne === true && snap.round.i === 5);
+  const back = D.roundone.create({ resume: JSON.parse(JSON.stringify(snap)) });
+  t("round one picks up on the card it was left on", back.raw.i === 5 && back.raw.score === ro.raw.score);
+  let g = 0;
+  while (!back.isDone() && g++ < 40) { const cur = back.present(); if (!cur) break; back.submit(D.facts.get(cur.card.id).ans, 900); }
+  t("a picked-up round one still ends at its length", back.raw.i === D.cfg.ROUND_ONE_CARDS, "i " + back.raw.i);
+  Math.random = saved;
+}
+{
+  // Round 1 is times and divide only; the quiet checks come in the rounds after it.
+  const saved = Math.random;
+  let addsub = 0;
+  for (let seed = 30; seed < 40; seed++) {
+    Math.random = mulberry(seed);
+    newState();
+    const { ro } = playRoundOne(0.5, 0.5);
+    addsub += ro.raw.cards.filter(c => c.id && D.facts.get(c.id).lane === "addsub").length;
+  }
+  t("round one never serves a plus or minus question", addsub === 0, "served " + addsub);
+  Math.random = mulberry(41);
+  newState();
+  const { ro } = playRoundOne(0.9, 0.9);
+  D.roundone.finishRound(ro);
+  t("the quiet checks wait for the rounds after round one",
+    !!D.state.placement && D.state.placement.safety.length === D.tryout.SAFETY.length);
+  D.state.placement.tables = [];
+  let probes = 0;
+  for (let k = 0; k < 4; k++) {
+    const plan = D.scheduler.plan();
+    probes += plan.cards.filter(c => D.facts.get(c.id).lane === "addsub" && c.kind === "scout").length;
+    const rs = D.runstate.create(plan);
+    playAll(rs, { correct: false, ms: 3000, onMiss: "skip" });
+    D.runstate.finishRun(rs);
+  }
+  t("the next rounds carry them, one a round", probes >= 3, "probes " + probes);
+  t("missing them switches the quiet lane on", D.state.lanes.addsub.active === true);
+  Math.random = saved;
+}
+{
+  // Two placement questions are never the same question.
+  newState();
+  const saved = Math.random;
+  let dupes = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    Math.random = mulberry(seed);
+    D.state.placement = { tables: ["3", "9"], safety: [], runsLeft: 3, results: {}, pending: {} };
+    const ids = D.scheduler.placementScouts();
+    if (new Set(ids).size !== ids.length) dupes++;
+  }
+  Math.random = saved;
+  t("two placement questions are never the same question", dupes === 0, dupes + " of 200");
+}
+{
+  // A yes-or-no shown answer reads as the question and its answer.
+  D.beyond.build();
+  const f = Object.keys(D.facts.all()).map(id => D.facts.get(id)).find(x => x.input === "yesno");
+  const line = D.copy.rescue.showAnswer(f.id, false);
+  t("a yes-or-no shown answer reads properly", /\? (Yes|No)\. Tap (Yes|No) to keep going\.$/.test(line), line);
 }
 
 h2("improving-learner bots");
@@ -1058,7 +1169,7 @@ h2("improving-learner bots");
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
   const accFrom3 = [], durations = [], maxFocus = [], comboFour = [], goldCounts = [], autoKept = [];
   for (const seed of SEEDS) {
-    const r = runBot("novice", seed, 30, 3);
+    const r = runBot("novice", seed, 30, 6);
     const later = r.log.slice(2);
     accFrom3.push(medianOf(later.map(x => x.correct / Math.max(1, x.cards))));
     durations.push(medianOf(r.log.map(x => x.ms)));
@@ -1071,10 +1182,12 @@ h2("improving-learner bots");
   }
   t("a novice is right at least three quarters of the time from run three",
     medianOf(accFrom3) >= 0.75, "median accuracy " + medianOf(accFrom3).toFixed(3));
-  t("a novice run stays under three minutes",
-    medianOf(durations) <= 180000, "median " + Math.round(medianOf(durations) / 1000) + " s");
+  t("a novice round takes about a minute",
+    medianOf(durations) <= 90000, "median " + Math.round(medianOf(durations) / 1000) + " s");
   t("a novice never has more than two tables in focus", Math.max.apply(null, maxFocus) <= 2);
-  t("a novice all but never reaches card four at nothing", medianOf(comboFour) >= 0.95,
+  // Two warm-ups in a ten-card round, and a slipped warm-up spends one of them
+  // without a streak step, so the floor sits at nine rounds in ten (2026-09-14).
+  t("a novice nearly always starts the round proper on a streak", medianOf(comboFour) >= 0.9,
     "median share with a combo " + medianOf(comboFour).toFixed(3));
   t("a novice settles facts over thirty days", medianOf(goldCounts) >= 20,
     "median settled " + medianOf(goldCounts));
@@ -1083,7 +1196,7 @@ h2("improving-learner bots");
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
   const opened = [], allAuto = [];
   for (const seed of SEEDS) {
-    const r = runBot("strong", seed, 12, 3);
+    const r = runBot("strong", seed, 12, 6);
     opened.push(D.scheduler.openTables().length);
     const anyAllAuto = r.log.some(x => false);
     allAuto.push(anyAllAuto);
@@ -1096,7 +1209,7 @@ h2("improving-learner bots");
   const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
   const pcts = [];
   for (const seed of SEEDS) {
-    const r = runBot("slowCorrect", seed, 10, 3);
+    const r = runBot("slowCorrect", seed, 10, 6);
     const primary = D.state.focus.primary;
     const done = D.facts.TABLE_ORDER.filter(k => D.scheduler.tableState(k).status === "open");
     const best = done.length ? Math.max.apply(null, done.concat(primary ? [primary] : [])
@@ -1109,11 +1222,11 @@ h2("improving-learner bots");
 {
   const noviceXp = [], noviceSparks = [], guessXp = [], guessSparks = [], skipXp = [], skipSparks = [];
   for (const seed of [1, 2, 3, 4]) {
-    runBot("novice", seed, 10, 3);
+    runBot("novice", seed, 10, 6);
     noviceXp.push(D.state.progress.xp); noviceSparks.push(D.state.progress.coins);
-    runBot("guesser", seed, 10, 3);
+    runBot("guesser", seed, 10, 6);
     guessXp.push(D.state.progress.xp); guessSparks.push(D.state.progress.coins);
-    runBot("skipper", seed, 10, 3);
+    runBot("skipper", seed, 10, 6);
     skipXp.push(D.state.progress.xp); skipSparks.push(D.state.progress.coins);
   }
   const nXp = medianOf(noviceXp), nSp = medianOf(noviceSparks);
@@ -1128,7 +1241,7 @@ h2("improving-learner bots");
   // A fact that is right today and wrong a week later drops back and returns as due.
   const regressed = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("forgetter", seed, 20, 2);
+    const r = runBot("forgetter", seed, 20, 4);
     let backToLearning = 0;
     for (const id of Object.keys(D.state.facts)) {
       const rec = D.state.facts[id];
@@ -1143,7 +1256,7 @@ h2("improving-learner bots");
   // What a novice settles, a novice mostly keeps.
   const kept = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("novice", seed, 30, 3);
+    const r = runBot("novice", seed, 30, 6);
     let everAuto = 0, stillAuto = 0;
     for (const id of Object.keys(D.state.facts)) {
       const rec = D.state.facts[id];
@@ -1158,7 +1271,7 @@ h2("improving-learner bots");
   // How often a question comes up three times in a round without being missed.
   const perRound = [];
   for (const seed of [1, 2, 3, 4]) {
-    const r = runBot("strong", seed, 6, 3);
+    const r = runBot("strong", seed, 6, 6);
     for (const run of r.log) {
       const n = {};
       for (const c of run.cardList) if (c.kind !== "redemption") n[c.id] = (n[c.id] || 0) + 1;
@@ -1343,17 +1456,18 @@ function seedCoreFast() {
   const c0 = D.state.progress.coins;
   const ids = D.belt.coreIds();
   D.mastery.rec(ids[0]).days = ["2026-09-01", "2026-09-04"];
-  D.mastery.rec(ids[1]).days = ["2026-09-01"];
+  D.mastery.rec(ids[1]).days = ["2026-09-01", "2026-09-05"];
   D.mastery.rec(ids[2]).days = ["2026-09-02"];
   D.mastery.dirty();
-  t("dots are counted across the grid", D.belt.dotsFilled() === 4, "dots " + D.belt.dotsFilled());
+  t("sealed questions are counted across the grid, and an outline is not a seal", D.belt.sealedCount() === 2,
+    "sealed " + D.belt.sealedCount());
   const ev = D.belt.update();
-  t("four dots tie two white stripes", ev.length === 2 && ev.every(e => e.kind === "stripe" && e.belt === "white"),
+  t("two sealed questions tie two white stripes", ev.length === 2 && ev.every(e => e.kind === "stripe" && e.belt === "white"),
     JSON.stringify(ev));
   t("each stripe pays its coins", D.state.progress.coins === c0 + 2 * D.cfg.COINS_STRIPE);
   D.mastery.rec(ids[0]).days = ["2026-09-04"];
   D.mastery.dirty();
-  t("a stripe once tied stays when a dot empties", D.belt.update().length === 0 && D.belt.info().stripes === 2);
+  t("a stripe once tied stays when a seal comes off", D.belt.update().length === 0 && D.belt.info().stripes === 2);
   t("the belt never pays twice", D.state.progress.coins === c0 + 2 * D.cfg.COINS_STRIPE);
   for (let i = 3; i < 16; i++) D.mastery.rec(ids[i]).days = ["2026-09-01", "2026-09-05"];
   D.mastery.dirty();
@@ -1457,8 +1571,9 @@ h2("shop");
   newState();
   const prices = D.cfg.SHOP.map(i => i.price);
   // Coins come one per right answer, twice the old spark rate, so the range doubles (rework 2026-09-10).
-  t("every shop price is between fifty and fifteen hundred",
-    Math.min.apply(null, prices) >= 50 && Math.max.apply(null, prices) <= 1500);
+  // A ten-card round pays about ten coins, so the cheapest things are a round or two away.
+  t("every shop price is between fifteen and four hundred",
+    Math.min.apply(null, prices) >= 15 && Math.max.apply(null, prices) <= 400);
   t("the shop has about thirty things in it", D.cfg.SHOP.length >= 24 && D.cfg.SHOP.length <= 36,
     "items " + D.cfg.SHOP.length);
   const missing = D.cfg.SHOP.filter(i => !D.copy.shop.names[i.id]);
@@ -1579,7 +1694,7 @@ h2("beyond");
   t("the purple belt opens the Beyond lane", D.state.lanes.beyond.open === true);
   const plan = D.scheduler.plan();
   const bey = plan.cards.filter(c => D.facts.get(c.id).lane === "beyond" && c.kind === "beyond");
-  t("Beyond takes about a quarter of the mixed slots", bey.length >= 3 && bey.length <= 6,
+  t("Beyond takes about a quarter of the mixed slots", bey.length >= 1 && bey.length <= 3,
     "cards " + bey.length);
 }
 
@@ -1684,18 +1799,23 @@ h2("approved lines");
     [D.copy.rescue.divSubtracted(56, 7), "That's 56 take away 7. You need how many sevens make 56."],
     [D.copy.rescue.showAnswer(m78, false), "7 × 8 = 56. Type it to keep going."],
     [D.copy.rescue.stepValue("7 × 10", 70), "7 × 10 is 70. Type 70 to keep going."],
-    [D.copy.summary.newBest(270), "New best (+270)"],
-    [D.copy.summary.dots(6), "6 dots filled"],
-    [D.copy.summary.done([D.facts.display(m78, false)]), "Both dots: 7 × 8."],
+    [D.copy.run.firstStamp, "Fast. Get it fast again tomorrow and it's sealed."],
+    [D.copy.run.firstSeal, "Sealed. It comes back now and then to check."],
+    [D.copy.run.lostSeal(m78), "7 × 8 lost its seal. Get it fast on another day to seal it again."],
+    [D.copy.run.time(1400), "1.4 s"],
+    [D.copy.summary.newBest(270), "New best, 270 more points"],
+    [D.copy.summary.sealed([D.facts.display(m78, false)]), "Sealed: 7 × 8."],
+    [D.copy.summary.fastNew(3), "Fast on 3 new questions."],
+    [D.copy.summary.gotBack([D.facts.display(m78, false)]), "Missed, then got right: 7 × 8."],
     [D.copy.summary.streak(11, 14), "Longest streak 11 (best 14)"],
     [D.copy.belt.stripeTied("white", 2), "Stripe 2 on your white belt."],
     [D.copy.belt.beltTied("blue"), "Blue belt!"],
-    [D.copy.belt.toNext(8, "stripe", "white"), "8 dots to your next stripe."],
+    [D.copy.belt.toNext(3, "stripe", "white"), "3 more questions to seal for your next stripe."],
     [D.copy.belt.failCount(19, 24), "19 of 24. Try again tomorrow."],
     [D.copy.belt.failSlow(24, 24, 4), "24 of 24, but four were too slow. Try again tomorrow."],
     [D.copy.home.working("2", "5"), "Working on the twos. The fives open after."],
-    [D.copy.roundOne.start(["5", "7"]), "You start on the fives (5 × 6) and the sevens (7 × 6)."],
-    [D.copy.grid.rowsNote("5"), "A row shows up when its table opens. Next up: the fives."],
+    [D.copy.home.sealed(83), "83 questions sealed"],
+    [D.copy.roundOne.start(["5", "7"]), "You start on the fives, like 5 × 6, and the sevens, like 7 × 6."],
     [D.copy.settings.clockMoved("2026-09-14"), "Clock moved. No new days until 14 September."],
     [D.copy.recap.improved(D.facts.mulId(7, 8), false, 4100, 2000), "Most improved: 7 × 8, 4.1 s to 2.0 s."],
   ];
@@ -1715,13 +1835,8 @@ h2("copy transcript");
   const lines = [];
   const say = (who, text) => { if (text) lines.push((who + "          ").slice(0, 10) + text); };
 
-  say("screen", D.copy.intro.card);
-  say("screen", D.copy.intro.cardHow);
-  say("screen", D.copy.intro.timer);
-  say("screen", D.copy.intro.timerHow);
-  say("screen", D.copy.intro.dots);
-  say("screen", D.copy.intro.dotsHow);
-  say("screen", D.copy.intro.roundOne);
+  say("screen", D.copy.intro.title);
+  say("screen", D.copy.intro.body);
   say("button", D.copy.intro.start);
   lines.push("");
 
@@ -1833,24 +1948,26 @@ h2("copy transcript");
   const pb = ((sum.extra && sum.extra.pbs) || []).find(x => x.kind === "score");
   say("summary", pb ? D.copy.summary.newBest(pb.delta) : D.copy.summary.best(D.state.pbs.score));
   if (sum.bestCombo) say("summary", D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo));
-  if (sum.dotted.length) say("summary", D.copy.summary.dots(sum.dotted.length));
-  if (sum.done.length) say("summary", D.copy.summary.done(sum.done.map(id => D.facts.display(id, false))));
+  if (sum.sealed.length) say("summary", D.copy.summary.sealed(sum.sealed.map(id => D.facts.display(id, false))));
+  if (sum.fastNew.length) say("summary", D.copy.summary.fastNew(sum.fastNew.length));
+  if (sum.unsealed.length) say("summary", D.copy.summary.unsealed(sum.unsealed.map(id => D.facts.display(id, false))));
   if (sum.gotBack.length) say("summary", D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false))));
   for (const ev of (sum.extra && sum.extra.belt) || []) {
     say("summary", ev.kind === "belt" ? D.copy.belt.beltTied(ev.belt)
                                       : D.copy.belt.stripeTied(ev.belt, ev.stripes));
   }
   const beltNow = D.belt.info();
-  say("summary", beltNow.black ? D.copy.belt.filled(beltNow.dots)
-    : D.copy.belt.toNext(Math.max(0, beltNow.nextAt - beltNow.dots), beltNow.nextKind, beltNow.nextBelt));
+  say("summary", beltNow.black ? D.copy.belt.filled(beltNow.sealed)
+    : D.copy.belt.toNext(Math.max(0, beltNow.nextAt - beltNow.sealed), beltNow.nextKind, beltNow.nextBelt));
   if (sum.xp) say("summary", D.copy.summary.xp(sum.xp));
   if (sum.coins) say("summary", D.copy.summary.coins(sum.coins));
   const focusKey = D.state.focus.primary;
   if (focusKey) say("home", D.copy.home.working(focusKey, D.scheduler.nextUnopened()));
   lines.push("");
   say("once", D.copy.run.firstStreak(1.5));
-  say("once", D.copy.run.firstDot);
-  say("once", D.copy.run.firstBoth);
+  say("once", D.copy.run.firstStamp);
+  say("once", D.copy.run.firstSeal);
+  say("once", D.copy.run.lostSeal(D.facts.mulId(7, 8)));
   say("once", D.copy.run.firstTick);
   say("once", D.copy.run.overtime);
 
@@ -1876,11 +1993,11 @@ h2("copy read");
   D.scheduler.activateSafety();
   const add = "add:8+7";
   const rs = D.runstate.create(handPlan([add, mid(2, 3), mid(2, 4)]));
-  rs.raw.done.push(add, mid(2, 3));
+  rs.raw.sealedIds.push(add, mid(2, 3));
   rs.raw.gotBack.push(add, mid(2, 4), mid(2, 4));
   const sum = rs.summary();
   t("the safety net never shows up in a run summary",
-    sum.gotBack.indexOf(add) < 0 && sum.done.indexOf(add) < 0, JSON.stringify(sum.gotBack));
+    sum.gotBack.indexOf(add) < 0 && sum.sealed.indexOf(add) < 0, JSON.stringify(sum.gotBack));
   t("a fact won back twice is named once", sum.gotBack.filter(x => x === mid(2, 4)).length === 1);
 }
 {
@@ -1974,9 +2091,9 @@ h2("correctness review");
 {
   newState();
   const ids = [mid(6, 7), mid(2, 3), mid(3, 8), mid(4, 9), mid(7, 9), mid(2, 5), mid(8, 9)];
-  seedFast(ids[1]); seedFast(ids[5]);
+  seedFast(ids[1]); seedFast(ids[3]); seedFast(ids[5]);
   const rs = D.runstate.create(handPlan(ids,
-    ["learning", "maintenance", "learning", "learning", "learning", "maintenance", "learning"]));
+    ["learning", "maintenance", "learning", "maintenance", "learning", "maintenance", "learning"]));
   const miss = answer(rs, false, 3000);
   if (miss && miss.buttons) rescueThrough(rs, true);
   const had = rs.raw.cards.some(c => c.kind === "comeback");
@@ -2000,7 +2117,7 @@ h2("correctness review");
   D.scheduler.activateSafety();
   let days = 0;
   for (; days < 60 && D.state.lanes.addsub.active; days++) {
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 6; k++) {
       const plan = D.scheduler.plan();
       for (const c of plan.cards) {
         if (D.facts.get(c.id).lane !== "addsub") continue;
@@ -2024,8 +2141,8 @@ h2("correctness review");
   D.mastery.rec(bey).days = ["2026-09-01", "2026-09-03"];
   D.mastery.rec("add:8+7").days = ["2026-09-01", "2026-09-03"];
   D.mastery.dirty();
-  t("a Beyond question's dots count toward the belt and the quiet lane's do not", D.belt.dotsFilled() === 2,
-    "dots " + D.belt.dotsFilled());
+  t("a sealed Beyond question counts toward the belt and the quiet lane's do not", D.belt.sealedCount() === 1,
+    "sealed " + D.belt.sealedCount());
 }
 
 
@@ -2090,9 +2207,9 @@ h2("exploit review");
   answer(rs, true, 3900);
   t("a slow right answer pays the same coin as a fast one",
     D.state.progress.coins === c0 + 2 * D.cfg.COINS_PER_CORRECT, "coins " + (D.state.progress.coins - c0));
-  t("level 2 needs 250 XP and level 3 another 400",
-    D.xp.levelFor(249).level === 1 && D.xp.levelFor(250).level === 2 &&
-    D.xp.levelFor(649).level === 2 && D.xp.levelFor(650).level === 3);
+  t("level 2 needs 125 XP and level 3 another 200",
+    D.xp.levelFor(124).level === 1 && D.xp.levelFor(125).level === 2 &&
+    D.xp.levelFor(324).level === 2 && D.xp.levelFor(325).level === 3);
 }
 {
   // Beyond needs every table open as well as the purple belt.

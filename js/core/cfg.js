@@ -19,7 +19,7 @@ D.cfg = {
   ACC_WINDOW: 8,            // outcomes kept in window[]
   ACC_WINDOW_PCT: 0.87,     // window accuracy needed once the window is full
   ACC_LIFETIME_PCT: 0.70,   // accuracy needed before the window fills
-  AUTO_DAYS: 2,             // the two dots: fast answers on this many counted days (rework 2026-09-10)
+  AUTO_DAYS: 2,             // fast on this many counted days seals a question
   MAX_DAYS_KEPT: 12,
   REVIEW_INTERVALS: [1, 3, 7, 14, 30],   // the wait after dot one, then check-ins once both are filled
   SLOW_AUTO: 1.5,           // ewma above this x threshold on an auto fact removes a day
@@ -29,21 +29,21 @@ D.cfg = {
   ROLLOVER_MIN_MS: 6 * 3600 * 1000,
 
   /* ---- run composition (PLAN §6.5) ---- */
-  RUN_CARDS: 20,
-  WARMUPS: 3,
+  RUN_CARDS: 10,           // ten questions a round (Jamie, 2026-09-14)
+  WARMUPS: 2,
   HOT_SET: 4,
-  LEARN_START: 6, LEARN_MIN: 4, LEARN_MAX: 8,
+  LEARN_START: 3, LEARN_MIN: 2, LEARN_MAX: 4,
   LEARN_DOWN_PCT: 0.75, LEARN_UP_PCT: 0.92, LEARN_LOOKBACK: 3,
-  PROMOTE_SLOTS: 4,
-  SCOUTS: 2,
-  DUE_MAX: 5,
-  SAFETY_MAX: 4,
+  PROMOTE_SLOTS: 2,
+  SCOUTS: 1,
+  DUE_MAX: 2,
+  SAFETY_MAX: 2,
   BEYOND_SHARE: 0.25,
-  COMEBACK_MIN: 3, COMEBACK_MAX: 6,
-  REDEMPTION_MAX: 5,
-  PROMOTE_LAGS: [2, 5],     // short-lag re-serves inside the run while correct
-  RUN_SPARES: 8,            // facts held back to take a repeat's slot when it has no job left
-  RUN_MIN_CORRECT: 10,      // below this a run does not count as played
+  COMEBACK_MIN: 2, COMEBACK_MAX: 4,
+  REDEMPTION_MAX: 2,
+  PROMOTE_LAGS: [3],       // one short-lag re-serve inside a ten-card round
+  RUN_SPARES: 4,            // facts held back to take a repeat's slot when it has no job left
+  RUN_MIN_CORRECT: 5,       // below this a run does not count as played
 
   /* ---- rings (PLAN §6.5) ---- */
   RING_MEDIAN_MULT: 2.2,
@@ -67,15 +67,15 @@ D.cfg = {
   SCOUT_DECLINE: 3,
   BEYOND_OPEN_STEP: 10,     // the Beyond lane opens at the purple belt
 
-  /* ---- the belt (rework 2026-09-10) ----
+  /* ---- the belt (rework 2026-09-10, sealed questions 2026-09-14) ----
      One belt per child, Brazilian jiu-jitsu: white, blue, purple, brown, black,
-     four stripes on each before the next. It moves on dots: every question has
-     AUTO_DAYS of them, and a fast answer on a counted day fills one. Step n is
-     reached at BELT_STEPS[n-1] dots filled; steps 5, 10 and 15 are the blue,
-     purple and brown belts, and step 19, brown's fourth stripe, opens the black
-     belt test. The marks sit at 374 x (n/20)^2, 374 being the two dots on each of
-     the 187 times and divide questions, so they come closer together early. */
-  BELT_STEPS: [1, 4, 9, 15, 24, 34, 46, 60, 76, 94, 114, 135, 159, 184, 211, 240, 271, 303, 338],
+     four stripes on each before the next. It moves on sealed questions: a
+     question is sealed once it has been answered fast on AUTO_DAYS counted days.
+     Step n is reached at BELT_STEPS[n-1] questions sealed; steps 5, 10 and 15 are
+     the blue, purple and brown belts, and step 19, brown's fourth stripe, opens the
+     black belt test. The marks sit at 187 x (n/20)^2, 187 being every times and
+     divide question, so they come closer together early. */
+  BELT_STEPS: [1, 2, 5, 8, 12, 17, 23, 30, 38, 47, 57, 68, 79, 92, 105, 120, 135, 152, 169],
   BELT_NAMES: ['white', 'blue', 'purple', 'brown'],
   TEST_CARDS: 24, TEST_WEAK: 16,        // the black belt test: the child's sixteen weakest, eight more
   TEST_PASS_CORRECT: 22, TEST_PASS_FAST: 20,
@@ -99,7 +99,7 @@ D.cfg = {
   /* ---- XP, levels, coins (PLAN §7.4, rework 2026-09-10) ---- */
   XP_PER_CORRECT: 10,       // x table weight, and the only source of XP
   XP_FULL_PER_DAY: 60,      // answers after this pay half. Never mentioned in copy.
-  LEVEL_BASE: 100, LEVEL_STEP: 150,    // level n -> n+1 needs BASE + STEP x n: 250, 400, 550...
+  LEVEL_BASE: 50, LEVEL_STEP: 75,     // level n -> n+1 needs BASE + STEP x n: 125, 200, 275... (ten-card rounds)
   COINS_PER_CORRECT: 1,     // every unaided right answer, fast or slow
   COINS_STRIPE: 10, COINS_BELT: 50,
   GHOST_MIN_ATTEMPTS: 3, GHOST_BEAT_MS: 100,
@@ -123,9 +123,10 @@ D.cfg = {
   TRYOUT_STOP_AFTER_WRONG: 2,   // consecutive tables with a wrong easy probe
   TRYOUT_STOP_AFTER_HARD: 2,    // consecutive wrong hard probes: the ceiling is found
   TRYOUT_REPROBES: 1,           // suspicious easy misses given a second look
-  ROUND_ONE_CARDS: 20,          // round 1 is a normal round of this many cards (rework 2026-09-10)
+  ROUND_ONE_CARDS: 12,          // round 1 is a normal round of this many cards (rework 2026-09-10)
   PLACEMENT_SCOUTS: 4,          // scout cards per round for tables round 1 ran out of cards for
-  PLACEMENT_RUNS: 3,            // ... for this many rounds
+  PLACEMENT_SAFETY: 1,          // quiet plus-and-minus checks per round, moved out of round 1
+  PLACEMENT_RUNS: 4,            // ... for this many rounds
 
   /* ---- shop (PLAN §7.1). Nothing here touches play. Prices are set so a
      novice earning about ten sparks a run reaches the two big themes on day
@@ -133,40 +134,40 @@ D.cfg = {
   // Two papers are free and picked on first launch; everything below is stock.
   FREE_PAPERS: ['washi', 'night'],
   SHOP: [
-    { id: 'theme:matcha',  kind: 'theme',  value: 'matcha',   price: 390,  level: 2 },
-    { id: 'theme:sakura',  kind: 'theme',  value: 'sakura',   price: 450,  level: 3 },
-    { id: 'theme:kraft',   kind: 'theme',  value: 'kraft',    price: 600,  level: 5 },
-    { id: 'theme:sumi',    kind: 'theme',  value: 'sumi',     price: 930,  level: 7 },
-    { id: 'theme:kinpaku', kind: 'theme',  value: 'kinpaku',  price: 1350, level: 10 },
+    { id: 'theme:matcha',  kind: 'theme',  value: 'matcha',   price: 100,  level: 2 },
+    { id: 'theme:sakura',  kind: 'theme',  value: 'sakura',   price: 110,  level: 3 },
+    { id: 'theme:kraft',   kind: 'theme',  value: 'kraft',    price: 150,  level: 5 },
+    { id: 'theme:sumi',    kind: 'theme',  value: 'sumi',     price: 230,  level: 7 },
+    { id: 'theme:kinpaku', kind: 'theme',  value: 'kinpaku',  price: 340, level: 10 },
 
-    { id: 'skin:grain',    kind: 'skin',   value: 'grain',    price: 90,   level: 1 },
-    { id: 'skin:grid',     kind: 'skin',   value: 'grid',     price: 210,  level: 2 },
-    { id: 'skin:wave',     kind: 'skin',   value: 'wave',     price: 360,  level: 4 },
-    { id: 'skin:hemp',     kind: 'skin',   value: 'hemp',     price: 630,  level: 6 },
-    { id: 'skin:gilt',     kind: 'skin',   value: 'gilt',     price: 1170, level: 10 },
+    { id: 'skin:grain',    kind: 'skin',   value: 'grain',    price: 20,   level: 1 },
+    { id: 'skin:grid',     kind: 'skin',   value: 'grid',     price: 50,  level: 2 },
+    { id: 'skin:wave',     kind: 'skin',   value: 'wave',     price: 90,  level: 4 },
+    { id: 'skin:hemp',     kind: 'skin',   value: 'hemp',     price: 160,  level: 6 },
+    { id: 'skin:gilt',     kind: 'skin',   value: 'gilt',     price: 290, level: 10 },
 
-    { id: 'ring:thin',     kind: 'ring',   value: 'thin',     price: 140,  level: 1 },
-    { id: 'ring:double',   kind: 'ring',   value: 'double',   price: 300,  level: 3 },
-    { id: 'ring:dotted',   kind: 'ring',   value: 'dotted',   price: 570,  level: 5 },
-    { id: 'ring:gold',     kind: 'ring',   value: 'gold',     price: 1050, level: 8 },
+    { id: 'ring:thin',     kind: 'ring',   value: 'thin',     price: 35,  level: 1 },
+    { id: 'ring:double',   kind: 'ring',   value: 'double',   price: 75,  level: 3 },
+    { id: 'ring:dotted',   kind: 'ring',   value: 'dotted',   price: 140,  level: 5 },
+    { id: 'ring:gold',     kind: 'ring',   value: 'gold',     price: 260, level: 8 },
 
-    { id: 'combo:ink',     kind: 'combo',  value: 'ink',      price: 120,  level: 1 },
-    { id: 'combo:round',   kind: 'combo',  value: 'round',    price: 330,  level: 4 },
-    { id: 'combo:gold',    kind: 'combo',  value: 'gold',     price: 840,  level: 7 },
+    { id: 'combo:ink',     kind: 'combo',  value: 'ink',      price: 30,  level: 1 },
+    { id: 'combo:round',   kind: 'combo',  value: 'round',    price: 80,  level: 4 },
+    { id: 'combo:gold',    kind: 'combo',  value: 'gold',     price: 210,  level: 7 },
 
-    { id: 'sound:bell',    kind: 'sound',  value: 'bell',     price: 110,  level: 1 },
-    { id: 'sound:wood',    kind: 'sound',  value: 'wood',     price: 260,  level: 2 },
-    { id: 'sound:glass',   kind: 'sound',  value: 'glass',    price: 510,  level: 5 },
-    { id: 'sound:deep',    kind: 'sound',  value: 'deep',     price: 960,  level: 8 },
+    { id: 'sound:bell',    kind: 'sound',  value: 'bell',     price: 30,  level: 1 },
+    { id: 'sound:wood',    kind: 'sound',  value: 'wood',     price: 65,  level: 2 },
+    { id: 'sound:glass',   kind: 'sound',  value: 'glass',    price: 130,  level: 5 },
+    { id: 'sound:deep',    kind: 'sound',  value: 'deep',     price: 240,  level: 8 },
 
-    { id: 'mark:circle',   kind: 'mark',   value: 'circle',   price: 80,   level: 1 },
-    { id: 'mark:triangle', kind: 'mark',   value: 'triangle', price: 80,   level: 1 },
-    { id: 'mark:square',   kind: 'mark',   value: 'square',   price: 170,  level: 2 },
-    { id: 'mark:diamond',  kind: 'mark',   value: 'diamond',  price: 290,  level: 3 },
-    { id: 'mark:hex',      kind: 'mark',   value: 'hex',      price: 450,  level: 5 },
-    { id: 'mark:star',     kind: 'mark',   value: 'star',     price: 720,  level: 7 },
-    { id: 'mark:ring',     kind: 'mark',   value: 'ring',     price: 990,  level: 9 },
-    { id: 'mark:cross',    kind: 'mark',   value: 'cross',    price: 1500, level: 12 },
+    { id: 'mark:circle',   kind: 'mark',   value: 'circle',   price: 20,   level: 1 },
+    { id: 'mark:triangle', kind: 'mark',   value: 'triangle', price: 20,   level: 1 },
+    { id: 'mark:square',   kind: 'mark',   value: 'square',   price: 40,  level: 2 },
+    { id: 'mark:diamond',  kind: 'mark',   value: 'diamond',  price: 70,  level: 3 },
+    { id: 'mark:hex',      kind: 'mark',   value: 'hex',      price: 110,  level: 5 },
+    { id: 'mark:star',     kind: 'mark',   value: 'star',     price: 180,  level: 7 },
+    { id: 'mark:ring',     kind: 'mark',   value: 'ring',     price: 250,  level: 9 },
+    { id: 'mark:cross',    kind: 'mark',   value: 'cross',    price: 375, level: 12 },
   ],
 
   /* ---- misc ---- */

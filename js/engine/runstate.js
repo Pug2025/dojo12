@@ -23,10 +23,11 @@ D.runstate = (function () {
       score: 0, combo: 0, bestCombo: 0,
       served: 0, correct: 0, unaided: 0, unaidedCards: 0,
       xpGained: 0, coinsGained: 0,
-      dotted: [], done: [], gotBack: [], missed: [], rts: [],
+      fastNew: [], sealedIds: [], unsealed: [], gotBack: [], missed: [], rts: [],
       outOfTimeShown: false, fastWrongs: 0,
       slipUsed: false, cardHelped: false, cardFastWrong: false, cardStepRetried: false,
-      cardDiagnosis: null, rescue: null, pending: [], cardOvertime: false,
+      cardDiagnosis: null, rescue: null, pending: [], cardOvertime: false, cardSpent: false,
+      cardAt: null, cardAtIndex: -1,
       spares: (plan.spares || []).slice(),
       redemption: false, redemptionQueue: [], finished: false,
       counted: false, table: o.table || null,
@@ -38,6 +39,14 @@ D.runstate = (function () {
     // the card out again with the answer already seen (exploit review 2026-09-10).
     if (o.resume && (r.phase === 'miss' || r.phase === 'rescue' || r.phase === 'reveal')) {
       r.phase = 'reveal'; r.cardHelped = true; r.rescue = null;
+    }
+    // A card that was already on the screen when the round was left comes back
+    // spent: it still takes the answer, but not as fast and not for a streak step.
+    // Dealt again with a full timer, holding Leave and tapping Play bought unlimited
+    // thinking time on any card and a fast answer at the end of it (code review
+    // 2026-09-12).
+    if (o.resume && r.phase === 'card' && r.cardAtIndex === r.i && r.cards[r.i] && r.cards[r.i].ringKind) {
+      r.cardSpent = true;
     }
 
     /* ---- presentation ---- */
@@ -51,18 +60,20 @@ D.runstate = (function () {
       const c = card();
       if (!c) return null;
       const f = D.facts.get(c.id);
+      // The moment a card is first dealt goes into the save with it.
+      if (r.cardAtIndex !== r.i) { r.cardAtIndex = r.i; r.cardAt = D.u.now(); }
       return {
         card: c, index: r.i, total: r.cards.length,
         question: D.facts.display(c.id, c.flip),
         digits: D.u.digitsOf(f.ans),
         ringMs: ringMs(c),
         last: !!c.last, comeback: c.kind === 'comeback', redemption: c.kind === 'redemption',
-        phase: r.phase, combo: r.combo, score: r.score, overtime: !!r.cardOvertime,
+        phase: r.phase, combo: r.combo, score: r.score, overtime: !!(r.cardOvertime || r.cardSpent),
       };
     }
 
     /* ---- slot substitution: comebacks and promote re-serves replace an
-       upcoming maintenance or due slot, so a run is always twenty cards. ---- */
+       upcoming maintenance or due slot, so a run keeps its length. ---- */
     function replaceable(j, loose) {
       const c = r.cards[j];
       if (!c || j <= r.i || j >= r.cards.length - 1) return false;
@@ -118,6 +129,7 @@ D.runstate = (function () {
       // Answered well after the ring emptied on a card that stays up: the same as
       // timeout() having fired, for callers that never ran the clock.
       const ring = ringMs(c);
+      if (r.cardSpent && ring) { rt = Math.max(rt, ring + cfg.RING_GRACE_MS + 1); r.cardOvertime = true; }
       if (ring && rt > ring + cfg.RING_GRACE_MS && overtimeKind(c)) r.cardOvertime = true;
       r.served++;
       r.rts.push(rt);
@@ -142,7 +154,7 @@ D.runstate = (function () {
 
     function onCorrect(c, f, rt) {
       const out = { kind: 'correct', card: c, rt: rt, points: 0, xp: 0, coins: 0, marks: [],
-                    dot: false, bothDots: false, line: null, comeback: c.kind === 'comeback' };
+                    stamped: false, sealed: false, fast: false, line: null, comeback: c.kind === 'comeback' };
       // Scouts are invisible: they score like any card and move the combo not at all.
       if (c.kind === 'scout') {
         D.scheduler.noteScout(c.id, true, rt <= M().threshold(c.id));
@@ -182,13 +194,15 @@ D.runstate = (function () {
           out.marks.push('pb');
         }
       }
-      // A dot filled, and both dots filled: the in-run moments about learning.
-      if (rec.dotFilled) { out.dot = true; r.dotted.push(c.id); }
-      if (rec.bothDots) {
-        out.bothDots = true;
-        r.done.push(c.id);
+      // The seal: an outline on the first counted fast day, stamped on the second.
+      out.fast = !!rec.wasFast;
+      if (rec.stamped && !rec.sealed) { out.stamped = true; r.fastNew.push(c.id); }
+      if (rec.sealed) {
+        out.sealed = true;
+        r.sealedIds.push(c.id);
         D.state.progress.doneThisWeek = (D.state.progress.doneThisWeek || 0) + 1;
       }
+      if (rec.lostSeal) { out.lostSeal = true; r.unsealed.push(c.id); }
       if (c.kind === 'comeback') { out.line = D.copy.run.comebackWin; r.gotBack.push(c.id); }
       if (c.bonus) out.line = D.copy.run.bonus;
       trimRepeats(c, false);
@@ -261,7 +275,8 @@ D.runstate = (function () {
         r.cardFastWrong = true;
         (D.state.progress.fastWrongs7d = D.state.progress.fastWrongs7d || []).push(r.day);
       }
-      M().record(c.id, { correct: false, rt: rt, day: r.day });
+      const missRec = M().record(c.id, { correct: false, rt: rt, day: r.day });
+      if (missRec.lostSeal) { out.lostSeal = true; r.unsealed.push(c.id); }
       trimRepeats(c, true);
       // A warm-up is the ramp, not the test: missing one costs the card, never
       // the combo, so card four is never reached at nothing (PLAN §2, §6.5).
@@ -413,6 +428,7 @@ D.runstate = (function () {
       r.i++;
       r.slipUsed = false; r.cardHelped = false; r.cardFastWrong = false;
       r.cardStepRetried = false; r.cardMissed = false; r.cardDiagnosis = null; r.cardOvertime = false;
+      r.cardSpent = false;
       r.phase = 'card';
       if (r.i >= r.cards.length) startRedemptionOrFinish(out);
       out.next = present();
@@ -476,7 +492,8 @@ D.runstate = (function () {
     });
     return {
       score: r.score, correct: r.correct, unaided: r.unaided, cards: r.served,
-      xp: r.xpGained, coins: r.coinsGained, dotted: shown(r.dotted), done: shown(r.done), gotBack: shown(r.gotBack),
+      xp: r.xpGained, coins: r.coinsGained, fastNew: shown(r.fastNew), sealed: shown(r.sealedIds),
+      unsealed: shown(r.unsealed), gotBack: shown(r.gotBack),
       missed: r.missed.slice(), bestCombo: r.bestCombo, medianRt: medianRt,
       fastestFact: r.fastestFact, day: r.day, table: r.table, fastWrongs: r.fastWrongs,
       counted: r.correct >= D.cfg.RUN_MIN_CORRECT,
@@ -500,7 +517,7 @@ D.runstate = (function () {
     D.scheduler.endPlacementRound();
     D.scheduler.ensureProgression();
     // Stripes and belts are settled when the round ends, where there is room to
-    // show them (rework 2026-09-10). A short round's dots still count.
+    // show them (rework 2026-09-10). A short round's seals still count.
     extra.belt = D.belt.update();
     sum.coins += extra.belt.reduce((n, e) => n + e.coins, 0);
     s.inRun = null;

@@ -95,6 +95,12 @@ D.share = (function () {
     // to take the tryout before it reaches Settings, could never restore
     // (review 2026-09-10).
     const played = !!local && ((local.runs || []).length > 0 || (local.tests || []).length > 0);
+    // A wiped phone still remembers how far this profile got on it.
+    const mark = payload && payload.profile ? D.save.readMark(payload.profile.slug) : null;
+    if (mark && (mark.answered > 0 || mark.tests > 0)) {
+      if ((payload.lastSeenEpoch || 0) <= (mark.lastSeenEpoch || 0)) return true;
+      if (answered(payload) < (mark.answered || 0)) return true;
+    }
     if (!played) return false;
     // Not newer is older: a link taken just before a Belt Test carries the same
     // clock as the save after it. And a backup can never have answered fewer cards

@@ -1,5 +1,5 @@
 /* Dojo 12 engine — round 1 (rework 2026-09-10). Headless.
-   The first round plays like every other round: points, a streak, twenty cards
+   The first round plays like every other round: points, a streak, its cards
    along the top, and after a miss the right answer is shown and typed. No timer,
    because nothing is known yet about how fast this child is. Behind it the
    tryout (PLAN §6.6) picks the cards, so round 1 still finds where the child
@@ -18,18 +18,29 @@ D.roundone = (function () {
     return Math.max(0, idx - 1) * cfg.COMBO_STEP;
   }
 
-  function create() {
-    const tr = D.tryout.create();
+  function create(opts) {
+    const o = opts || {};
+    const tr = D.tryout.create({ noSafety: true });
     const N = cfg.ROUND_ONE_CARDS;
     const r = {
       roundOne: true,
       cards: [], i: 0, phase: 'card', day: D.u.gameDay(),
       score: 0, combo: 0, bestCombo: 0, served: 0, correct: 0,
-      xpGained: 0, coinsGained: 0, dotted: [], done: [], gotBack: [], missed: [], rts: [],
+      xpGained: 0, coinsGained: 0, fastNew: [], sealedIds: [], unsealed: [], gotBack: [], missed: [], rts: [],
       fastestFact: null, cardOvertime: false, finished: false, tryoutDone: false, cut: false,
     };
     for (let i = 0; i < N; i++) r.cards.push({ id: null, kind: 'roundone', slot: i, ringKind: null, last: i === N - 1 });
     let current = null;
+    // Picked up where it was left: the cards so far, the placement questions
+    // behind them, and the card on the screen. Without this, leaving round 1 or
+    // closing the app started it again from card one and lost every answer
+    // (code review 2026-09-12).
+    if (o.resume) {
+      for (const k of Object.keys(o.resume.round || {})) r[k] = o.resume.round[k];
+      Object.assign(tr.state, o.resume.tryout || {});
+      current = o.resume.current || null;
+      r.day = D.u.gameDay();
+    }
 
     // An easy win once the tryout is done: something already answered right this
     // round, or a small two or ten. Never the card just shown, never a third time.
@@ -99,14 +110,14 @@ D.roundone = (function () {
       const base = cfg.BASE_SCORE * D.facts.weight(c.id) * (c.last ? cfg.LAST_CARD_MULT : 1);
       const out = { kind: 'correct', card: c, rt: rt, marks: [], line: null,
                     points: Math.round(base * D.runstate.comboMult(r.combo)),
-                    dot: !!rec.dotFilled, bothDots: !!rec.bothDots };
+                    stamped: !!rec.stamped && !rec.sealed, sealed: !!rec.sealed, fast: !!rec.wasFast };
       r.score += out.points;
       out.xp = D.xp.answerXp(c.id);
       r.xpGained += out.xp;
       out.coins = D.xp.addCoins(cfg.COINS_PER_CORRECT);
       r.coinsGained += out.coins;
-      if (rec.dotFilled) r.dotted.push(c.id);
-      if (rec.bothDots) r.done.push(c.id);
+      if (rec.stamped && !rec.sealed) r.fastNew.push(c.id);
+      if (rec.sealed) r.sealedIds.push(c.id);
       if (!r.fastestFact || rt < r.fastestFact.ms) r.fastestFact = { id: c.id, ms: rt };
       return advance(out);
     }
@@ -151,8 +162,8 @@ D.roundone = (function () {
       });
       return {
         score: r.score, correct: r.correct, unaided: r.correct, cards: r.served,
-        xp: r.xpGained, coins: r.coinsGained, dotted: shown(r.dotted), done: shown(r.done),
-        gotBack: [], missed: r.missed.slice(), bestCombo: r.bestCombo,
+        xp: r.xpGained, coins: r.coinsGained, fastNew: shown(r.fastNew), sealed: shown(r.sealedIds),
+        unsealed: [], gotBack: [], missed: r.missed.slice(), bestCombo: r.bestCombo,
         medianRt: D.u.median(r.rts), fastestFact: r.fastestFact, day: r.day, table: null,
         fastWrongs: 0, counted: r.correct >= cfg.RUN_MIN_CORRECT, roundOne: true,
       };
@@ -163,7 +174,8 @@ D.roundone = (function () {
       typedAnswer: typedAnswer, revealInfo: revealInfo, chooseSkip: chooseSkip,
       chooseRescue: () => null, currentStep: () => null,
       comboMult: () => D.runstate.comboMult(r.combo), isDone: () => r.finished,
-      summary: summary, snapshot: () => null,
+      summary: summary,
+      snapshot: () => r.finished ? null : JSON.parse(JSON.stringify({ roundOne: true, round: r, tryout: tr.state, current: current })),
     };
     self.finish = () => finishRound(self);
     return self;
@@ -178,9 +190,11 @@ D.roundone = (function () {
     // enough: those were cut off by the card count, not by the child.
     const stopped = st.wrongEasyRun >= cfg.TRYOUT_STOP_AFTER_WRONG || st.wrongHardRun >= cfg.TRYOUT_STOP_AFTER_HARD;
     const untried = D.facts.TABLE_ORDER.filter(k => !D.scheduler.isOpen(k) && !(st.results[k] && st.results[k].easy));
-    if (ro.raw.cut && !stopped && untried.length) {
-      D.state.placement = { tables: untried, runsLeft: cfg.PLACEMENT_RUNS, results: {}, pending: {} };
-    }
+    D.state.placement = {
+      tables: ro.raw.cut && !stopped ? untried : [],
+      safety: D.tryout.SAFETY.slice(), safetyMisses: 0,
+      runsLeft: cfg.PLACEMENT_RUNS, results: {}, pending: {},
+    };
     const s = D.state;
     s.runs.push({ day: sum.day, table: null, score: sum.score, correct: sum.correct,
                   cards: sum.cards, medianRt: sum.medianRt, roundOne: true });
