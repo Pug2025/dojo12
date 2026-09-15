@@ -131,12 +131,12 @@ D.copy = (function () {
       title: 'How it works',
       sections: [
         ['The card', 'Type the answer and tap Go. Get one wrong and you can break it into smaller questions, or be shown the answer and type it.'],
-        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer with a gold tick on it. Beat the tick and the time shows in red: that is fast. The tick starts where you are and moves in as you get quicker.'],
-        ['Out of time', 'When the timer runs out the card stays up. Answer it and it still counts, just not as fast.'],
+        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer with a gold tick on it. Beat the tick and the time shows in red. That is fast. The tick starts where you are and moves in as you get quicker.'],
+        ['Out of time', 'When the timer runs out the card stays up. Answer it and it still counts, though not as fast.'],
         ['The seal', 'Answer a question fast and it gets the outline of a seal. Answer it fast again on another day and the seal is stamped. A sealed question comes back now and then to check. Miss it and the seal comes off until you get it fast again.'],
         ['Your belt', 'Every question you seal moves your belt. A question that is fast once shows on the bar as a half mark. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The black belt is a test.'],
         ['The streak', 'Three right in a row and your points count 1.5 times, then 2, then 3. It carries from round to round. A rushed wrong answer drops it to nothing.'],
-        ['A wrong answer', 'Break it down with every step right and you keep your streak, and the question comes back a few cards later worth double. Show me loses the streak, and the question comes back later as an ordinary card.'],
+        ['A wrong answer', 'Get every step of Break it down right and you keep your streak. The question comes back a few cards later worth double. Show me costs the streak. The question comes back later as an ordinary card.'],
         ['Coins and levels', 'Every right answer pays a coin to spend in the Shop. Right answers also add XP, and each new level puts more in the Shop.'],
         ['The black tick', 'The small black tick on the timer is your best time on that question.'],
       ],
@@ -180,8 +180,7 @@ D.copy = (function () {
       bonusLabel: 'Bonus',
       redemption: 'The ones you missed, with more time.',
       pb: 'Your best time',
-      firstStreak: m => 'Three right in a row, so points count ' + m + ' times. Miss one and Break it down keeps it; Show me loses it.',
-      carried: n => 'streak ' + n + ' carries on',
+      firstStreak: m => 'Three right in a row, so points count ' + m + ' times. Miss one and Break it down keeps the streak. Show me loses it.',
       firstTick: 'The small black tick is your best time on this question.',
       time: ms => secs(ms),
       firstStamp: "Fast. Get it fast again tomorrow and it's sealed.",
@@ -272,12 +271,12 @@ D.copy = (function () {
         (next ? ' ' + tableNameCap(next) + ' open ' + (days > 1 ? 'in ' + days + ' days.' : days === 1 ? 'tomorrow.' : 'next.') : ''),
       today: (rounds, fastNew, canSeal) => rounds
         ? 'Today: ' + count(rounds, 'round', 'rounds') + ', ' + fastNew + ' fast for the first time.' +
-          (canSeal ? ' ' + count(canSeal, 'question', 'questions') + ' can seal.' : '')
-        : (canSeal ? count(canSeal, 'question', 'questions') + ' can seal today.' : ''),
+          (canSeal ? ' ' + count(canSeal, 'question', 'questions') + (canSeal === 1 ? ' is' : ' are') + ' ready to seal.' : '')
+        : (canSeal ? count(canSeal, 'question', 'questions') + (canSeal === 1 ? ' is' : ' are') + ' ready to seal today.' : ''),
       nudge: (name, price, have) => name + ' is ' + count(price, 'coin', 'coins') + '. You have ' + num(have) + '.',
       xpline: (into, need) => num(into) + ' / ' + num(need) + ' XP',
       play: 'Play',
-      carryOn: 'Carry on',
+      carryOn: 'Keep going',
       grid: 'Grid', belt: 'Belt', shop: 'Shop', settings: 'Settings',
     },
 
