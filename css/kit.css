@@ -1,0 +1,76 @@
+/* Dojo 12 — the image kit (ART.md Assets, review 2026-09-24). The pictures in img/ are
+   painted by the icon's own pipeline in art/kit/: shapes ship as alpha masks and take
+   their colour from the paper's tokens, so one file is right on every paper. This file
+   only says how each one is laid; the screens place them. Every mask property is
+   written twice, -webkit- and plain, for iOS Safari. */
+
+/* ---- the seal (art/kit/out/seal/README.md). Every seal file holds its stone at 10/13
+   of the box, centred, so one file swapped for another in the same box lands in the
+   same place. Sealed is the ensō seal; the "12" is the game's badge and never sits on
+   a card, in the Grid or beside a question. ---- */
+.hanko, .hanko-sm, .hanko-pencil, .hanko-pencil-sm, .hanko-12, .hanko-12-sm {
+  display: inline-block; flex: none; width: 52px; height: 52px;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+}
+/* sealed, for boxes of 30 px and up */
+.hanko { background-color: var(--shu);
+  -webkit-mask-image: url(../img/seal-enso.webp); mask-image: url(../img/seal-enso.webp); }
+/* sealed, drawn for boxes of 20 to 30 px (the Grid, the end-of-round lists) */
+.hanko-sm { width: 26px; height: 26px; background-color: var(--shu);
+  -webkit-mask-image: url(../img/seal-enso-small.webp); mask-image: url(../img/seal-enso-small.webp); }
+/* the game's badge: the icon's "12" stamp, for the install and name screens only */
+.hanko-12 { background-color: var(--shu);
+  -webkit-mask-image: url(../img/seal.webp); mask-image: url(../img/seal.webp); }
+.hanko-12-sm { width: 26px; height: 26px; background-color: var(--shu);
+  -webkit-mask-image: url(../img/seal-small.webp); mask-image: url(../img/seal-small.webp); }
+/* halfway: the pencil square where the seal will go */
+.hanko-pencil { background-color: var(--ink2);
+  -webkit-mask-image: url(../img/seal-outline.webp); mask-image: url(../img/seal-outline.webp); }
+.hanko-pencil-sm { width: 26px; height: 26px; background-color: var(--ink2);
+  -webkit-mask-image: url(../img/seal-outline-small.webp); mask-image: url(../img/seal-outline-small.webp); }
+/* a cell or any box with position: relative: the mark fills the box */
+.cell-sealed::after, .cell-halfway::after { content: ""; position: absolute; inset: 0; transform: rotate(-3deg);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.cell-sealed::after { background-color: var(--shu);
+  -webkit-mask-image: url(../img/seal-enso-small.webp); mask-image: url(../img/seal-enso-small.webp); }
+.cell-halfway::after { background-color: var(--ink2);
+  -webkit-mask-image: url(../img/seal-outline-small.webp); mask-image: url(../img/seal-outline-small.webp); }
+/* a stamp rests a little askew, as a hand leaves it (the slam ends at -3deg) */
+.askew { transform: rotate(-3deg); }
+
+/* the level stamp: the blank stone, the number written on it in the paper's colour, which
+   is what a carved stone shows. One digit at 0.6 x the box, two at 0.47 x. */
+.hanko-level { position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 72px; height: 72px; transform: rotate(-3deg); }
+.hanko-level::before { content: ""; position: absolute; inset: 0; background-color: var(--shu);
+  -webkit-mask: url(../img/seal-blank.webp) center / 100% 100% no-repeat;
+  mask: url(../img/seal-blank.webp) center / 100% 100% no-repeat; }
+.hanko-level > b { position: relative; color: var(--paper);
+  font: 900 43px/1 "Zen Kaku Gothic New", "Hiragino Sans", sans-serif; font-variant-numeric: tabular-nums; }
+.hanko-level.two > b { font-size: 34px; letter-spacing: -0.02em; }
+
+/* ---- the coin: full colour, the kit's drawing wherever .coin is used; its hole is
+   see-through, so the paper shows in it ---- */
+.coin { width: 15px; height: 15px; border: 0; border-radius: 0; vertical-align: -2px;
+  background: url(../img/coin.webp) center / 100% 100% no-repeat; }
+.coin::after { display: none; }
+.coin.big { width: 22px; height: 22px; vertical-align: -4px; }
+
+/* ---- the belt (art/kit/out/belt/README.md): one tied belt in five dyes, 1024 x 340,
+   the rank bar drawn empty; D.kit.belt() lays 0 to 4 tape stripes on it. The belt's
+   colours are the real cloth and never change with the paper. ---- */
+.belt { position: relative; width: 100%; }
+.belt > img { display: block; width: 100%; height: auto; }
+.belt > .tape {
+  position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--h);
+  transform: translate(-50%, -50%) rotate(var(--a));
+  background: url(../img/tape.webp) center / 100% 100% no-repeat;
+}
+/* A new stripe, tied on (ART.md): the tape wraps on across the bar. Keep both keyframes,
+   or Chrome cannot blend inset() with none and the tape pops in halfway. */
+.belt > .tape.new { animation: tapeOn 420ms cubic-bezier(.3, .7, .4, 1) both; }
+@keyframes tapeOn { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) { .belt > .tape.new { animation: none; } }
