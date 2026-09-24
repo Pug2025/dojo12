@@ -2586,7 +2586,7 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   const news = D.scheduler.tableNews(seen);
   t("a table that opened and one that left focus are both named",
     news.opened.join() === "5" && news.left.join() === "2" &&
-    D.copy.summary.tables(news.opened, news.left) === "The fives, like 5 × 6, are open now. The twos come up less often now.",
+    D.copy.summary.tables(news.opened, news.left) === "The fives, like 5 × 6, are open now. The twos come up less often.",
     JSON.stringify(news));
   t("nothing new says nothing", D.scheduler.tableNews(D.scheduler.tablesNow()).opened.length === 0 &&
     D.scheduler.tableNews(D.scheduler.tablesNow()).left.length === 0);

@@ -188,10 +188,11 @@ D.main = (function () {
      said once (2026-09-24). A save from before this starts from what it has now. */
   function tableNewsLine() {
     const f = D.state.flags, now = D.scheduler.tablesNow();
-    if (!f.tablesSeen || !Array.isArray(f.tablesSeen.open)) { f.tablesSeen = now; return null; }
+    if (!f.tablesSeen || !Array.isArray(f.tablesSeen.open)) { f.tablesSeen = now; D.save.commit(); return null; }
     const news = D.scheduler.tableNews(f.tablesSeen);
     f.tablesSeen = now;
-    return news.opened.length || news.left.length ? D.copy.summary.tables(news.opened, news.left) : null;
+    if (news.opened.length || news.left.length) { D.save.commit(); return D.copy.summary.tables(news.opened, news.left); }
+    return null;
   }
 
   /* ---- home ---- */
@@ -233,8 +234,10 @@ D.main = (function () {
                            D.copy.home.toLevel(lvl.need - lvl.into, lvl.level + 1));
 
     const belt = beltPlate(info, [], true);
+    // No "You have sealed 0 questions.": the plate above already says what the first
+    // seal does, and a row of zeros on day one says nothing a kid needs (2026-09-24).
     const counts = u().el('div', { class: 'sumline' }, [
-      u().el('span', {}, D.copy.home.sealed(info.sealed)),
+      info.sealed ? u().el('span', {}, D.copy.home.sealed(info.sealed)) : u().el('span'),
       D.state.pbs.score ? u().el('span', { class: 'dim' }, D.copy.home.best(D.state.pbs.score)) : null,
     ]);
 

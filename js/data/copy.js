@@ -308,7 +308,7 @@ D.copy = (function () {
           const said = named.length > 1 ? named.slice(0, -1).join(' ') + ' and ' + named[named.length - 1] : named[0];
           out.push(cap(said) + ' are open now.');
         }
-        if (left.length) out.push(cap(andList(left.map(tableName))) + ' come up less often now.');
+        if (left.length) out.push(cap(andList(left.map(tableName))) + ' come up less often.');
         return out.join(' ');
       },
       again: 'Next round',
