@@ -117,7 +117,8 @@ D.roundone = (function () {
       const base = cfg.BASE_SCORE * D.facts.weight(c.id) * (c.last ? cfg.LAST_CARD_MULT : 1);
       const out = { kind: 'correct', card: c, rt: rt, marks: [], line: null,
                     points: Math.round(base * D.runstate.comboMult(r.combo)),
-                    stamped: !!rec.stamped && !rec.sealed, sealed: !!rec.sealed, fast: !!rec.wasFast };
+                    // Red only when the answer counted toward a seal, as in every round (review 2026-09-24).
+                    stamped: !!rec.stamped && !rec.sealed, sealed: !!rec.sealed, fast: !!rec.stamped };
       r.score += out.points;
       out.xp = D.xp.answerXp(c.id);
       r.xpGained += out.xp;

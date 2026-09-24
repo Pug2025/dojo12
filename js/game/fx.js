@@ -8,9 +8,8 @@ D.fx = (function () {
   const NS = 'http://www.w3.org/2000/svg';
 
   function pop(node) { D.u.pulse(node, 'pop', 180); }
-  // A miss is the crack alone (§13.3): the three splats read as "white dots for no
-  // apparent reason" (Jamie, 2026-09-14).
-  function crack(node) { D.u.pulse(node, 'cracked', 900); }
+  // A miss is no longer a crack across the card: the wrong answer is struck through
+  // where it was typed (ART.md, review 2026-09-24; run.js strikeWrong).
   function shake(node) { D.u.pulse(node, 'shake', 260); }
 
   /* Three sumi splats that bloom and settle. No red: a miss is ink. */
@@ -29,15 +28,31 @@ D.fx = (function () {
     }
   }
 
-  /* A number that lifts off the card and fades: points, coins. */
-  function float(anchor, text, tone) {
+  /* A number that lifts off the card and fades: points, coins. Given a target, it
+     flies there instead and lands on it, so the points are seen joining the score. */
+  function float(anchor, text, tone, target) {
     if (!anchor) return;
     const box = anchor.getBoundingClientRect();
+    const x0 = box.left + box.width / 2, y0 = box.top + 24;
     const n = D.u.el('div', { class: 'floatnum num', text: text, style: {
-      left: (box.left + box.width / 2) + 'px', top: (box.top + 24) + 'px',
+      left: x0 + 'px', top: y0 + 'px',
       transform: 'translateX(-50%)', color: tone === 'gold' ? 'var(--kin)' : 'var(--shu)',
     } });
     document.body.appendChild(n);
+    const to = target && target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    if (to && to.width && typeof n.animate === 'function') {
+      n.style.transition = 'none';
+      const dx = to.left + to.width / 2 - x0, dy = to.top + to.height / 2 - (y0 + 16);
+      const flight = n.animate([
+        { transform: 'translate(-50%, 0) scale(1)', opacity: 1 },
+        { transform: 'translate(-50%, -28px) scale(1)', opacity: 1, offset: 0.22 },
+        { transform: 'translate(calc(-50% + ' + dx + 'px), ' + dy + 'px) scale(0.62)', opacity: 0.85, offset: 0.9 },
+        { transform: 'translate(calc(-50% + ' + dx + 'px), ' + dy + 'px) scale(0.55)', opacity: 0 },
+      ], { duration: 560, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'forwards' });
+      flight.onfinish = () => n.remove();
+      setTimeout(() => n.remove(), 900);
+      return;
+    }
     requestAnimationFrame(() => {
       n.style.transform = 'translateX(-50%) translateY(-54px)';
       n.style.opacity = '0';
@@ -127,6 +142,31 @@ D.fx = (function () {
     return wrap;
   }
 
+  /* A sum set the way the card sets it: the numerals in the type, the operators drawn
+     at the numerals' weight (a 0.12 em stroke, the stem of a 900 numeral, centred on
+     the cap height). The type's own × and ÷ are hairlines between heavy numerals
+     (review 2026-09-24). The sign stays in the text, unseen, for VoiceOver. */
+  const OPS = {
+    '×': '<path d="M11 11L89 89M89 11L11 89"/>',
+    '÷': '<path d="M4 50H96"/><circle cx="50" cy="12" r="12"/><circle cx="50" cy="88" r="12"/>',
+    '+': '<path d="M4 50H96M50 4V96"/>',
+    '−': '<path d="M4 50H96"/>',
+  };
+  function sum(node, text) {
+    D.u.clear(node);
+    // Past six characters the sum is set smaller, so a Beyond card like (12 + 3) × 4
+    // stays inside the card and the ring.
+    const n = String(text).replace(/\s/g, '').length;
+    node.style.setProperty('--qs', n > 6 ? String(Math.max(0.6, 6 / n)) : '1');
+    String(text).split(/\s*([×÷+−])\s*/).forEach((part, i) => {
+      if (i % 2 === 0) { if (part) node.appendChild(document.createTextNode(part)); return; }
+      const op = D.u.el('span', { class: 'op' });
+      op.innerHTML = '<svg viewBox="0 0 100 100" aria-hidden="true">' + OPS[part] + '</svg>';
+      op.appendChild(D.u.el('span', { class: 'sr' }, ' ' + part + ' '));
+      node.appendChild(op);
+    });
+  }
+
   function toast(text, ms) {
     const old = document.querySelector('.toast');
     if (old) old.remove();
@@ -135,11 +175,13 @@ D.fx = (function () {
     setTimeout(() => n.remove(), ms || 2000);
   }
 
-  /* The seal: a square vermilion hanko with 12 cut into it, slammed onto
-     anything that just settled. */
+  /* The seal: the icon's own hanko, slammed onto a card that just settled, in the
+     card's corner on its pencil square, as the round's card does (seal kit). */
   function seal(anchor) {
     if (!anchor) return null;
-    const n = D.u.el('div', { class: 'seal big sealslam', text: '12' });
+    const n = D.u.el('div', { class: 'cardseal sealed press sealslam' }, [
+      D.u.el('span', { class: 'hanko-stack' }, [D.u.el('i', { class: 'hanko-pencil' }), D.u.el('i', { class: 'hanko' })]),
+    ]);
     anchor.appendChild(n);
     return n;
   }
@@ -242,5 +284,5 @@ D.fx = (function () {
     }
   }
 
-  return { pop, crack, shake, splats, float, floatCoin, glyph, toast, seal, enso, markGlyph, fitCard, watchFit };
+  return { pop, shake, splats, float, floatCoin, glyph, sum, toast, seal, enso, markGlyph, fitCard, watchFit };
 })();

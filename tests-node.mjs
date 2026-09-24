@@ -1840,7 +1840,7 @@ h2("approved lines");
     [D.copy.rescue.divSubtracted(56, 7), "That's 56 take away 7. You need how many sevens make 56."],
     [D.copy.rescue.showAnswer(m78, false), "7 × 8 = 56. Type it to keep going."],
     [D.copy.rescue.stepValue("7 × 10", 70), "7 × 10 is 70. Type 70 to keep going."],
-    [D.copy.run.firstStamp, "Fast. Get it fast again tomorrow and it's sealed."],
+    [D.copy.run.firstStamp, "Fast. Get it fast again on another day and it's sealed."],
     [D.copy.run.firstSeal, "Sealed. It comes back now and then to check."],
     [D.copy.run.lostSeal(m78), "7 × 8 lost its seal. Get it fast on another day to seal it again."],
     [D.copy.run.time(1400), "1.4 s"],
@@ -2021,7 +2021,7 @@ h2("copy transcript");
   const nextKey = D.scheduler.nextUnopened();
   if (focusKeys.length) say("home", D.copy.home.working(focusKeys.map(k => D.belt.tableSeals(k)), nextKey, nextKey ? D.scheduler.nextOpening() : null));
   lines.push("");
-  say("once", D.copy.run.firstStreak(1.5));
+  say("once", D.copy.run.firstStreak);
   say("once", D.copy.run.firstStamp);
   say("once", D.copy.run.firstSeal);
   say("once", D.copy.run.lostSeal(D.facts.mulId(7, 8)));
@@ -2735,6 +2735,232 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   const st = D.cfg.BELT_STEPS;
   t("each belt shows the seals it takes", D.belts.sealsFor("white") === 0 && D.belts.sealsFor("blue") === st[4] &&
     D.belts.sealsFor("purple") === st[9] && D.belts.sealsFor("brown") === st[14] && D.belts.sealsFor("black") === st[st.length - 1]);
+}
+
+/* ================= review 2026-09-24: round =================
+   The round screen's rules after the design and words review: a time is red only
+   when the answer counted toward a seal, a slip keeps the round at five cards and
+   its retry pays its coin, a quick guess says what it cost, and the teaching lines
+   say only what is true at the moment they show. */
+h2("review 2026-09-24: round");
+{
+  // A card with no timer, answered under the line, where nothing counted: grey.
+  newState();
+  const ids = [mid(6, 7), mid(3, 4), mid(3, 6), mid(3, 7), mid(3, 8)];
+  const rs = D.runstate.create(handPlan(ids, ["learning", "learning", "learning", "learning", "learning"]));
+  const p = rs.present();
+  const out = answer(rs, true, 900);
+  t("a fast answer that counted for nothing is not red (no timer, first answer)",
+    !p.ringMs && D.mastery.isFastRt(ids[0], 900) && out.kind === "correct" && !out.stamped && !out.sealed && out.fast === false,
+    JSON.stringify({ ring: p.ringMs, fast: out.fast, stamped: out.stamped }));
+}
+{
+  // The same question fast twice in one day: the first counts, the second does not.
+  newState();
+  const id = mid(4, 7);
+  seedFast(id);
+  const rs = D.runstate.create(handPlan([id, mid(2, 3), id, mid(2, 5), mid(2, 6)]));
+  const first = answer(rs, true, 800);
+  answer(rs, true, 800);
+  const second = answer(rs, true, 800);
+  t("a fast answer that adds a day is red", first.fast === true && first.stamped === true);
+  t("the same question fast again that day adds nothing and is not red",
+    second.kind === "correct" && second.fast === false && !second.stamped && D.mastery.isFastRt(id, 800),
+    JSON.stringify({ fast: second.fast, stamped: second.stamped }));
+}
+{
+  // A check-in on a sealed question counts toward the seal, so it is red.
+  newState();
+  const id = mid(3, 9);
+  seedAuto(id, ["2026-08-01", "2026-08-10"]);
+  const rs = D.runstate.create(handPlan([id, mid(2, 3), mid(2, 4), mid(2, 5), mid(2, 6)]));
+  const out = answer(rs, true, 800);
+  t("a check-in passed on a sealed question is red", out.fast === true && D.mastery.rec(id).days.length === 3,
+    JSON.stringify({ fast: out.fast, days: D.mastery.rec(id).days }));
+}
+{
+  // A comeback never earns a day, so its time is never red.
+  newState();
+  const ids = [mid(7, 8), mid(2, 3), mid(2, 4), mid(2, 5), mid(2, 6), mid(2, 7)];
+  ids.slice(1).forEach(id => seedFast(id));
+  const rs = D.runstate.create(handPlan(ids));
+  const miss = missCard(rs, 3000);
+  if (miss && miss.buttons) rescueThrough(rs, true);
+  let back = null, g = 0;
+  while (!rs.isDone() && g++ < 20) {
+    const cur = rs.present();
+    const out = answer(rs, true, 700);
+    if (cur.card.kind === "comeback") { back = out; break; }
+  }
+  t("a comeback answered fast is not red", !!back && back.kind === "correct" && back.fast === false,
+    JSON.stringify(back && { fast: back.fast, kind: back.kind }));
+}
+{
+  // Round 1: a quick right answer on a question never seen is not red.
+  newState();
+  const ro = D.roundone.create();
+  const cur = ro.present();
+  const out = ro.submit(D.facts.get(cur.card.id).ans, 700);
+  t("round 1 paints a quick first answer grey, since it counts for nothing",
+    out.kind === "correct" && out.fast === false && !out.stamped, JSON.stringify({ fast: out.fast }));
+}
+{
+  // A slip: the card waits, the round stays five cards, the retry pays its coin.
+  // No card after it is one a retry could have taken the place of, which is how
+  // the sixth dot appeared.
+  newState();
+  const ids = [mid(2, 3), mid(6, 9), mid(2, 4), mid(2, 5), mid(3, 5)];
+  ids.forEach(id => seedAuto(id));
+  const rs = D.runstate.create(handPlan(ids, ["warmup", "learning", "learning", "learning", "learning"]));
+  answer(rs, true, 800);
+  const coins0 = D.state.progress.coins, xp0 = D.state.progress.xp, combo0 = rs.raw.combo;
+  const slip = answer(rs, false, 900);
+  const waiting = rs.present();
+  t("a slip keeps the same card on the screen, in the same place",
+    !!slip && slip.slip === true && rs.raw.i === 1 && waiting.card.id === ids[1] && waiting.index === 1,
+    JSON.stringify({ i: rs.raw.i, id: waiting && waiting.card.id }));
+  t("a slip says to look again", slip.line === D.copy.run.lookAgain && slip.line === "Look again.");
+  t("a slip adds no card to a five-card round", rs.raw.cards.length === 5 && waiting.total === 5,
+    "cards " + rs.raw.cards.length);
+  const re = answer(rs, true, 1700);
+  t("a slip's retry pays its coin like any right answer",
+    re.kind === "correct" && re.coins === D.cfg.COINS_PER_CORRECT && D.state.progress.coins === coins0 + D.cfg.COINS_PER_CORRECT,
+    "coins " + re.coins);
+  t("a slip's retry takes no XP and no streak step", D.state.progress.xp === xp0 && rs.raw.combo === combo0);
+  t("a slip's retry is not red", re.fast === false);
+  const sum = playAll(rs, { correct: true, ms: 800 });
+  t("a round with a slip still deals five cards", rs.raw.cards.length === 5 && new Set(rs.raw.cards.map(c => c.slot)).size === 5,
+    "cards " + rs.raw.cards.length);
+  t("the round's coin count names the retry", sum.coinsAnswers === 5, "coins for answers " + sum.coinsAnswers);
+}
+{
+  // A slip on purpose, then the right answer, never pays more than answering.
+  const ids = [mid(2, 3), mid(6, 9), mid(2, 4), mid(2, 5), mid(3, 5)];
+  newState();
+  ids.forEach(id => seedAuto(id));
+  const honest = D.runstate.create(handPlan(ids));
+  const h0 = { coins: D.state.progress.coins, xp: D.state.progress.xp };
+  for (let k = 0; k < 5; k++) answer(honest, true, 700);
+  const hs = { score: honest.raw.score, coins: D.state.progress.coins - h0.coins, xp: D.state.progress.xp - h0.xp };
+  newState();
+  ids.forEach(id => seedAuto(id));
+  const cheat = D.runstate.create(handPlan(ids));
+  const c0 = { coins: D.state.progress.coins, xp: D.state.progress.xp };
+  for (let k = 0; k < 5; k++) {
+    const s = answer(cheat, false, 350);
+    if (s && s.slip) answer(cheat, true, 700);
+  }
+  const cs = { score: cheat.raw.score, coins: D.state.progress.coins - c0.coins, xp: D.state.progress.xp - c0.xp };
+  t("slipping on purpose never pays more points, coins or XP than answering",
+    cs.score < hs.score && cs.coins <= hs.coins && cs.xp < hs.xp, JSON.stringify({ cheat: cs, honest: hs }));
+}
+{
+  // The help button after a long wait sends nothing typed: never a slip.
+  newState();
+  const ids = [mid(2, 3), mid(6, 9), mid(2, 4), mid(2, 5), mid(3, 5)];
+  ids.forEach(id => seedAuto(id));
+  const rs = D.runstate.create(handPlan(ids));
+  const out = rs.submit("", 13000);
+  t("a blank answer on a settled question is a miss, not a slip",
+    !!out && out.kind === "miss" && !out.slip && out.buttons === true && rs.raw.cards.length === 5);
+}
+{
+  // Quick guesses: what they cost is said, and the second one is broken down.
+  newState();
+  const ids = [mid(3, 4), mid(3, 6), mid(3, 7), mid(3, 8), mid(4, 6), mid(4, 7), mid(4, 8), mid(4, 9)];
+  const rs = D.runstate.create(handPlan(ids));
+  rs.raw.combo = 4;
+  const g1 = answer(rs, false, 300);
+  t("a quick guess with a streak says the streak is gone",
+    g1.kind === "miss" && g1.line === "Too quick. That was a guess, so the streak is gone." && g1.streakLost === true && rs.raw.combo === 0,
+    JSON.stringify({ line: g1.line, combo: rs.raw.combo }));
+  t("after a quick guess the Break it down line never promises the streak",
+    g1.intro === D.copy.rescue.first && g1.introKey === "rescue");
+  rescueThrough(rs, true);
+  const g2 = answer(rs, false, 300);
+  t("the second quick guess in a round is broken down, and says so",
+    g2.line === "Too quick again. Break this one down." && g2.mandatory === true, JSON.stringify({ line: g2.line }));
+  rescueThrough(rs, true);
+  rs.raw.combo = 2;
+  const g3 = answer(rs, false, 300);
+  t("a later quick guess that costs a streak says so again",
+    g3.line === D.copy.run.quickGuess(true) && rs.raw.combo === 0, JSON.stringify({ line: g3.line }));
+  rescueThrough(rs, true);
+  const g4 = answer(rs, false, 300);
+  t("a later quick guess that costs nothing is silent", g4.kind === "miss" && !g4.line, JSON.stringify({ line: g4.line }));
+}
+{
+  newState();
+  const ids = [mid(3, 4), mid(3, 6), mid(3, 7), mid(3, 8), mid(4, 6)];
+  const rs = D.runstate.create(handPlan(ids));
+  const g = answer(rs, false, 300);
+  t("a first quick guess with no streak to lose says only that it was a guess",
+    g.line === "Too quick. That was a guess." && g.streakLost === false, JSON.stringify({ line: g.line }));
+}
+{
+  newState();
+  const ids = [mid(3, 4), mid(3, 6), mid(3, 7), mid(3, 8), mid(4, 6)];
+  const rs = D.runstate.create(handPlan(ids, ["warmup", "maintenance", "maintenance", "maintenance", "maintenance"]));
+  rs.raw.combo = 5;
+  const g = answer(rs, false, 300);
+  t("a quick guess on a warm-up keeps the streak and does not say it went",
+    rs.raw.combo === 5 && g.line === D.copy.run.quickGuess(false) && g.streakLost === false);
+}
+{
+  // A slower miss with a streak on the line: the line says every step right keeps it,
+  // and it does.
+  newState();
+  const ids = [mid(3, 4), mid(3, 6), mid(3, 7), mid(3, 8), mid(4, 6)];
+  const rs = D.runstate.create(handPlan(ids));
+  rs.raw.combo = 4;
+  const m = answer(rs, false, 3000);
+  t("a miss with a streak on the line says Break it down keeps it",
+    m.intro === "Break it down turns this into smaller questions. Get them all right and you keep your streak." &&
+    m.introKey === "rescueKeep" && !m.line, JSON.stringify({ intro: m.intro, line: m.line }));
+  rescueThrough(rs, true);
+  t("and every step right does keep it", rs.raw.combo === 4, "combo " + rs.raw.combo);
+  const m2 = answer(rs, false, 3000);
+  rs.raw.combo = 0;
+  const rs2 = D.runstate.create(handPlan(ids));
+  const m3 = answer(rs2, false, 3000);
+  t("a miss with no streak says only what Break it down is",
+    !!m2 && m3.intro === D.copy.rescue.first && m3.introKey === "rescue");
+}
+{
+  // The streak line is true at any streak: it names every step, and no button.
+  const line = D.copy.run.firstStreak;
+  t("the streak line names every step the rules have",
+    line === "Three in a row: points count 1.5 times. Six: 2 times. Nine: 3 times." &&
+    D.cfg.COMBO_STEP === 3 && [3, 6, 9].map(n => D.runstate.comboMult(n)).join() === "1.5,2,3" &&
+    D.runstate.comboMult(2) === 1);
+  t("the streak line names no button round 1 does not have", !/Break it down|Show me/.test(line));
+}
+{
+  // A comeback after a near miss pays single points, so its label must not say double.
+  newState();
+  const near = mid(7, 8);
+  const ids = [near, mid(2, 3), mid(2, 4), mid(2, 5), mid(2, 6), mid(2, 7)];
+  const rs = D.runstate.create(handPlan(ids));
+  rs.submit(63, 3000);                                   // 7 × 9: one group off
+  rescueThrough(rs, true);
+  const back = rs.raw.cards.find(c => c.kind === "comeback" && c.id === near);
+  newState();
+  const rs2 = D.runstate.create(handPlan(ids));
+  rs2.submit(wrongFor(D.facts.get(near)), 3000);
+  rescueThrough(rs2, true);
+  const back2 = rs2.raw.cards.find(c => c.kind === "comeback" && c.id === near);
+  t("a comeback after a near miss is marked single, one after any other miss double",
+    !!back && back.comebackMult === 1 && !!back2 && back2.comebackMult === D.cfg.COMEBACK_MULT,
+    JSON.stringify({ near: back && back.comebackMult, other: back2 && back2.comebackMult }));
+  t("the single-points comeback label says nothing about double",
+    D.copy.run.comebackPlain === "Comeback." && !/[Dd]ouble/.test(D.copy.run.comebackPlain));
+}
+{
+  // The new round lines keep the copy rules: no word that says the child was close.
+  const lines = [D.copy.run.quickGuess(true), D.copy.run.quickGuess(false), D.copy.run.quickAgain,
+                 D.copy.run.lookAgain, D.copy.rescue.firstKeep, D.copy.run.firstStreak, D.copy.run.firstStamp];
+  t("the round's new lines never say close, and never shout",
+    lines.every(l => typeof l === "string" && !/close|almost|nearly|!/i.test(l)), lines.join(" | "));
 }
 
 /* ================= results ================= */

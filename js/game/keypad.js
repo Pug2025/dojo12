@@ -4,7 +4,10 @@
    Beyond asks for things that are not one whole number, so the pad has three
    shapes: digits, digits with a remainder key, and a plain yes or no.
    When the card is not taking an answer the keys are really disabled, not just
-   dimmed, so a tap cannot look accepted and vanish (playthrough 2026-09-12). */
+   dimmed, so a tap cannot look accepted and vanish (playthrough 2026-09-12).
+   While a card shows its result the pad only holds: it looks exactly as it did and
+   a tap does nothing, not even press in. Greyed out for half a second after every
+   right answer, "disabled" was the loudest thing on the screen (review 2026-09-24). */
 "use strict";
 D.keypad = (function () {
   let active = null;          // the pad a physical keyboard types into
@@ -27,7 +30,7 @@ D.keypad = (function () {
     let value = '';
     let digits = o.digits || 0;
     let mode = o.mode || 'number';
-    let live = true;
+    let live = true, hold = false;
     const node = D.u.el('div', { class: 'padwrap' });
     const listeners = { change: o.onChange || (() => {}), submit: o.onSubmit || (() => {}) };
 
@@ -58,8 +61,10 @@ D.keypad = (function () {
       return b;
     }
     function paintLive() {
-      node.classList.toggle('off', !live);
-      node.querySelectorAll('button').forEach(b => { b.disabled = !live; });
+      const dead = !live && !hold;
+      node.classList.toggle('off', dead);
+      node.classList.toggle('hold', hold);
+      node.querySelectorAll('button').forEach(b => { b.disabled = dead; });
     }
 
     function draw() {
@@ -94,7 +99,9 @@ D.keypad = (function () {
       setDigits(n) { digits = n; },
       setMode(m) { if (m !== mode) { mode = m || 'number'; draw(); } },
       setAutoSubmit(on) { o.autoSubmit = on; },
-      setLive(on) { live = !!on; paintLive(); },
+      setLive(on) { live = !!on; hold = false; paintLive(); },
+      // Taking no answer for a moment, and looking no different for it.
+      setHold() { live = false; hold = true; paintLive(); },
       isLive() { return live; },
     };
     active = pad;
