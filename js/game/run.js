@@ -9,7 +9,7 @@ D.run = (function () {
   let rs = null, dom = null, enso = null, raf = 0, deadline = 0, t0 = 0,
       pad = null, lateTimer = 0, done = null, onLeave = null, expired = false, holdTimer = 0,
       teachQueue = [], spentCard = false, taughtThisRound = null,
-      pipMark = {}, multAtAsk = 1, askLine = false;
+      pipMark = {}, multAtAsk = 1, askLine = false, slotCount = 0, lastTyped = '';
 
   function start(root, opts) {
     const o = opts || {};
@@ -43,9 +43,14 @@ D.run = (function () {
 
     dom.label = u().el('div', { class: 'cardlabel' }, '');
     dom.question = u().el('div', { class: 'question' }, '');
+    // The answer: each digit sits on its own short ink line right under the sum, in
+    // ink at the numerals' weight. A miss leaves what was typed on the card, struck
+    // through; after Show me the right answer sits beside it in pencil, to be inked
+    // over (review 2026-09-24).
+    dom.wrong = u().el('div', { class: 'wrong' });
     dom.typed = u().el('div', { class: 'typed' }, '');
     dom.slots = u().el('div', { class: 'slots' });
-    dom.answer = u().el('div', { class: 'answer' }, [dom.typed, dom.slots]);
+    dom.answer = u().el('div', { class: 'answer' }, [dom.wrong, dom.typed, dom.slots]);
     dom.seal = u().el('div', { class: 'cardseal' }, [u().el('i')]);
     dom.time = u().el('div', { class: 'cardtime' }, '');
     dom.card = u().el('div', { class: 'card' }, [dom.seal, dom.label, dom.question, dom.answer, dom.time]);
@@ -54,9 +59,9 @@ D.run = (function () {
     dom.buttons = u().el('div', { class: 'missbtns idle' });
     pad = D.keypad.build({
       autoSubmit: !!D.state.flags.autoSubmit,
-      onChange: v => { dom.typed.textContent = v; paintSlots(v.length); },
+      onChange: paintAnswer,
       onSubmit: onSubmit,
-      onEmpty: () => D.u.pulse(dom.slots, 'pop', 200),
+      onEmpty: () => D.u.pulse(dom.answer, 'pop', 200),
     });
     dom.pad = pad.node;
     root.appendChild(u().el('div', { class: 'screen fit' }, [
@@ -146,12 +151,37 @@ D.run = (function () {
     setTimeout(() => { setLine(''); teachNext(); }, ms);
     return 1300;
   }
-  function paintSlots(typedCount) {
-    Array.from(dom.slots.children).forEach((k, i) => k.classList.toggle('on', i < typedCount));
-  }
-  function setSlots(n) {
+  /* One box a digit, each on its own line. `hint` pencils in the digits to type (the
+     shown answer). With no boxes (a step, a decimal) the answer is free text over
+     one line. */
+  function setSlots(n, hint) {
+    slotCount = n;
     u().clear(dom.slots);
-    for (let i = 0; i < n; i++) dom.slots.appendChild(u().el('i'));
+    const digits = hint === undefined || hint === null ? '' : String(hint);
+    for (let i = 0; i < n; i++) dom.slots.appendChild(u().el('i', digits[i] ? { 'data-hint': digits[i] } : null));
+    dom.answer.classList.toggle('free', n === 0);
+    dom.typed.textContent = '';
+  }
+  function paintAnswer(v) {
+    const s = v || '';
+    if (!slotCount) { dom.typed.textContent = s; return; }
+    const want = Math.max(slotCount, s.length);
+    while (dom.slots.children.length < want) dom.slots.appendChild(u().el('i', { class: 'extra' }));
+    while (dom.slots.children.length > want) dom.slots.lastChild.remove();
+    Array.from(dom.slots.children).forEach((b, i) => { b.textContent = s[i] || ''; b.classList.toggle('on', !!s[i]); });
+  }
+  // A miss leaves the typed answer on the card and one dry stroke goes through it,
+  // in ink (ART.md: failure is black, never red).
+  function strikeWrong(v) {
+    u().clear(dom.wrong);
+    if (!v) return;
+    dom.wrong.appendChild(u().el('span', { class: 'digits' }, v));
+    dom.wrong.appendChild(u().el('i', { class: 'strike' }));
+    dom.answer.classList.add('missed');
+  }
+  function clearWrong() {
+    u().clear(dom.wrong);
+    dom.answer.classList.remove('missed', 'reveal');
   }
   function paintTop(scoreDelay) {
     const r = rs.raw;
@@ -198,9 +228,10 @@ D.run = (function () {
     u().clear(dom.buttons);
     setLine('');
     clearStepPrompt();
+    clearWrong();
+    lastTyped = '';
     pad.clear();
     pad.setLive(true);
-    dom.typed.textContent = '';
     paintTop();
     multAtAsk = rs.comboMult();
 
@@ -232,9 +263,12 @@ D.run = (function () {
       lateTimer = setTimeout(offerHelp, D.cfg.RESCUE_BUTTON_MS);
     }
   }
+  // A sum is set with its operators drawn at the numerals' weight; a question in
+  // words (some Beyond cards) is set as words.
   function setQuestion(text) {
-    dom.question.textContent = text;
-    dom.question.classList.toggle('words', /[a-z]{2,}/i.test(text));
+    const words = /[a-z]{2,}/i.test(text);
+    dom.question.classList.toggle('words', words);
+    if (words) dom.question.textContent = text; else D.fx.sum(dom.question, text);
   }
   /* The seal: nothing, an outline once the question has been fast, stamped once
      it has been fast on two days. The outline is red when a fast answer now would
@@ -289,6 +323,7 @@ D.run = (function () {
       if (out && out.kind === 'overtime') return onOvertime();
       if (!out) return;
       stopRing();
+      lastTyped = '';
       handle(out);
     }, D.cfg.RING_GRACE_MS);
   }
@@ -308,9 +343,11 @@ D.run = (function () {
     const rt = Math.round(performance.now() - t0);
     // The ring stops where the answer landed and stays on the card with its result.
     cancelAnimationFrame(raf);
+    lastTyped = v;
     const out = rs.submit(v, rt);
     if (out && out.slip) return onSlip(out, v, wasExpired);
     clearTimeout(lateTimer);
+    if (out && out.kind === 'correct') paintAnswer(v);   // the answer stays on its line
     handle(out);
   }
 
@@ -318,10 +355,10 @@ D.run = (function () {
      answer again with its clock still running, and it says so. In silence the child
      thought the keys had not registered (review 2026-09-24). */
   function onSlip(out, typed, wasExpired) {
-    dom.typed.textContent = typed;
+    paintAnswer(typed);
     D.fx.shake(dom.answer);
     D.audio.key();
-    setTimeout(() => { if (!pad.value() && dom.typed.textContent === typed) dom.typed.textContent = ''; }, 240);
+    setTimeout(() => { if (!pad.value()) paintAnswer(''); }, 240);
     setLine(out.line, true);
     saveNow();
     if (enso && !wasExpired) runRing();
@@ -330,7 +367,9 @@ D.run = (function () {
 
   function handle(out) {
     if (!out) return;
-    pad.setLive(false);
+    // A result holds the pad quietly; only a miss kills it, because then the two
+    // buttons are the only way on (§13.2 #10).
+    if (out.kind === 'miss') pad.setLive(false); else pad.setHold();
     clearTimeout(lateTimer);
     dom.buttons.classList.add('idle');
     u().clear(dom.buttons);
@@ -346,7 +385,7 @@ D.run = (function () {
       return;
     }
     if (out.kind === 'miss') {
-      D.fx.crack(dom.card);
+      strikeWrong(lastTyped);
       D.audio.miss();
       if (out.lostSeal) liftSeal(out);
       if (out.silent) { commitAnd(out, 520); return; }
@@ -377,12 +416,13 @@ D.run = (function () {
     // Coins are seen arriving, in the shape they have on Home (§13.3).
     if (out.coins) D.fx.floatCoin(dom.card, out.coins);
     if (out.marks.indexOf('bonus') >= 0) D.audio.bonus();
-    if (out.marks.indexOf('pb') >= 0) D.fx.toast(D.copy.run.pb, 1100);
     // How long it took, always, and red when it was fast: this is what "fast" means.
     // A card that came back spent prints no time: the ring was already empty.
     if (typeof out.rt === 'number' && !(out.card && out.card.slipRepair) && !spentCard) {
       dom.time.textContent = D.copy.run.time(out.rt);
       dom.time.className = 'cardtime' + (out.fast ? ' fast' : '');
+      // A best time is said beside the time itself. As a toast it sat on the keypad.
+      if (out.marks.indexOf('pb') >= 0) dom.time.appendChild(u().el('span', { class: 'pb' }, D.copy.run.pb));
     }
     // The seal as it now stands. A check-in on a sealed question adds a day without
     // sealing it again; painted from "stamped" alone, the outline went over the
@@ -460,6 +500,7 @@ D.run = (function () {
       e.preventDefault();
       // A tap that lands after this card was answered belongs to nobody.
       if (rs.raw.i !== at || rs.raw.phase !== 'card' || !pad.isLive()) return;
+      lastTyped = '';
       handle(rs.submit('', Math.round(performance.now() - t0)));
     });
     dom.buttons.appendChild(b);
@@ -470,6 +511,7 @@ D.run = (function () {
     const out = rs.chooseRescue();
     dom.buttons.classList.add('idle');
     if (!out) return;
+    stopRing();                               // the clock is over; the steps have the card
     saveNow();
     if (out.kind === 'reveal') return showReveal(out);
     const c = rs.raw.cards[rs.raw.i];
@@ -491,10 +533,11 @@ D.run = (function () {
   function showStep(step) {
     if (!step) return;
     dom.label.textContent = '';
-    dom.typed.textContent = '';
+    clearWrong();
+    setSlots(0);
+    delete dom.typed.dataset.hint;
     pad.clear();
     dom.forced = false;
-    u().clear(dom.slots);
     pad.setMode(Number.isInteger(step.answer) ? 'number' : 'decimal');
     pad.setDigits(0);
     setStepPrompt(step.prompt);
@@ -519,7 +562,6 @@ D.run = (function () {
     const out = dom.forced ? rs.stepForced(v) : rs.stepSubmit(v);
     if (!out) return;
     pad.clear();
-    dom.typed.textContent = '';
     if (out.kind === 'step') {
       dom.forced = false;
       setLine('');
@@ -530,12 +572,14 @@ D.run = (function () {
       dom.forced = true;
       setLine(out.line);
       D.fx.splats(dom.card, 1);
+      dom.typed.dataset.hint = String(out.step.answer);   // the value to type, in pencil
       pad.setMode(Number.isInteger(out.step.answer) ? 'number' : 'decimal');
       return setStepPrompt(out.step.prompt);
     }
     if (out.kind === 'rescued') {
       clearStepPrompt();
-      pad.setLive(false);
+      delete dom.typed.dataset.hint;
+      pad.setHold();
       setLine(out.line);
       if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points));
       paintTop();
@@ -544,27 +588,27 @@ D.run = (function () {
   }
   function showReveal(out) {
     if (!out) return;
+    stopRing();
     clearStepPrompt();
     pad.setLive(true);
     const c = rs.raw.cards[rs.raw.i];
     dom.label.textContent = '';
     setQuestion(D.facts.display(c.id, c.flip));
     setLine(out.line);
-    dom.typed.textContent = '';
     pad.clear();
     pad.setMode(out.input || 'number');
     const n = (out.input && out.input !== 'number') ? 0 : D.u.digitsOf(out.answer);
-    setSlots(n);
+    setSlots(n, n ? out.answer : null);
+    dom.answer.classList.add('reveal');
     pad.setDigits(n);
   }
   function onReveal(v) {
     if (!pad.isLive()) return;
     const out = rs.typedAnswer(v);
-    pad.clear();
-    dom.typed.textContent = '';
     if (!out) return;
-    if (out.again) { D.fx.splats(dom.card, 1); return; }
-    pad.setLive(false);
+    if (out.again) { pad.clear(); D.fx.splats(dom.card, 1); return; }
+    paintAnswer(v);                           // inked over the pencil, and it stays
+    pad.setHold();
     setLine('');
     commitAnd(out, 260);
   }

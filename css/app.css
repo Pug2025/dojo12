@@ -160,11 +160,27 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 [data-combo="ink"] .mult { background: var(--ink); }
 [data-combo="round"] .mult { border-radius: 50%; padding: 5px 6px; }
 [data-combo="gold"] .mult { background: var(--kin); color: var(--ink); }
-.pips { display: flex; gap: 3px; flex-wrap: nowrap; justify-content: center; padding: 2px 0; }
-.pips > i { width: 6px; height: 6px; background: var(--paper2); border: 1px solid var(--rule); }
-.pips > i.done { background: var(--ink); border-color: var(--ink); }
-.pips > i.now { background: var(--paper); border: 1.5px solid var(--ink); transform: scale(1.35); }
-.pips > i.miss { background: var(--paper); border: 1.5px solid var(--ink); }
+/* One brush dot a card (review 2026-09-24): faint for the cards to come, an open ink
+   ring for the card on the screen, ink once answered, red when the answer counted
+   toward a seal, and a thin grey ring for a card that was missed. Masks take their
+   colour from the paper's tokens, so every paper recolours them. */
+.pips { display: flex; gap: 9px; flex-wrap: nowrap; justify-content: center; align-items: center; height: 17px; }
+.pips > i {
+  display: block; flex: none; width: 7px; height: 7px; background-color: var(--rule);
+  -webkit-mask: url(../img/dot.webp) center / contain no-repeat; mask: url(../img/dot.webp) center / contain no-repeat;
+}
+.pips > i.done, .pips > i.fast { width: 13px; height: 13px; background-color: var(--ink); }
+.pips > i.fast { background-color: var(--shu); }
+.pips > i.now, .pips > i.miss {
+  width: 16px; height: 16px; background-color: var(--ink);
+  -webkit-mask-image: url(../img/ring.webp); mask-image: url(../img/ring.webp);
+}
+.pips > i.miss { width: 13px; height: 13px; background-color: var(--ink2); }
+/* The black belt test has twenty-four cards to a row. */
+.pips.many { gap: 4px; }
+.pips.many > i { width: 5px; height: 5px; }
+.pips.many > i.done, .pips.many > i.fast, .pips.many > i.miss { width: 9px; height: 9px; }
+.pips.many > i.now { width: 11px; height: 11px; }
 
 .cardwrap { flex: 1 1 0px; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
 .card {
@@ -181,12 +197,49 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 [data-skin="hemp"] .card { background-image: linear-gradient(45deg, var(--grainB) 1px, transparent 1px), linear-gradient(-45deg, var(--grainB) 1px, transparent 1px); background-size: 18px 18px; }
 [data-skin="gilt"] .card { box-shadow: 2px 2px 0 var(--ink), inset 0 0 0 3px var(--kin); }
 .cardlabel { font-size: 13px; color: var(--ink2); min-height: 16px; }
-.question { font-size: clamp(28px, calc(var(--cs, 320px) * 0.2), 64px); font-weight: 900; letter-spacing: -1px; }
-.question.words { font-size: clamp(15px, calc(var(--cs, 320px) * 0.085), 30px); line-height: 1.25; text-align: center; padding: 0 18px; letter-spacing: 0; }
-.typed { font-size: clamp(22px, calc(var(--cs, 320px) * 0.13), 44px); font-weight: 900; min-height: 1.2em; color: var(--shu); }
+.question { font-size: calc(clamp(28px, calc(var(--cs, 320px) * 0.2), 64px) * var(--qs, 1)); font-weight: 900; letter-spacing: -1px; line-height: 1.1; white-space: nowrap; }
+.question.words { font-size: clamp(15px, calc(var(--cs, 320px) * 0.085), 30px); line-height: 1.25; text-align: center; padding: 0 18px; letter-spacing: 0; white-space: normal; }
+/* The operators, drawn at the numerals' weight: 0.46 em square, a 0.12 em stroke
+   (the stem of a 900 numeral), centred 0.35 em above the baseline (the numerals'
+   cap height is 0.70 em). */
+.question .op { display: inline-block; position: relative; width: 0.46em; height: 0.46em; margin: 0 0.24em; vertical-align: 0.12em; }
+.question .op svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.question .op path { fill: none; stroke: currentColor; stroke-width: 26; }
+.question .op circle { fill: currentColor; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.typed { font-size: clamp(22px, calc(var(--cs, 320px) * 0.13), 44px); font-weight: 900; min-height: 1.2em; color: var(--ink); }
 .slots { display: flex; gap: 8px; height: 14px; align-items: flex-end; }
 .slots > i { width: 26px; height: 3px; background: var(--rule); }
 .slots > i.on { background: var(--ink); }
+/* The answer on a round card: the digits in ink at the numerals' weight, set together
+   on one short ink line right under the sum. The line is as long as the answer, so it
+   still shows how many digits to type (review 2026-09-24). */
+.answer { display: flex; align-items: flex-end; justify-content: center; gap: 0.42em;
+  font-size: clamp(22px, calc(var(--cs, 320px) * 0.13), 44px); font-weight: 900; line-height: 1.12; }
+.answer .slots { height: auto; gap: 0; align-items: flex-end; padding: 0 0.12em; border-bottom: 0.085em solid var(--ink); }
+.answer .slots > i {
+  display: block; width: 0.56em; height: 1.12em; background: none; text-align: center; font-style: normal; color: var(--ink);
+}
+.answer .slots > i.on { background: none; }
+/* The shown answer in pencil, inked over digit by digit as it is typed. */
+.answer .slots > i[data-hint]:not(.on)::before, .answer .typed[data-hint]:empty::before {
+  content: attr(data-hint); color: var(--ink2); opacity: 0.45;
+}
+.answer .typed { display: none; min-height: 0; }
+.answer.free .slots { display: none; }
+.answer.free .typed { display: block; min-width: 1.3em; height: 1.12em; padding: 0 0.1em; text-align: center; border-bottom: 0.085em solid var(--ink); }
+/* A miss: what was typed stays, and one dry stroke goes through it in 90 ms. */
+.answer .wrong { display: none; position: relative; height: 1.12em; color: var(--ink2); }
+.answer.missed .wrong { display: block; }
+.answer.missed .slots, .answer.missed .typed { display: none; }
+.answer.missed.reveal .slots { display: flex; }
+.answer.missed.reveal.free .typed { display: block; }
+.answer .wrong .strike {
+  position: absolute; left: -0.22em; right: -0.22em; top: 0.47em; height: 0.36em; background-color: var(--ink);
+  -webkit-mask: url(../img/strike.webp) center / 100% 100% no-repeat; mask: url(../img/strike.webp) center / 100% 100% no-repeat;
+  animation: strike 90ms linear both;
+}
+@keyframes strike { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 .stepline { font-size: 17px; font-weight: 700; text-align: center; padding: 0 14px; }
 
 
@@ -210,7 +263,6 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 
 /* ---- keypad ---- */
 .padwrap { display: flex; flex-direction: column; gap: 7px; }
-.padwrap.off { opacity: 0.45; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .keyrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .keyrow.big { grid-template-columns: repeat(2, 1fr); }
@@ -269,11 +321,6 @@ table.grid th:first-child { white-space: nowrap; }
 /* ---- effects ---- */
 @keyframes pop { 0% { transform: scale(1); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
 .pop { animation: pop 140ms ease-out; }
-@keyframes crackline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.card.cracked::after {
-  content: ""; position: absolute; left: 6%; right: 6%; top: 52%; height: 2px; background: var(--ink);
-  transform-origin: left centre; animation: crackline 90ms linear forwards, fade 700ms 200ms ease forwards;
-}
 @keyframes splat { 0% { transform: scale(0.2); opacity: 0.9; } 60% { transform: scale(1.1); opacity: 0.75; } 100% { transform: scale(1); opacity: 0; } }
 .splat { position: fixed; border-radius: 50%; background: var(--ink); pointer-events: none; z-index: 40; animation: splat 320ms ease-out forwards; }
 @keyframes fade { to { opacity: 0; } }
@@ -293,7 +340,7 @@ table.grid th:first-child { white-space: nowrap; }
 .shot { color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card.cracked::after, .splat { animation: none; }
+  .splat, .answer .wrong .strike { animation: none; }
   .enso .arc { transition: none; }
 }
 
@@ -322,8 +369,15 @@ table.grid th:first-child { white-space: nowrap; }
 @keyframes lift { 0% { transform: rotate(-4deg) translateY(0); opacity: 1; } 100% { transform: rotate(8deg) translateY(-14px); opacity: 0.35; } }
 .cardtime { font-size: 15px; font-weight: 700; color: var(--ink2); min-height: 20px; }
 .cardtime.fast { color: var(--shu); }
+.cardtime .pb { color: var(--ink2); font-size: 13px; font-weight: 500; margin-left: 8px; }
 .key:disabled { cursor: default; }
-.padwrap.off .key { box-shadow: none; transform: none; }
+/* While the card shows its result the keys stay exactly as they are and a tap does
+   not even press in. At a miss the pad is dead and says so calmly: the keys lie flat
+   on the paper, no offset, the digits in pencil, so the two buttons are the only
+   raised, inked thing left (§13.2 #10). */
+.padwrap.hold .key:active { transform: none; box-shadow: 2px 2px 0 var(--ink); }
+.padwrap.off .key { box-shadow: none; transform: none; background: transparent; border-color: var(--rule); color: var(--ink2); }
+.padwrap.off .key.go { background: transparent; color: var(--ink2); }
 .shopitem .right.ask { color: var(--shu); font-weight: 700; }
 .howto { display: flex; flex-direction: column; gap: 16px; }
 .howrow { display: flex; gap: 12px; align-items: flex-start; }

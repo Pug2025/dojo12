@@ -189,7 +189,8 @@ D.copy = (function () {
       pb: 'Your best time',
       // Every step at once, so the line is true at whatever streak it shows (review 2026-09-24).
       firstStreak: 'Three in a row: points count 1.5 times. Six: 2 times. Nine: 3 times.',
-      firstTick: 'The small black tick is your best time on this question.',
+      // No colour named: on the Night and Charcoal papers the tick is drawn in light ink.
+      firstTick: 'The small tick is your best time on this question.',
       time: ms => secs(ms),
       firstStamp: "Fast. Get it fast again on another day and it's sealed.",
       firstSeal: 'Sealed. It comes back now and then to check.',

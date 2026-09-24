@@ -8,9 +8,8 @@ D.fx = (function () {
   const NS = 'http://www.w3.org/2000/svg';
 
   function pop(node) { D.u.pulse(node, 'pop', 180); }
-  // A miss is the crack alone (§13.3): the three splats read as "white dots for no
-  // apparent reason" (Jamie, 2026-09-14).
-  function crack(node) { D.u.pulse(node, 'cracked', 900); }
+  // A miss is no longer a crack across the card: the wrong answer is struck through
+  // where it was typed (ART.md, review 2026-09-24; run.js strikeWrong).
   function shake(node) { D.u.pulse(node, 'shake', 260); }
 
   /* Three sumi splats that bloom and settle. No red: a miss is ink. */
@@ -103,6 +102,31 @@ D.fx = (function () {
     }
     wrap.appendChild(svg);
     return wrap;
+  }
+
+  /* A sum set the way the card sets it: the numerals in the type, the operators drawn
+     at the numerals' weight (a 0.12 em stroke, the stem of a 900 numeral, centred on
+     the cap height). The type's own × and ÷ are hairlines between heavy numerals
+     (review 2026-09-24). The sign stays in the text, unseen, for VoiceOver. */
+  const OPS = {
+    '×': '<path d="M11 11L89 89M89 11L11 89"/>',
+    '÷': '<path d="M4 50H96"/><circle cx="50" cy="12" r="12"/><circle cx="50" cy="88" r="12"/>',
+    '+': '<path d="M4 50H96M50 4V96"/>',
+    '−': '<path d="M4 50H96"/>',
+  };
+  function sum(node, text) {
+    D.u.clear(node);
+    // Past six characters the sum is set smaller, so a Beyond card like (12 + 3) × 4
+    // stays inside the card and the ring.
+    const n = String(text).replace(/\s/g, '').length;
+    node.style.setProperty('--qs', n > 6 ? String(Math.max(0.6, 6 / n)) : '1');
+    String(text).split(/\s*([×÷+−])\s*/).forEach((part, i) => {
+      if (i % 2 === 0) { if (part) node.appendChild(document.createTextNode(part)); return; }
+      const op = D.u.el('span', { class: 'op' });
+      op.innerHTML = '<svg viewBox="0 0 100 100" aria-hidden="true">' + OPS[part] + '</svg>';
+      op.appendChild(D.u.el('span', { class: 'sr' }, ' ' + part + ' '));
+      node.appendChild(op);
+    });
   }
 
   function toast(text, ms) {
@@ -220,5 +244,5 @@ D.fx = (function () {
     }
   }
 
-  return { pop, crack, shake, splats, float, floatCoin, glyph, toast, seal, enso, markGlyph, fitCard, watchFit };
+  return { pop, shake, splats, float, floatCoin, glyph, sum, toast, seal, enso, markGlyph, fitCard, watchFit };
 })();

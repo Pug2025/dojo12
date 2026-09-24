@@ -93,9 +93,54 @@ D.audio = (function () {
     tone(SCALE[i] * v.mult, v.len, v.wave, v.vol);
   }
   function miss() { sweep(180, 70, 0.19, 'square', 0.11); }
-  // A dot filling is a stamp on paper; both dots is the seal coming down.
-  function stamp() { tone(1046.5, 0.05, 'square', 0.07); tone(523.25, 0.09, 'triangle', 0.10, 0.03); }
-  function thump() { tone(196, 0.14, 'triangle', 0.16); tone(98, 0.22, 'sine', 0.12, 0.02); tone(880, 0.18, 'triangle', 0.10, 0.06); }
+
+  /* Paper sounds are noise, not notes: a burst of filtered noise shaped like the
+     thing that made it. The seal was three beeps (review 2026-09-24). */
+  let noiseBuf = null;
+  function noise(c) {
+    if (noiseBuf && noiseBuf.sampleRate === c.sampleRate) return noiseBuf;
+    const n = Math.round(c.sampleRate * 0.3);
+    noiseBuf = c.createBuffer(1, n, c.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    return noiseBuf;
+  }
+  // One layer: noise through a filter, a fast attack and an exponential fall.
+  function burst(c, t0, type, from, to, q, vol, dur) {
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = noise(c);
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(from, t0);
+    f.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t0); src.stop(t0 + dur + 0.02);
+  }
+  // The seal coming down on paper: a damped thud with a dry slap on top. The thud
+  // starts with some knock between 400 and 900 Hz, because a phone's speaker plays
+  // almost nothing below 300 and a pure low thud was nearly silent on one.
+  function thump() {
+    if (!enabled()) return;
+    const c = ensure();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume();
+    const t0 = c.currentTime + 0.005;
+    burst(c, t0, 'lowpass', 950, 150, 1.0, 1.1, 0.2);
+    burst(c, t0, 'bandpass', 1400, 800, 1.0, 0.24, 0.06);
+    tone(70, 0.11, 'sine', 0.2, 0.005);
+  }
+  // A question fast once: a light pencil-and-paper tap, much quieter than the seal.
+  function stamp() {
+    if (!enabled()) return;
+    const c = ensure();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume();
+    const t0 = c.currentTime + 0.005;
+    burst(c, t0, 'bandpass', 2600, 1800, 1.2, 0.12, 0.045);
+    burst(c, t0, 'lowpass', 500, 200, 0.7, 0.18, 0.06);
+  }
   function gold() { thump(); }
   function bonus() { tone(659.25, 0.09, 'triangle', 0.14); tone(987.77, 0.09, 'triangle', 0.14, 0.08); tone(1318.51, 0.2, 'triangle', 0.13, 0.16); }
   function lastCard() { tone(392, 0.09, 'triangle', 0.12); tone(523.25, 0.16, 'triangle', 0.13, 0.08); }
