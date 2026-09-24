@@ -56,7 +56,7 @@ D.recap = (function () {
     ok.addEventListener('click', () => { markShown(); if (onOk) onOk(); });
     return D.u.el('div', { class: 'plate recap' }, [
       D.u.el('div', { class: 't17', style: { fontWeight: '700' } }, D.copy.recap.title),
-    ].concat(list.slice(0, 3).map(line => D.u.el('div', { class: 't15' }, line)), [ok]));
+    ].concat(list.slice(0, 3).map(line => D.u.el('div', { class: 't15' }, line.replace(/ ([×÷]) /g, '\u00a0$1\u00a0'))), [ok]));
   }
 
   return { due, lines, mostImproved, plate, markShown };

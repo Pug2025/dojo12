@@ -140,12 +140,12 @@ D.main = (function () {
     const lines = u().el('div', { class: 'lines' });
     const half = halfwayLine();
     if (sum.placementContinues) {
-      if (half) lines.appendChild(u().el('div', { class: 't15' }, half));
+      if (half) lines.appendChild(u().el('div', { class: 't15' }, keep(half)));
     } else {
       const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
-      lines.appendChild(u().el('div', { class: 't17' }, focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen));
+      lines.appendChild(u().el('div', { class: 't17' }, keep(focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen)));
       lines.appendChild(u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest));
-      if (half) lines.appendChild(u().el('div', { class: 't15' }, half));
+      if (half) lines.appendChild(u().el('div', { class: 't15' }, keep(half)));
       lines.appendChild(u().el('div', { class: 'row', style: { gap: '7px', alignItems: 'flex-start' } }, [
         u().el('i', { class: 'coin', style: { marginTop: '3px' } }),
         u().el('div', { class: 't15' }, D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins)),
@@ -168,6 +168,9 @@ D.main = (function () {
     ]));
     D.save.commitNow();
   }
+  // A question never breaks across two lines: "4 ×" at the end of one line and "4" on the
+  // next read as two things (2026-09-24). The spaces around its sign stop the break.
+  function keep(text) { return text ? String(text).replace(/ ([×÷+−=]) /g, '\u00a0$1\u00a0') : text; }
   // The score with its word beside it, not at the far edge (review 2026-09-24).
   function scoreRow(score, size) {
     return u().el('div', { class: 'row scorerow' }, [
@@ -262,8 +265,8 @@ D.main = (function () {
       u().el('div', { class: 'grow' }),
       today ? u().el('div', { class: 't15', style: { fontWeight: '700' } }, today) : null,
       belt, counts,
-      news ? u().el('div', { class: 't15' }, news) : null,
-      workLine ? u().el('div', { class: 't15' }, workLine) : null,
+      news ? u().el('div', { class: 't15' }, keep(news)) : null,
+      workLine ? u().el('div', { class: 't15' }, keep(workLine)) : null,
       u().el('div', { class: 'col', style: { gap: '4px' } }, [
         u().el('div', { class: 'row', style: { gap: '7px' } }, [
           u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
@@ -372,7 +375,7 @@ D.main = (function () {
     else if (sum.bestCombo >= D.cfg.COMBO_STEP) lead = D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo);
 
     const lines = u().el('div', { class: 'lines' });
-    const add = text => { if (text && text !== lead) lines.appendChild(u().el('div', { class: 't15' }, text)); };
+    const add = text => { if (text && text !== lead) lines.appendChild(u().el('div', { class: 't15' }, keep(text))); };
     if (sum.sealed.length && leadIsBelt) add(D.copy.summary.sealed(listed(sum.sealed)));
     add(halfwayLine());
     if (sum.unsealed.length) add(D.copy.summary.unsealed(listed(sum.unsealed)));
@@ -406,7 +409,7 @@ D.main = (function () {
 
     root.appendChild(u().el('div', { class: 'screen' }, [
       scoreRow(sum.score, 't64'),
-      lead ? u().el('div', { class: leadIsBelt ? 't30' : 't22' }, lead) : null,
+      lead ? u().el('div', { class: leadIsBelt ? 't30' : 't22' }, keep(lead)) : null,
       lines, beltBox, tail,
       u().el('div', { class: 'grow' }),
       again, back,
