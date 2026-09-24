@@ -29,15 +29,31 @@ D.fx = (function () {
     }
   }
 
-  /* A number that lifts off the card and fades: points, coins. */
-  function float(anchor, text, tone) {
+  /* A number that lifts off the card and fades: points, coins. Given a target, it
+     flies there instead and lands on it, so the points are seen joining the score. */
+  function float(anchor, text, tone, target) {
     if (!anchor) return;
     const box = anchor.getBoundingClientRect();
+    const x0 = box.left + box.width / 2, y0 = box.top + 24;
     const n = D.u.el('div', { class: 'floatnum num', text: text, style: {
-      left: (box.left + box.width / 2) + 'px', top: (box.top + 24) + 'px',
+      left: x0 + 'px', top: y0 + 'px',
       transform: 'translateX(-50%)', color: tone === 'gold' ? 'var(--kin)' : 'var(--shu)',
     } });
     document.body.appendChild(n);
+    const to = target && target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    if (to && to.width && typeof n.animate === 'function') {
+      n.style.transition = 'none';
+      const dx = to.left + to.width / 2 - x0, dy = to.top + to.height / 2 - (y0 + 16);
+      const flight = n.animate([
+        { transform: 'translate(-50%, 0) scale(1)', opacity: 1 },
+        { transform: 'translate(-50%, -28px) scale(1)', opacity: 1, offset: 0.22 },
+        { transform: 'translate(calc(-50% + ' + dx + 'px), ' + dy + 'px) scale(0.62)', opacity: 0.85, offset: 0.9 },
+        { transform: 'translate(calc(-50% + ' + dx + 'px), ' + dy + 'px) scale(0.55)', opacity: 0 },
+      ], { duration: 560, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'forwards' });
+      flight.onfinish = () => n.remove();
+      setTimeout(() => n.remove(), 900);
+      return;
+    }
     requestAnimationFrame(() => {
       n.style.transform = 'translateX(-50%) translateY(-54px)';
       n.style.opacity = '0';

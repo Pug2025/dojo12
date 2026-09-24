@@ -203,12 +203,18 @@ D.runstate = (function () {
       out.points = pay.points; out.marks = pay.marks; out.coins += pay.coins;
       if (pay.coins) { gainCoins(pay.coins); r.coinsBonus += pay.coins; }
 
-      if (!helped) {
-        out.xp = D.xp.answerXp(c.id);
-        gainXp(out.xp);
+      // A slip's retry is a right answer typed with no help, so it pays its coin like
+      // one: "one for every right answer" was false after a slip (review 2026-09-24). It
+      // still takes no XP, no streak step and no day, so a slip on purpose never pays
+      // more than answering.
+      if (!helped || c.slipRepair) {
         gainCoins(cfg.COINS_PER_CORRECT);
         r.coinsAnswers += cfg.COINS_PER_CORRECT;
         out.coins += cfg.COINS_PER_CORRECT;
+      }
+      if (!helped) {
+        out.xp = D.xp.answerXp(c.id);
+        gainXp(out.xp);
         if (!r.fastestFact || rt < r.fastestFact.ms) r.fastestFact = { id: c.id, ms: rt };
         // Beating this question's best time is marked, never paid. Paid, answering
         // slowly on purpose and shaving a little each time was worth doing. Any
@@ -225,7 +231,11 @@ D.runstate = (function () {
       // painted over the stamp (audit 2026-09-14).
       out.sealNow = M().sealState(c.id);
       // The seal: an outline on the first counted fast day, stamped on the second.
-      out.fast = !!rec.wasFast;
+      // The time is red only when this answer counted toward a seal. Judged by the
+      // line alone, times went red on cards where a fast answer counted for nothing (a
+      // second fast answer the same day, a card with no timer), and "Fast today" never
+      // matched the red times (review 2026-09-24).
+      out.fast = !!rec.stamped;
       if (rec.stamped && !rec.sealed) { out.stamped = true; r.fastNew.push(c.id); }
       if (rec.sealed) {
         out.sealed = true;
@@ -284,27 +294,26 @@ D.runstate = (function () {
       }
       // A slip on a retrieved fact is repaired by retrieval, not derivation.
       const st = M().status(c.id);
-      if (!r.slipUsed && !c.slipRepair && (st === 'fast' || st === 'auto') && !timedOut) {
+      // A tap on the help button after a long wait is not a slip: nothing was typed.
+      if (!r.slipUsed && !c.slipRepair && (st === 'fast' || st === 'auto') && !timedOut && given !== null) {
         r.slipUsed = true;
         out.slip = true;
+        out.line = D.copy.run.lookAgain;
         // A slip goes on the fact's record; only a second miss costs a day.
-        // The re-serve carries no bonus: a bonus card answered wrong has lost it
+        // The retry carries no bonus: a bonus card answered wrong has lost it
         // (exploit review 2026-09-10).
         M().record(c.id, { correct: false, rt: rt, day: r.day, slip: true });
-        const again = D.scheduler.card(c.id, c.kind);
-        again.flip = c.flip; again.slipRepair = true; again.last = c.last; again.bonus = false;
-        again.slot = r.i;
-        r.cards.splice(r.i + 1, 0, again);
-        // The re-serve takes a slot rather than lengthening the run, but never a
-        // comeback's: if nothing else can go, the run is one card longer
-        // (review 2026-09-10).
-        let drop = -1;
-        for (let j = r.i + 2; j < r.cards.length - 1; j++) if (replaceable(j, true)) { drop = j; break; }
-        if (drop >= 0) r.cards.splice(drop, 1);
-        for (let j = 0; j < r.cards.length; j++) r.cards[j].slot = j;
-        return advance(out);
+        // The card waits: the same card, in the same place, takes the answer again,
+        // and its clock keeps running. Dealt again as a card of its own, the retry took
+        // a slot, so the dots moved on for one question or a sixth dot appeared on a
+        // five-card round (review 2026-09-24).
+        c.slipRepair = true;
+        c.bonus = false;
+        out.next = present();
+        return out;
       }
       const fastWrong = !timedOut && rt < M().fastWrongMs(c.id);
+      const streakBefore = r.combo;
       if (fastWrong) {
         r.fastWrongs++;
         r.cardFastWrong = true;
@@ -322,18 +331,30 @@ D.runstate = (function () {
       // strictly the better tap (replay 2026-09-14).
       if (c.kind === 'warmup') { /* the combo holds */ }
       else if (fastWrong) { r.combo = 0; }
+      out.streakLost = fastWrong && streakBefore > 0 && r.combo === 0;
       r.cardMissed = true;
       const diag = D.diagnose.read(c.id, given === null ? null : Number(given), { timeout: timedOut });
       r.cardDiagnosis = diag;
       if (timedOut && !r.outOfTimeShown) { r.outOfTimeShown = true; out.line = D.copy.run.outOfTime; }
-      if (fastWrong && r.fastWrongs === 2) out.mandatory = true;
-      if (fastWrong && r.fastWrongs === 2) out.line = out.line || D.copy.run.slowDown;   // once a round
+      // A quick guess says what it cost every time it costs the streak, and the first
+      // one in a round always, so the second one's "again" is true. Silent, the streak
+      // went even when every step of Break it down was right, and the kid decided the
+      // game lies (review 2026-09-24). The second makes Break it down the only way on.
+      if (fastWrong && r.fastWrongs === 2) {
+        out.mandatory = true;
+        out.line = out.line || D.copy.run.quickAgain;
+      } else if (fastWrong && (r.fastWrongs === 1 || out.streakLost)) {
+        out.line = out.line || D.copy.run.quickGuess(out.streakLost);
+      }
       out.buttons = true;
       out.mandatory = out.mandatory || false;
-      // The line that explains what Break it down is; the screen shows it the
-      // first few times (§13.3).
+      // The line that explains what Break it down is; the screen shows it the first
+      // few times (§13.3). With a streak on the line it also says the streak is kept by
+      // getting every step right, and never after a guess, which has already cost it.
       D.state.flags.firstRescueShown = true;
-      out.intro = D.copy.rescue.first;
+      const keep = r.combo > 0 && !fastWrong;
+      out.intro = keep ? D.copy.rescue.firstKeep : D.copy.rescue.first;
+      out.introKey = keep ? 'rescueKeep' : 'rescue';
       r.phase = 'miss';
       queueRedemption(c.id);
       return out;

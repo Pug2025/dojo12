@@ -173,17 +173,25 @@ D.copy = (function () {
       lastCard: 'Last card. Double points.',
       outOfTime: 'Out of time.',
       overtime: 'Out of time. You can still answer.',
-      slowDown: 'Slow down. Look at it properly.',
+      // A wrong answer typed too fast to be anything but a guess. The streak part is
+      // said only when there was a streak to lose (review 2026-09-24).
+      quickGuess: lost => 'Too quick. That was a guess' + (lost ? ', so the streak is gone.' : '.'),
+      quickAgain: 'Too quick again. Break this one down.',
+      // A slip on a settled question: the digits come off and the card waits.
+      lookAgain: 'Look again.',
       comebackLabel: 'Comeback. Double points.',
+      // A comeback after a near miss or a guess pays single points, so it says nothing about double.
+      comebackPlain: 'Comeback.',
       comebackWin: 'Got it back.',
       bonus: 'Bonus card. Triple points.',
       bonusLabel: 'Bonus',
       redemption: 'The ones you missed, with more time.',
       pb: 'Your best time',
-      firstStreak: m => 'Three right in a row, so points count ' + m + ' times. Miss one and Break it down keeps the streak. Show me loses it.',
+      // Every step at once, so the line is true at whatever streak it shows (review 2026-09-24).
+      firstStreak: 'Three in a row: points count 1.5 times. Six: 2 times. Nine: 3 times.',
       firstTick: 'The small black tick is your best time on this question.',
       time: ms => secs(ms),
-      firstStamp: "Fast. Get it fast again tomorrow and it's sealed.",
+      firstStamp: "Fast. Get it fast again on another day and it's sealed.",
       firstSeal: 'Sealed. It comes back now and then to check.',
       lostSeal: id => factText(id, false) + ' lost its seal. Get it fast on another day to seal it again.',
     },
@@ -193,6 +201,9 @@ D.copy = (function () {
       button: 'Break it down',
       skip: 'Show me',
       first: 'Break it down turns this into smaller questions.',
+      // The same, when there is a streak on the line. Never after a quick guess, which has
+      // already cost it.
+      firstKeep: 'Break it down turns this into smaller questions. Get them all right and you keep your streak.',
       addedInstead: (a, b) => "That's " + a + ' plus ' + b + '. You need ' + word(a) + ' ' + plural(b) + '.',
       divSubtracted: (p, d) => "That's " + p + ' take away ' + d + '. You need how many ' + plural(d) + ' make ' + p + '.',
       stepValue: (question, value) => question + ' is ' + value + '. Type ' + value + ' to keep going.',
