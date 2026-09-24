@@ -114,9 +114,12 @@ D.xp = (function () {
       seen.add(x.id);
       out.push({ id: x.id, flip: !!x.flip });
     }
-    // Anything that got there some other way (a belt test), in its plain orientation.
+    // Anything that got there some other way (a belt test), in its plain orientation. A
+    // question that was sealed and lost it today also has today as its one day, and it
+    // did not get halfway: it fell back to it, and the summary says so.
     for (const id of Object.keys(D.state.facts)) {
       if (seen.has(id) || !shown(id) || !D.mastery.isHalfwayOn(id, d)) continue;
+      if (D.state.facts[id].doneOnce) continue;
       seen.add(id);
       out.push({ id: id, flip: false });
     }

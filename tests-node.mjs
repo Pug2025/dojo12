@@ -2520,6 +2520,20 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   t("got it back writes 10 × 8 when the card showed 10 × 8", said === "Got it back: 10 × 8.", said);
 }
 {
+  // A question sealed today and missed later today falls back to halfway with today as
+  // its one day. It did not get halfway today: it lost its seal, and the end of the round
+  // says that instead (caught in the day 2 screenshots, 2026-09-24).
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const id = mid(10, 10);
+  const r = seedFast(id); r.days = ["2026-09-07", D.u.gameDay()]; r.doneOnce = true;
+  D.mastery.dirty();
+  const out = D.mastery.record(id, { correct: false, rt: 3000, day: D.u.gameDay() });
+  t("a seal lost today is not listed as halfway today",
+    out.lostSeal === true && D.mastery.isHalfwayOn(id) && D.xp.halfwayToday().every(x => x.id !== id),
+    JSON.stringify(D.xp.halfwayToday()));
+}
+{
   // A table's total is its whole 22 from the start, so it does not jump when divide joins.
   setTime(2026, 9, 9, 16, 0);
   newState();
