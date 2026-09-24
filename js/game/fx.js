@@ -137,11 +137,13 @@ D.fx = (function () {
     setTimeout(() => n.remove(), ms || 2000);
   }
 
-  /* The seal: a square vermilion hanko with 12 cut into it, slammed onto
-     anything that just settled. */
+  /* The seal: the icon's own hanko, slammed onto a card that just settled, in the
+     card's corner on its pencil square, as the round's card does (seal kit). */
   function seal(anchor) {
     if (!anchor) return null;
-    const n = D.u.el('div', { class: 'seal big sealslam', text: '12' });
+    const n = D.u.el('div', { class: 'cardseal sealed press sealslam' }, [
+      D.u.el('span', { class: 'hanko-stack' }, [D.u.el('i', { class: 'hanko-pencil' }), D.u.el('i', { class: 'hanko' })]),
+    ]);
     anchor.appendChild(n);
     return n;
   }

@@ -121,7 +121,7 @@ D.cards = (function () {
         paintAnswer(typed);                    // the answer stays on its line
         D.fx.pop(dom.question);
         D.audio.correct(out.streak || 1);
-        if (out.sealed) { D.fx.seal(dom.card); D.audio.thump(); }
+        if (out.sealed) { D.fx.seal(dom.card); D.audio.thump(0.07); }
         if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points), null, dom.left);
         if (p) p.className = 'done';
       } else {

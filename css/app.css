@@ -325,7 +325,6 @@ table.grid th:first-child { white-space: nowrap; }
 .splat { position: fixed; border-radius: 50%; background: var(--ink); pointer-events: none; z-index: 40; animation: splat 320ms ease-out forwards; }
 @keyframes fade { to { opacity: 0; } }
 @keyframes slam { 0% { transform: scale(1.6) rotate(-6deg); opacity: 0; } 60% { transform: scale(0.96) rotate(-3deg); opacity: 1; } 100% { transform: scale(1) rotate(-3deg); opacity: 1; } }
-.sealslam { position: absolute; right: 9%; bottom: 9%; animation: slam 140ms ease-out; }
 .floatnum { position: fixed; font-weight: 900; font-size: 26px; z-index: 40; pointer-events: none;
   transition: transform 560ms ease-out, opacity 560ms ease-out; }
 .toast {
@@ -340,7 +339,7 @@ table.grid th:first-child { white-space: nowrap; }
 .shot { color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
-  .splat, .answer .wrong .strike { animation: none; }
+  .splat, .answer .wrong .strike, .cardseal.press.fast .hanko-pencil { animation: none; }
   .enso .arc { transition: none; }
 }
 
@@ -355,18 +354,39 @@ table.grid th:first-child { white-space: nowrap; }
 .swatch.sw-combo.v-gold { background: var(--kin); }
 .swatch.sw-sound { background: var(--paper2); }
 
-/* ---- the seal on a card (2026-09-14): an outline once a question has been fast,
-   stamped red once it has been fast on two days. Red outline: fast now seals it. ---- */
-.cardseal { position: absolute; top: 7%; right: 7%; pointer-events: none; }
-/* A brush circle, no text (§13.3): the box with 12 in it read as a number to type. */
-.cardseal > i { display: block; width: 28px; height: 28px; border-radius: 50%; transform: rotate(-4deg); visibility: hidden; }
-.cardseal.fast > i { visibility: visible; border: 2.5px solid var(--ink2); }
-.cardseal.fast.lit > i { border-color: var(--shu); border-width: 3px; }
-.cardseal.sealed > i { visibility: visible; background: var(--shu); border: 2.5px solid var(--shu);
-  box-shadow: inset 0 0 0 2.5px var(--shu), inset 0 0 0 4.5px var(--paper); }
-.cardseal.press > i { animation: slam 160ms ease-out; }
-.cardseal.lift > i { animation: lift 420ms ease-in forwards; }
-@keyframes lift { 0% { transform: rotate(-4deg) translateY(0); opacity: 1; } 100% { transform: rotate(8deg) translateY(-14px); opacity: 0.35; } }
+/* ---- the seal on a card (review 2026-09-24): the kit's hanko stack at the card's top
+   right, turned -3deg (art/kit/out/seal/README.md). Halfway: the pencil square where the
+   seal will go, in pencil, and in full ink when a fast answer now would seal it: never a
+   red border, red is only ever the seal itself. Sealed: the icon's own stamp on its
+   pencil square, slammed down with the thump. A lost seal lifts off and leaves the pencil
+   square; a halfway mark lost to a miss is rubbed out. Every seal file holds its stone at
+   10/13 of the box, so the stamp lands inside its square. ---- */
+.cardseal { position: absolute; top: 6%; right: 6%; pointer-events: none; }
+.cardseal .hanko-stack {
+  position: relative; display: block; transform: rotate(-3deg);
+  width: clamp(32px, calc(var(--cs, 330px) * 0.145), 48px); height: clamp(32px, calc(var(--cs, 330px) * 0.145), 48px);
+}
+.cardseal .hanko-stack > i {
+  position: absolute; inset: 0; visibility: hidden;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+}
+.cardseal .hanko-pencil { background-color: var(--ink2); -webkit-mask-image: url(../img/seal-outline.webp); mask-image: url(../img/seal-outline.webp); }
+.cardseal .hanko { background-color: var(--shu); -webkit-mask-image: url(../img/seal.webp); mask-image: url(../img/seal.webp); }
+.cardseal.fast .hanko-pencil, .cardseal.sealed .hanko-pencil, .cardseal.erase .hanko-pencil { visibility: visible; }
+.cardseal.sealed .hanko { visibility: visible; }
+.cardseal.fast.lit .hanko-pencil { background-color: var(--ink); }
+.cardseal.press.sealed .hanko { animation: hanko-slam 120ms ease-out both; }
+.cardseal.press.fast .hanko-pencil { animation: pencil-in 200ms ease-out both; }
+.cardseal.lift .hanko { animation: hanko-lift 460ms ease-in forwards; }
+.cardseal.erase .hanko-pencil { animation: pencil-out 380ms ease-in forwards; }
+/* The kit's slam for a seal inside the already turned stack: on the page it still goes
+   1.6x to 1x and -6deg to -3deg in 120 ms (ART.md), and comes to rest square in its frame. */
+@keyframes hanko-slam { 0% { transform: scale(1.6) rotate(-3deg); opacity: 0; }
+  60% { transform: scale(0.96) rotate(0deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes hanko-lift { 0% { transform: none; opacity: 1; } 100% { transform: translate(6px, -16px) rotate(8deg) scale(1.06); opacity: 0; } }
+@keyframes pencil-in { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+@keyframes pencil-out { to { opacity: 0; } }
 .cardtime { font-size: 15px; font-weight: 700; color: var(--ink2); min-height: 20px; }
 .cardtime.fast { color: var(--shu); }
 .cardtime .pb { color: var(--ink2); font-size: 13px; font-weight: 500; margin-left: 8px; }

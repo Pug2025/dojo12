@@ -121,15 +121,16 @@ D.audio = (function () {
   // The seal coming down on paper: a damped thud with a dry slap on top. The thud
   // starts with some knock between 400 and 900 Hz, because a phone's speaker plays
   // almost nothing below 300 and a pure low thud was nearly silent on one.
-  function thump() {
+  // `delay` (seconds) lets the sound land with the stamp rather than when it is lifted.
+  function thump(delay) {
     if (!enabled()) return;
     const c = ensure();
     if (!c) return;
     if (c.state === 'suspended') c.resume();
-    const t0 = c.currentTime + 0.005;
+    const d = 0.005 + (delay || 0), t0 = c.currentTime + d;
     burst(c, t0, 'lowpass', 950, 150, 1.0, 1.1, 0.2);
     burst(c, t0, 'bandpass', 1400, 800, 1.0, 0.24, 0.06);
-    tone(70, 0.11, 'sine', 0.2, 0.005);
+    tone(70, 0.11, 'sine', 0.2, d);
   }
   // A question fast once: a light pencil-and-paper tap, much quieter than the seal.
   function stamp() {

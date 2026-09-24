@@ -9,7 +9,7 @@ D.run = (function () {
   let rs = null, dom = null, enso = null, raf = 0, deadline = 0, t0 = 0,
       pad = null, lateTimer = 0, done = null, onLeave = null, expired = false, holdTimer = 0,
       teachQueue = [], spentCard = false, taughtThisRound = null,
-      pipMark = {}, multAtAsk = 1, askLine = false, slotCount = 0, lastTyped = '';
+      pipMark = {}, multAtAsk = 1, askLine = false, slotCount = 0, lastTyped = '', sealShown = 'none';
 
   function start(root, opts) {
     const o = opts || {};
@@ -51,7 +51,11 @@ D.run = (function () {
     dom.typed = u().el('div', { class: 'typed' }, '');
     dom.slots = u().el('div', { class: 'slots' });
     dom.answer = u().el('div', { class: 'answer' }, [dom.wrong, dom.typed, dom.slots]);
-    dom.seal = u().el('div', { class: 'cardseal' }, [u().el('i')]);
+    // The seal's corner: the pencil square underneath, the stamp on top once it comes,
+    // one box (the seal kit's hanko stack).
+    dom.seal = u().el('div', { class: 'cardseal' }, [
+      u().el('span', { class: 'hanko-stack' }, [u().el('i', { class: 'hanko-pencil' }), u().el('i', { class: 'hanko' })]),
+    ]);
     dom.time = u().el('div', { class: 'cardtime' }, '');
     dom.card = u().el('div', { class: 'card' }, [dom.seal, dom.label, dom.question, dom.answer, dom.time]);
     dom.wrap = u().el('div', { class: 'cardwrap' }, [dom.card]);
@@ -270,14 +274,22 @@ D.run = (function () {
     dom.question.classList.toggle('words', words);
     if (words) dom.question.textContent = text; else D.fx.sum(dom.question, text);
   }
-  /* The seal: nothing, an outline once the question has been fast, stamped once
-     it has been fast on two days. The outline is red when a fast answer now would
-     stamp it, which is the whole explanation of what this card is worth. */
+  /* The seal: nothing, a pencil square once the question is halfway (fast once),
+     the stamp once it has been fast on two days. The pencil is drawn in full ink when
+     a fast answer now would seal it, which is the whole explanation of what this card
+     is worth; never in red, which is only ever the seal (review 2026-09-24). */
   function paintSeal(card) {
     const state = D.mastery.sealState(card.id);
     const eligible = ['warmup', 'comeback', 'scout', 'redemption'].indexOf(card.kind) < 0;
     const lit = eligible && state === 'fast' && D.mastery.canCountToday(card.id, rs.raw.day);
     dom.seal.className = 'cardseal' + (state === 'none' ? '' : ' ' + state) + (lit ? ' lit' : '');
+    sealShown = state;
+  }
+  // A miss that takes a halfway mark away rubs the pencil square out. A lost seal
+  // lifts off instead (liftSeal) and leaves its pencil square.
+  function eraseSeal(card) {
+    if (sealShown === 'fast' && D.mastery.sealState(card.id) === 'none') dom.seal.className = 'cardseal erase';
+    sealShown = D.mastery.sealState(card.id);
   }
 
   function startRing(c) {
@@ -388,6 +400,7 @@ D.run = (function () {
       strikeWrong(lastTyped);
       D.audio.miss();
       if (out.lostSeal) liftSeal(out);
+      else if (out.card && out.card.id) eraseSeal(out.card);
       if (out.silent) { commitAnd(out, 520); return; }
       if (out.reveal) {                       // a placement round or a scout: the answer, then type it
         saveNow();
@@ -433,7 +446,9 @@ D.run = (function () {
     if (out.stamped || out.sealed) {
       const now = out.sealNow || (out.sealed ? 'sealed' : 'fast');
       dom.seal.className = 'cardseal ' + now + ' press';
-      if (now === 'sealed') { D.audio.thump(); wait = Math.max(wait, 1000); } else { D.audio.stamp(); wait = Math.max(wait, 700); }
+      sealShown = now;
+      // The thump lands with the stamp: the slam meets the paper 60 % into its 120 ms.
+      if (now === 'sealed') { D.audio.thump(0.07); wait = Math.max(wait, 1000); } else { D.audio.stamp(); wait = Math.max(wait, 700); }
       if (out.sealed && teach('seal', D.copy.run.firstSeal)) wait = Math.max(wait, 1500);
       else if (out.stamped && !out.sealed && now === 'fast' && teach('stamp', D.copy.run.firstStamp)) wait = Math.max(wait, 1500);
     }
@@ -448,6 +463,7 @@ D.run = (function () {
   /* A seal that comes off is seen coming off, and said the first few times. */
   function liftSeal(out) {
     dom.seal.className = 'cardseal sealed lift';
+    sealShown = 'fast';
     teach('lostSeal', D.copy.run.lostSeal(out.card.id));
   }
   // The round as it stands, written at once: closing the app must never undo a card.
