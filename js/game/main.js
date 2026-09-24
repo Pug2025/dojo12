@@ -379,8 +379,8 @@ D.main = (function () {
     // A question that lost its seal this round is not also listed as "got it back": under
     // "lost its seal" that read as the seal coming back, which takes another day. The card
     // said "Got it back." when it happened (2026-09-24).
-    const back = sum.gotBack.filter(id => sum.unsealed.indexOf(id) < 0);
-    if (back.length) add(D.copy.summary.gotBack(listed(back)));
+    const wonBack = sum.gotBack.filter(id => sum.unsealed.indexOf(id) < 0);
+    if (wonBack.length) add(D.copy.summary.gotBack(listed(wonBack)));
     add(bestTimeLine);
     add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.state.pbs.score > sum.score ? D.copy.summary.best(D.state.pbs.score) : null);
     if (sum.levelUp) add(D.copy.summary.levelUp(sum.levelUp, D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => it.id)));

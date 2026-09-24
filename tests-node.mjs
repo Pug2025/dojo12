@@ -2329,6 +2329,22 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f });
 }
 {
+  // The screens are not run here, so a slip of the keyboard in main.js passed the gate
+  // and left a blank page (a second "const back" in the end of a round, 2026-09-24).
+  const bad = [];
+  (function walk(dir) {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) walk(full);
+      else if (name.endsWith(".js")) {
+        try { new vm.Script(fs.readFileSync(full, "utf8"), { filename: full }); }
+        catch (e) { bad.push(path.relative(ROOT, full) + ": " + e.message); }
+      }
+    }
+  })(path.join(ROOT, "js"));
+  t("every script in js/ parses, the screens as well as the engine", bad.length === 0, bad.join(" | "));
+}
+{
   // The approved lines, as the review wrote them (with the changes the report explains).
   const m78 = D.facts.mulId(7, 8);
   const stripe = { kind: "stripe", coins: D.cfg.COINS_STRIPE }, belt = { kind: "belt", coins: D.cfg.COINS_BELT };
