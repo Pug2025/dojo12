@@ -104,7 +104,7 @@ D.copy = (function () {
   /* A table or a Beyond topic, by name. */
   function tableLabel(key) {
     if (String(key).indexOf('bey:') === 0) return (D.copy.beyond.topics[String(key).slice(4)] || key);
-    return tableNameCap(key);
+    return cap(tableNameLong(key));
   }
   /* ---- the shop's stock, and what kind of thing each one is ---- */
   const NAMES = {
