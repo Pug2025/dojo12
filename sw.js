@@ -1,5 +1,5 @@
 /* Dojo 12 service worker. BUILD is rewritten by deploy.sh on every deploy. */
-const BUILD = '20260915-081540';
+const BUILD = '20260924-162329';
 const CACHE = 'dojo12-' + BUILD;
 const FILES = [
   './', 'index.html', 'dashboard.html', 'manifest.webmanifest',
@@ -11,7 +11,7 @@ const FILES = [
   'js/engine/tryout.js', 'js/engine/roundone.js', 'js/engine/belttest.js', 'js/engine/beyond.js', 'js/engine/share.js',
   'js/game/audio.js', 'js/game/fx.js', 'js/game/keypad.js', 'js/game/run.js',
   'js/game/cards.js', 'js/game/grid.js', 'js/game/belts.js', 'js/game/shop.js', 'js/game/recap.js', 'js/game/dashboard.js', 'js/game/main.js',
-  'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
+  'icons/enso-180.png', 'icons/enso-192.png', 'icons/enso-512.png',
 ];
 
 self.addEventListener('install', e => {

@@ -19,3 +19,7 @@ node_modules/
 
 # local tooling
 .claude/
+
+# Blender work for the app icon: scripts, generated textures, renders, .blend files.
+# Nothing here is served; the finished icon is exported into icons/.
+art/
