@@ -63,7 +63,7 @@ D.fx = (function () {
   }
 
   /* Small drawings for How it works, one kind per panel (2026-09-24): 'card' the card
-     with its timer, gold mark, black tick and a red time; 'seal' a question going
+     with its timer, gold mark, the small best-time tick and a red time; 'seal' a question going
      halfway (a pencil outline of the seal) and then sealed (the stamped 12); 'belt' a
      belt with stripes; 'streak' the streak mark at its three steps; 'coins' a coin.
      The other kinds are kept for anything that still asks for them. The art pass
@@ -85,7 +85,7 @@ D.fx = (function () {
     switch (kind) {
       case 'card': {
         // The card, its timer part spent (a faint trail) and part left (ink), the gold
-        // mark where fast ends, the black tick at the best time, and a red time.
+        // mark where fast ends, the small tick at the best time, and a red time.
         rect(36, 1, 48, 46, 'var(--paper)', 'var(--ink)', 3);
         ring(60, 22, 17, 'var(--ink2)').setAttribute('opacity', '0.35');
         add('path', { d: 'M60 5 A17 17 0 1 1 45.8 31.4', fill: 'none', stroke: 'var(--ink)', 'stroke-width': 3, 'stroke-linecap': 'round' });

@@ -2682,22 +2682,37 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   t("How it works gives the black belt test as the engine runs it",
     all.indexOf(c.TEST_CARDS + " questions, " + c.TEST_PASS_CORRECT + " right with " + c.TEST_PASS_FAST + " fast") >= 0);
   t("How it works gives what a bonus card, a stripe and a belt pay",
-    all.indexOf(c.BONUS_COINS + " for a bonus card, " + c.COINS_STRIPE + " for a stripe and " + c.COINS_BELT + " for a belt") >= 0);
+    all.indexOf("A bonus card pays " + c.BONUS_COINS + " more, a stripe " + c.COINS_STRIPE + " and a belt " + c.COINS_BELT + ".") >= 0);
   t("How it works says a miss takes a question back a step and the belt keeps its place",
     /A miss takes a question back a step/.test(all) && /Your belt keeps its place\./.test(all));
-  // "One for each card you get right first try": a slip's retry pays no coin, a comeback does.
-  // If the round screen ever pays for a retry, this line of How it works has to change.
-  setTime(2026, 9, 9, 16, 0);
-  newState();
-  const ids = [mid(2, 3), mid(6, 9), mid(2, 4)];
-  ids.forEach(id => seedAuto(id));
-  const rs = D.runstate.create(handPlan(ids));
-  answer(rs, true, 800);
-  const slip = answer(rs, false, 3000);
-  const retry = answer(rs, true, 800);
-  t("a coin is for a card right first try: a slip's retry pays none",
-    !!slip && slip.slip === true && !!retry && retry.kind === "correct" && retry.coins === 0, retry && ("coins " + retry.coins));
-  t("How it works says so", /one for each card you get right first try/.test(all));
+  t("How it works calls the best-time tick the small tick, which is light ink on the dark papers",
+    /The small tick is your best time\./.test(all) && all.indexOf("black tick") < 0);
+  // "Every right answer pays one, but not after Break it down or Show me": the answer
+  // typed at the end of either pays no coin, and the comeback that follows does.
+  const rescueRound = choose => {
+    setTime(2026, 9, 9, 16, 0);
+    newState();
+    seedFast(mid(2, 3)); seedFast(mid(2, 4)); seedFast(mid(2, 5));
+    const rs = D.runstate.create(handPlan([mid(6, 7), mid(2, 3), mid(2, 4), mid(2, 5)], ["learning", "maintenance", "maintenance", "maintenance"]));
+    answer(rs, false, 3000);
+    const c0 = D.state.progress.coins;
+    if (choose === "show") { rs.chooseSkip(); rs.typedAnswer(D.facts.get(mid(6, 7)).ans); }
+    else rescueThrough(rs, true);
+    return { rs: rs, paid: D.state.progress.coins - c0 };
+  };
+  const broke = rescueRound("rescue"), shown = rescueRound("show");
+  t("the answer at the end of Break it down or Show me pays no coin", broke.paid === 0 && shown.paid === 0,
+    broke.paid + " and " + shown.paid);
+  let comebackPaid = null;
+  for (let g = 0; g < 6 && comebackPaid === null; g++) {
+    const p = broke.rs.present();
+    if (!p) break;
+    const c0 = D.state.progress.coins;
+    answer(broke.rs, true, 900);
+    if (p.comeback) comebackPaid = D.state.progress.coins - c0;
+  }
+  t("the comeback after Break it down pays its coin", comebackPaid === D.cfg.COINS_PER_CORRECT, "paid " + comebackPaid);
+  t("How it works says so", /Every right answer pays one, but not after Break it down or Show me\./.test(all));
 }
 {
   // The belt screen's numbers come from BELT_STEPS.
