@@ -18,9 +18,26 @@ D.copy = (function () {
   function plural(n) { return PLURALS[n] || (n + 's'); }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
   function count(n, one, many) { return D.u.commas(n) + ' ' + (n === 1 ? one : many); }
+  // "a, b and c", the way a person lists things out loud.
+  function andList(items) {
+    if (items.length < 2) return items.join('');
+    return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+  }
 
   function tableName(key) { return key === 'sq' ? 'the squares' : 'the ' + plural(Number(key)); }
   function tableNameCap(key) { return cap(tableName(key)); }
+  // The squares carry an example wherever Home names them, so a child can find them
+  // ("where are the squares?", fresh playtest 2026-09-24).
+  function tableNameLong(key) { return key === 'sq' ? 'the squares, like 7 × 7' : tableName(key); }
+  // When the next table opens, counted in days of play (scheduler.nextOpening). A day
+  // counts once its first round is played, so on the last day it opens after that
+  // round: "tomorrow" on the morning it opened was wrong by the afternoon. "Within",
+  // because a table that gets fast opens sooner (2026-09-24).
+  function opensWhen(o) {
+    if (o.days === 0) return 'next';
+    if (o.nextRound) return 'after your next round';
+    return 'within ' + count(o.days, 'more day', 'more days') + ' of play';
+  }
   // One question out of a table, so "the squares" says what it means.
   function tableExample(key) {
     if (key === 'sq') return '7 × 7';
@@ -88,6 +105,39 @@ D.copy = (function () {
     if (String(key).indexOf('bey:') === 0) return (D.copy.beyond.topics[String(key).slice(4)] || key);
     return tableNameCap(key);
   }
+  /* ---- the shop's stock, and what kind of thing each one is ---- */
+  const NAMES = {
+    'theme:washi': 'Rice paper', 'theme:night': 'Night',
+    'theme:matcha': 'Green tea', 'theme:sakura': 'Blossom', 'theme:kraft': 'Brown paper',
+    'theme:sumi': 'Charcoal', 'theme:kinpaku': 'Gold leaf',
+    // "Grid", not "Squares": beside the Square mark and the square numbers it was a third
+    // thing called square (2026-09-24).
+    'skin:plain': 'Plain', 'skin:grain': 'Grain', 'skin:grid': 'Grid', 'skin:wave': 'Waves',
+    'skin:hemp': 'Stars', 'skin:gilt': 'Gold edge',
+    'ring:brush': 'Brush', 'ring:thin': 'Pen', 'ring:double': 'Double', 'ring:dotted': 'Dotted',
+    'ring:gold': 'Gold',
+    'combo:red': 'Red', 'combo:ink': 'Ink', 'combo:round': 'Round',
+    'combo:gold': 'Gold',
+    'sound:plain': 'Tick', 'sound:bell': 'Bell', 'sound:wood': 'Wood', 'sound:glass': 'Glass',
+    'sound:deep': 'Drum',
+    'mark:circle': 'Circle', 'mark:triangle': 'Triangle', 'mark:square': 'Square',
+    'mark:diamond': 'Diamond', 'mark:hex': 'Hexagon', 'mark:star': 'Star',
+    'mark:ring': 'Ring', 'mark:cross': 'Cross',
+  };
+  // Every name says what kind of thing it is (2026-09-24): "Blossom, Double, Diamond"
+  // meant nothing on a level-up. A name that already ends in its kind keeps it once, so
+  // it is "Brown paper" and never "Brown paper paper".
+  const KIND = { theme: 'paper', skin: 'card', ring: 'timer', combo: 'streak mark', sound: 'sound', mark: 'mark' };
+  const KIND_A = { theme: 'a paper', skin: 'a card pattern', ring: 'a timer', combo: 'a streak mark',
+                   sound: 'a sound', mark: 'a mark for your name' };
+  function kindOf(id) { return String(id).split(':')[0]; }
+  function itemName(id) {
+    const name = NAMES[id] || String(id), kind = KIND[kindOf(id)];
+    if (kind === undefined) return name;
+    const low = name.toLowerCase();
+    return low === kind || low.endsWith(' ' + kind) ? name : name + ' ' + kind;
+  }
+
   /* What each parent check means, in the words a parent would use. */
   const CHECK_NAMES = {
     thin: 'Questions with more counted days than answers',
@@ -101,8 +151,8 @@ D.copy = (function () {
   };
 
   return {
-    word, plural, cap, count, tableName, tableNameCap, tableExample, tableLabel, beltName,
-    factText, factEquation, num, secs, step, label,
+    word, plural, cap, count, andList, tableName, tableNameCap, tableNameLong, tableExample, tableLabel, beltName,
+    factText, factEquation, num, secs, step, label, itemName,
 
     /* ---- install and first launch ---- */
     install: {
@@ -115,30 +165,29 @@ D.copy = (function () {
       nameNeeded: 'Type your name first.',
       haveSave: 'I have a saved game',
       pickPaper: 'Pick a paper.',
+      paperWhy: "It's the colour of the whole game.",
       paperNote: 'You can change it later in the Shop.',
     },
 
-    /* ---- the one screen before round 1. Everything else is taught the first
-       time it happens (2026-09-14). ---- */
+    /* ---- the one screen before round 1. It says what the game is for; the rest
+       is taught the first time it happens (2026-09-14, 2026-09-24). ---- */
     intro: {
       title: 'Times and divide, up to 12 × 12.',
-      body: 'Type the answer and tap Go. Five cards a round. The first two rounds have no timer and work out where you start.',
+      body: "Type the answer and tap Go. Five cards a round. Answer a question fast on two different days and it's sealed. Every question you seal moves your belt. The first two rounds have no timer and work out where you start.",
       start: 'Start round 1',
     },
 
-    /* ---- How it works, from Settings, any time ---- */
+    /* ---- How it works: five panels, from the ? on Home and from Settings. Each
+       sentence was checked against the engine on 2026-09-24; the nine sections before
+       them said seven things the game does not do (fresh playtest). ---- */
     howto: {
       title: 'How it works',
       sections: [
-        ['The card', 'Type the answer and tap Go. Get one wrong and you can break it into smaller questions, or be shown the answer and type it.'],
-        ['Fast', 'After you answer, the card shows how long you took. Questions you have answered before get a timer with a gold tick on it. Beat the tick and the time shows in red. That is fast. The tick starts where you are and moves in as you get quicker.'],
-        ['Out of time', 'When the timer runs out the card stays up. Answer it and it still counts, though not as fast.'],
-        ['The seal', 'Answer a question fast and it gets the outline of a seal. Answer it fast again on another day and the seal is stamped. A sealed question comes back now and then to check. Miss it and the seal comes off until you get it fast again.'],
-        ['Your belt', 'Every question you seal moves your belt. A question that is fast once shows on the bar as a half mark. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The black belt is a test.'],
-        ['The streak', 'Three right in a row and your points count 1.5 times, then 2, then 3. It carries from round to round. A rushed wrong answer drops it to nothing.'],
-        ['A wrong answer', 'Get every step of Break it down right and you keep your streak. The question comes back a few cards later worth double. Show me costs the streak. The question comes back later as an ordinary card.'],
-        ['Coins and levels', 'Every right answer pays a coin to spend in the Shop. Right answers also add XP, and each new level puts more in the Shop.'],
-        ['The black tick', 'The small black tick on the timer is your best time on that question.'],
+        ['The card', "Type the answer and tap Go. A question you've been getting right gets a timer. Beat its gold mark and that's fast. A red time means it counted toward a seal. The small black tick is your best time. If the timer runs out, the card stays up and a right answer still counts, though not as fast."],
+        ['The seal', "The first red time on a question puts it halfway. A red time on another day seals it, and a sealed question comes back now and then to check. A miss takes a question back a step, and so does getting slow at a sealed one. Your belt keeps its place."],
+        ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The fourth stripe on brown opens the black belt test: 24 questions, 22 right with 20 fast, no Break it down.'],
+        ['The streak', 'Three right in a row and your points count 1.5 times, six makes it 2 times and nine makes it 3. The streak carries into the next round. Going Home ends it, and so does a quick wrong guess, even if you break it down after. After any other miss, Break it down with every step right keeps it. Show me loses it.'],
+        ['Points, coins and XP', 'Points are for beating your best round. Fast answers and a streak score more. Coins buy things in the Shop: one for each card you get right first try, 5 for a bonus card, 10 for a stripe and 50 for a belt. The same answers give XP, and new levels put more in the Shop.'],
       ],
     },
 
@@ -156,8 +205,11 @@ D.copy = (function () {
       start: keys => 'You start on ' + keys.map(k => tableName(k) + ', like ' + tableExample(k)).join(', and ') + '.',
       allOpen: 'Every table is open. The next rounds check what you know.',
       rest: 'The other tables come in as you play.',
-      coins: 'Coins: one for every right answer. Spend them in the Shop.',
-      xp: 'XP: every right answer adds some. Each new level puts more in the Shop.',
+      // Once, at the end of round 2: what this round paid, then what the child has.
+      coins: (got, have) => (got ? 'You got ' + count(got, 'coin', 'coins') + ', one for each right answer.'
+        : 'You get a coin for each right answer.') + (have ? ' You have ' + num(have) + '.' : '') + ' Spend them in the Shop.',
+      // "New levels", not "each new level": level 11 and the levels after 12 add nothing.
+      xp: 'XP comes from right answers. New levels open more of the Shop.',
       play: 'Next round',
       home: 'Home',
     },
@@ -208,26 +260,55 @@ D.copy = (function () {
     },
 
     /* ---- the end of a round ---- */
+    /* Every number says what it is (2026-09-24): "+4 coins · 13 coins" never said
+       which was new and which was the total. Questions are written the way their
+       card showed them. */
     summary: {
       points: 'points',
-      best: n => 'Best ' + num(n),
-      newBest: d => 'New best, ' + num(d) + ' more points',
+      best: n => 'Best round ' + num(n),
+      // "New best, 12 more points" read as twelve still to go.
+      newBest: d => 'New best round, ' + num(d) + ' points more than before.',
       streak: (n, best) => 'Longest streak ' + n + (n >= best && best > 0 ? ', your best' : ''),
       sealed: list => 'Sealed: ' + list.join(', ') + '.',
-      fastNew: n => 'Fast on ' + count(n, 'new question', 'new questions') + '.',
-      unsealed: list => 'Lost a seal: ' + list.join(', ') + '.',
-      gotBack: list => 'Missed, then got right: ' + list.join(', ') + '.',
-      xp: n => '+' + num(n) + ' XP',
-      coins: n => '+' + count(n, 'coin', 'coins'),
-      levelUp: (n, names) => 'Level ' + n + '.' + (names && names.length ? ' New in the Shop: ' + names.join(', ') + '.' : ''),
-      fastToday: n => 'Fast today: ' + n,
-      bestTime: (id, ms, from) => factText(id, false) + ' in ' + secs(ms) + ', your best. Was ' + secs(from) + '.',
-      coinsLine: (answers, bonus, belt) => {
+      // Named, so the list can be checked against the red times ("Fast today: 1" never matched them).
+      halfwayToday: (list, more) => 'Halfway today: ' + list.join(', ') + (more ? ' and ' + more + ' more' : '') + '.',
+      // The belt counts every question ever sealed (§13.3), so it holds its place.
+      unsealed: list => (list.length > 1 ? andList(list) + ' lost their seals.' : list[0] + ' lost its seal.') +
+        ' Your belt keeps its place.',
+      gotBack: list => (list.length > 1 ? 'Got them back: ' : 'Got it back: ') + list.join(', ') + '.',
+      xpLine: (gained, more, next) => gained
+        ? num(gained) + ' XP. ' + num(more) + ' more for level ' + next + '.'
+        : num(more) + ' more XP for level ' + next + '.',
+      levelUp: (n, ids) => 'Level ' + n + '.' + (ids && ids.length ? ' New in the Shop: ' + ids.map(itemName).join(', ') + '.' : ''),
+      bestTime: (id, ms, from, flip) => factText(id, flip) + ' in ' + secs(ms) + ', your best. Was ' + secs(from) + '.',
+      // What this round paid, from where, then what the child has. Each source is named
+      // for what happened: two stripes are "the stripes", never "the belt".
+      coinsLine: (answers, bonus, events, have) => {
+        const evs = events || [];
+        const of = kind => evs.filter(e => e.kind === kind);
+        const paid = list => list.reduce((n, e) => n + (e.coins || 0), 0);
+        const stripes = of('stripe'), belts = of('belt');
         const parts = [];
-        if (answers) parts.push(answers + ' for right answers');
+        if (answers) parts.push(answers === 1 ? '1 for a right answer' : answers + ' for right answers');
         if (bonus) parts.push(bonus + ' for the bonus card');
-        if (belt) parts.push(belt + ' for the belt');
-        return '+' + count(answers + bonus + belt, 'coin', 'coins') + (parts.length > 1 ? '. ' + cap(parts.join(', ')) + '.' : '');
+        if (stripes.length) parts.push(paid(stripes) + (stripes.length > 1 ? ' for the stripes' : ' for the stripe'));
+        if (belts.length) parts.push(paid(belts) + (belts.length > 1 ? ' for the belts' : ' for the belt'));
+        const got = answers + bonus + paid(stripes) + paid(belts);
+        if (got === 0) return 'You have ' + count(have, 'coin', 'coins') + '.';
+        const why = parts.length > 1 ? ': ' + andList(parts) : answers ? '' : ' ' + parts[0].replace(/^[0-9,]+ /, '');
+        return 'You got ' + count(got, 'coin', 'coins') + why + '. You have ' + num(have) + '.';
+      },
+      // A table that opened, and the ones that stepped out of the two being worked on.
+      // A table that left the list with nothing said read as dropped unfinished.
+      tables: (opened, left) => {
+        const out = [];
+        if (opened.length) {
+          const named = opened.map(k => tableName(k) + ', like ' + tableExample(k) + ',');
+          const said = named.length > 1 ? named.slice(0, -1).join(' ') + ' and ' + named[named.length - 1] : named[0];
+          out.push(cap(said) + ' are open now.');
+        }
+        if (left.length) out.push(cap(andList(left.map(tableName))) + ' come up less often now.');
+        return out.join(' ');
       },
       again: 'Next round',
       home: 'Home',
@@ -242,16 +323,25 @@ D.copy = (function () {
       stripesTied: (belt, from, to) => 'Stripes ' + from + ' and ' + to + ' on your ' + belt + ' belt.',
       beltTied: belt => cap(belt) + ' belt!',
       blackBelt: 'Black belt!',
-      toNext: info => info.nextKind === 'test' ? 'Your black belt test is open.'
-        : 'Sealed ' + info.sealed + ' of ' + info.nextAt + ' for ' +
-          (info.nextKind === 'belt' ? 'your ' + info.nextBelt + ' belt' : 'stripe ' + (info.stripes + 1)) + '.' +
-          (info.outlined ? ' ' + info.outlined + (info.outlined === 1 ? ' is' : ' are') + ' fast once.' : ''),
+      // What is left, never a fraction (2026-09-24): "Sealed 4 of 5" counted from zero
+      // and sat over a bar counted from the last stripe. The bar (D.belt.bar) shows the
+      // same seals still to come.
+      toNext: info => {
+        if (info.nextKind === 'test') return info.testOpen ? 'Your black belt test is open.' : 'Your black belt test opens again tomorrow.';
+        const left = info.left || Math.max(1, info.nextAt - info.sealed);
+        const head = info.step === 0 ? 'Seal ' + count(left, 'question', 'questions') + ' for your first stripe.'
+          : count(left, 'more seal', 'more seals') + ' for ' +
+            (info.nextKind === 'belt' ? 'your ' + info.nextBelt + ' belt' : 'stripe ' + (info.stripes + 1)) + '.';
+        return head + (info.outlined ? ' ' + info.outlined + (info.outlined === 1 ? ' is' : ' are') + ' halfway.' : '');
+      },
       filled: n => 'You have sealed ' + count(n, 'question', 'questions') + '.',
       how: 'Every question you seal moves your belt. Four stripes, then the next colour.',
+      // Under each belt on the Belt screen, what it takes (BELT_STEPS).
+      rungAt: n => num(n) + ' sealed',
+      rungBlack: n => num(n) + ' sealed, then the test',
       testTitle: 'Black belt test',
       testRules: '24 questions from across the grid. Get 22 right, with 20 of them fast. No Break it down.',
-      testLocked: 'Opens when your brown belt has four stripes.',
-      far: n => 'That is ' + n + ' questions sealed.',
+      testLocked: n => 'Black belt test. It opens at ' + num(n) + ' questions sealed, when your brown belt has four stripes.',
       testTaken: 'You took it today. Try again tomorrow.',
       start: 'Start the test',
       failCount: (got, total) => got + ' of ' + total + '. Try again tomorrow.',
@@ -262,22 +352,38 @@ D.copy = (function () {
     /* ---- home ---- */
     home: {
       level: n => 'Level ' + n,
+      // What is left to the next level, like the belt plate (2026-09-24): "80 / 125 XP" read as a score.
+      toLevel: (more, next) => num(more) + ' more XP for level ' + next,
       coins: n => count(n, 'coin', 'coins'),
-      sealed: n => count(n, 'question', 'questions') + ' sealed',
+      // "You have sealed": the belt's count keeps every question ever sealed, so the Grid
+      // can show fewer stamped today than this (§13.3).
+      sealed: n => 'You have sealed ' + count(n, 'question', 'questions') + '.',
       best: n => 'Best round ' + num(n),
-      working: (key, sealed, total, next, days) => 'Working on ' + tableName(key) + ', ' + sealed + ' of ' + total + ' sealed.' +
-        (next ? ' ' + tableNameCap(next) + ' open ' + (days > 1 ? 'in ' + days + ' days.' : days === 1 ? 'tomorrow.' : 'next.') : ''),
-      workingTwo: (a, sealed, total, b, next, days) => 'Working on ' + tableName(a) + ', ' + sealed + ' of ' + total + ' sealed, and ' + tableName(b) + '.' +
-        (next ? ' ' + tableNameCap(next) + ' open ' + (days > 1 ? 'in ' + days + ' days.' : days === 1 ? 'tomorrow.' : 'next.') : ''),
-      today: (rounds, fastNew, canSeal) => rounds
-        ? 'Today: ' + count(rounds, 'round', 'rounds') + ', ' + fastNew + ' fast for the first time.' +
-          (canSeal ? ' ' + count(canSeal, 'question', 'questions') + (canSeal === 1 ? ' is' : ' are') + ' ready to seal.' : '')
-        : (canSeal ? count(canSeal, 'question', 'questions') + (canSeal === 1 ? ' is' : ' are') + ' ready to seal today.' : ''),
-      nudge: (name, price, have) => name + ' is ' + count(price, 'coin', 'coins') + '. You have ' + num(have) + '.',
-      xpline: (into, need) => num(into) + ' / ' + num(need) + ' XP',
+      // "The twos: 3 of 22 sealed, times and divide. The fours: 1 of 22." A table's total
+      // is its whole 22 from the start, so it never jumps from 11 when divide joins.
+      working: (rows, next, opening) => {
+        const out = rows.map((r, i) => cap(tableNameLong(r.key)) + ': ' + r.sealed + ' of ' + r.total +
+          (i === 0 ? ' sealed, times and divide.' : '.'));
+        if (next && opening) out.push(cap(tableNameLong(next)) + (next === 'sq' ? ',' : '') + ' open ' + opensWhen(opening) + '.');
+        return out.join(' ');
+      },
+      // "Halfway" is the one word for a question fast once (§15, 2026-09-24).
+      today: (rounds, halfway, canSeal) => {
+        const out = [];
+        if (rounds) out.push('Today: ' + count(rounds, 'round', 'rounds') + '.');
+        const ready = (canSeal === 1 ? ' is' : ' are') + ' ready to seal' + (rounds ? '' : ' today');
+        if (halfway && canSeal) out.push(count(halfway, 'question', 'questions') + ' got halfway, and ' + canSeal + ready + '.');
+        else if (halfway) out.push(count(halfway, 'question', 'questions') + ' got halfway.');
+        else if (canSeal) out.push(count(canSeal, 'question', 'questions') + ready + '.');
+        return out.join(' ');
+      },
+      // Under the coins, said once: what the thing is and what it costs.
+      nudge: (id, price) => (NAMES[id] || id) + ', ' + (KIND_A[kindOf(id)] || 'a thing') + ', is ' + num(price) + ' in the Shop.',
       play: 'Play',
       carryOn: 'Keep going',
       grid: 'Grid', belt: 'Belt', shop: 'Shop', settings: 'Settings',
+      help: '?',
+      helpLabel: 'How it works',
     },
 
     /* ---- the grid ---- */
@@ -285,12 +391,12 @@ D.copy = (function () {
       title: 'Grid',
       times: 'Times',
       divide: 'Divide',
-      legend: { none: 'Not sealed', fast: 'Fast once', sealed: 'Sealed', unasked: 'Not asked yet' },
+      legend: { none: 'Not sealed', fast: 'Halfway', sealed: 'Sealed', unasked: 'Not asked yet' },
       empty: 'Play a round first.',
       rowsNote: 'A row shows up when its table opens.',
       divideNote: 'Each row divides by its number. Each column is the answer.',
       cell: (id, flip, state, best) => factText(id, flip) + ': ' +
-        (state === 'sealed' ? 'sealed' : state === 'fast' ? 'fast once' : 'not sealed yet') +
+        (state === 'sealed' ? 'sealed' : state === 'fast' ? 'halfway' : 'not sealed yet') +
         (best ? '. Best time ' + secs(best) + '.' : '.'),
       cellUnasked: (id, flip) => factText(id, flip) + ': not asked yet.',
     },
@@ -304,13 +410,13 @@ D.copy = (function () {
       use: 'Use',
       inUse: 'In use',
       free: 'Free',
-      tooDear: (price, have) => count(price, 'coin', 'coins') + '. You have ' + num(have) + '.',
+      tooDear: (price, have) => 'You need ' + count(price - have, 'more coin', 'more coins') + '.',
       locked: n => 'This opens at level ' + n + '.',
       bought: 'Bought. It is in use now.',
       confirm: price => 'Tap again to buy for ' + count(price, 'coin', 'coins'),
       lockedRow: (level, price) => 'Level ' + level + ' · ' + count(price, 'coin', 'coins'),
-      shortRow: (price, have) => count(price, 'coin', 'coins') + ' · ' + count(price - have, 'more', 'more'),
-      owned: (n, total) => n + ' of ' + total,
+      shortRow: (price, have) => count(price, 'coin', 'coins') + ' · ' + count(price - have, 'more coin to go', 'more coins to go'),
+      owned: (n, total) => 'You own ' + n + ' of ' + total,
       groups: { theme: 'Paper', skin: 'Card', ring: 'Timer', combo: 'Streak', sound: 'Sound', mark: 'Mark' },
       notes: {
         theme: 'Changes the whole look.',
@@ -320,22 +426,7 @@ D.copy = (function () {
         sound: 'The sound of a right answer.',
         mark: 'Sits beside your name.',
       },
-      names: {
-        'theme:washi': 'Rice paper', 'theme:night': 'Night',
-        'theme:matcha': 'Green tea', 'theme:sakura': 'Blossom', 'theme:kraft': 'Brown paper',
-        'theme:sumi': 'Charcoal', 'theme:kinpaku': 'Gold leaf',
-        'skin:plain': 'Plain', 'skin:grain': 'Grain', 'skin:grid': 'Squares', 'skin:wave': 'Waves',
-        'skin:hemp': 'Stars', 'skin:gilt': 'Gold edge',
-        'ring:brush': 'Brush', 'ring:thin': 'Pen', 'ring:double': 'Double', 'ring:dotted': 'Dotted',
-        'ring:gold': 'Gold',
-        'combo:red': 'Red', 'combo:ink': 'Ink', 'combo:round': 'Round',
-        'combo:gold': 'Gold',
-        'sound:plain': 'Tick', 'sound:bell': 'Bell', 'sound:wood': 'Wood', 'sound:glass': 'Glass',
-        'sound:deep': 'Drum',
-        'mark:circle': 'Circle', 'mark:triangle': 'Triangle', 'mark:square': 'Square',
-        'mark:diamond': 'Diamond', 'mark:hex': 'Hexagon', 'mark:star': 'Star',
-        'mark:ring': 'Ring', 'mark:cross': 'Cross',
-      },
+      names: NAMES,
     },
 
     /* ---- the Beyond lane (PLAN §6.9). Grade 6 vocabulary, said plainly. ---- */
@@ -382,14 +473,15 @@ D.copy = (function () {
       },
     },
 
-    /* ---- the week's recap, after the first round of a new week ---- */
+    /* ---- the week's recap, on Home in the first days of a new week, until OK. It
+       interrupted the end of a round, between the last card and the score (2026-09-24). ---- */
     recap: {
-      title: 'Last week.',
+      title: 'Your week',
       done: n => count(n, 'question', 'questions') + ' sealed.',
       improved: (id, flip, from, to) => 'Most improved: ' + factText(id, flip) + ', ' +
         secs(from) + ' to ' + secs(to) + '.',
       fastest: (id, flip, ms) => 'Fastest: ' + factText(id, flip) + ', ' + secs(ms) + '.',
-      close: 'Play',
+      close: 'OK',
     },
 
     /* ---- settings ---- */
@@ -397,10 +489,13 @@ D.copy = (function () {
       title: 'Settings',
       howItWorks: 'How it works',
       sound: 'Sound',
-      autoSubmit: 'Send without tapping Go',
+      autoSubmit: 'Answer as soon as I type it',
+      // True to the keypad: it never sends a one-digit answer by itself (PLAN §7.2).
+      autoSubmitNote: 'One-digit answers still need Go.',
       on: 'On',
       off: 'Off',
       paper: 'Paper',
+      paperNote: 'Changes the colour of the whole game.',
       backup: 'Save a copy with Dad',
       backupNote: 'Puts a link in Messages. If this phone ever loses the game, the link brings it back.',
       backupHow: 'Pick Dad in Messages and send it.',
@@ -428,7 +523,7 @@ D.copy = (function () {
       saveName: 'Save',
       nameSaved: 'Name changed.',
       startOver: 'Start over',
-      startOverAsk: 'Type RESET to start over. Everything this phone has saved for this player goes.',
+      startOverAsk: 'Type RESET to start over. Everything this phone has saved for this player is deleted.',
       resetWord: 'RESET',
     },
 
@@ -441,7 +536,9 @@ D.copy = (function () {
       level: n => 'Level ' + n,
       coins: n => count(n, 'coin', 'coins'),
       coinsLabel: 'Coins',
-      tableRow: (label, fast, total) => label + ': ' + fast + ' of ' + total + ' fast',
+      // The same words and the same 22 as Home, so the child reads one count in both places.
+      tableRow: (label, sealed, halfway, total) => label + ': ' + sealed + ' of ' + total + ' sealed' +
+        (halfway ? ', ' + halfway + ' halfway' : ''),
       working: 'Working on',
       week: 'This week',
       runsThisWeek: 'Rounds this week',
@@ -457,14 +554,13 @@ D.copy = (function () {
         (testMs ? ', ' + secs(testMs) + ' a card in the test' : '') +
         (runMs ? ', ' + secs(runMs) + ' in rounds that week.' : '.'),
       checks: 'Checks',
-      checksOk: 'The numbers add up.',
-      checksBad: 'Some numbers do not add up.',
+      checksOk: 'Save check: nothing looks edited.',
+      checksBad: 'Save check: some numbers do not add up.',
       checkLine: (id, n) => (CHECK_NAMES[id] || id) + ': ' + n + '.',
-      skew: 'Phone clock',
-      clockAhead: mins => 'The phone clock is ' + mins + ' min ahead of this one.',
-      clockOk: 'The phone clock is not ahead of this one.',
+      clockAhead: mins => 'Phone clock: ' + count(mins, 'minute', 'minutes') + ' ahead of this one.',
+      clockOk: 'Phone clock: fine.',
       lastPlayed: day => 'Last played ' + D.u.longDate(day) + '.',
-      placement: n => 'Tables still to place from round 1: ' + n + '.',
+      placement: n => 'Tables not tried yet: ' + n + '.',
       noData: 'Nothing to show yet.',
       hot: ids => ids.map(id => factText(id, false)).join(', '),
       paste: 'Paste the link here.',

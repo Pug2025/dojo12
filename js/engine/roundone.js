@@ -174,7 +174,7 @@ D.roundone = (function () {
         medianRt: D.u.median(r.rts), fastestFact: r.fastestFact, day: r.day, table: null,
         fastWrongs: 0, counted: r.correct >= cfg.RUN_MIN_CORRECT, roundOne: true, roundNo: r.roundNo,
         pbFacts: [], coinsAnswers: r.coinsGained, coinsBonus: 0, combo: r.combo,
-        carryComebacks: [], carryRetries: [],
+        carryComebacks: [], carryRetries: [], flips: D.runstate.flipsOf(r.cards),
       };
     }
 

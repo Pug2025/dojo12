@@ -94,6 +94,7 @@ D.main = (function () {
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'grow' }),
       u().el('div', { class: 'titlebar' }, D.copy.first.pickPaper),
+      u().el('div', { class: 't15' }, D.copy.first.paperWhy),
       list,
       u().el('div', { class: 'small dim t13' }, D.copy.first.paperNote),
       u().el('div', { class: 'grow' }),
@@ -131,22 +132,27 @@ D.main = (function () {
     D.run.start(root, { rs: ro, onDone: roundOneEnd, onLeave: intro });
   }
   /* The end of a placement round. Before the last one it is the score and Next
-     round; after it, where the child starts (§13.3). */
+     round; after it, where the child starts (§13.3), and once, what coins and XP
+     are, with the numbers (2026-09-24). */
   function roundOneEnd(sum) {
+    D.xp.noteRound(sum);
     u().clear(root);
     const lines = u().el('div', { class: 'lines' });
+    const half = halfwayLine();
     if (sum.placementContinues) {
-      if (D.state.progress.fastToday) lines.appendChild(fastTodayRow(D.state.progress.fastToday));
+      if (half) lines.appendChild(u().el('div', { class: 't15' }, half));
     } else {
       const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
       lines.appendChild(u().el('div', { class: 't17' }, focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen));
       lines.appendChild(u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest));
-      if (D.state.progress.fastToday) lines.appendChild(fastTodayRow(D.state.progress.fastToday));
-      lines.appendChild(u().el('div', { class: 'row', style: { gap: '7px' } }, [
-        u().el('i', { class: 'coin' }),
-        u().el('div', { class: 't15' }, D.copy.roundOne.coins + ' ' + D.copy.home.coins(D.state.progress.coins) + '.'),
+      if (half) lines.appendChild(u().el('div', { class: 't15' }, half));
+      lines.appendChild(u().el('div', { class: 'row', style: { gap: '7px', alignItems: 'flex-start' } }, [
+        u().el('i', { class: 'coin', style: { marginTop: '3px' } }),
+        u().el('div', { class: 't15' }, D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins)),
       ]));
       lines.appendChild(u().el('div', { class: 't15' }, D.copy.roundOne.xp));
+      // What is open now is what the child was just told; news starts from here.
+      D.state.flags.tablesSeen = D.scheduler.tablesNow();
     }
     const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.roundOne.play);
     again.addEventListener('click', sum.placementContinues ? startRoundOne : startRun);
@@ -154,10 +160,7 @@ D.main = (function () {
     back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.roundOne.titleN(sum.roundNo || 1)),
-      u().el('div', { class: 'row between' }, [
-        u().el('div', { class: 't44 num' }, D.copy.num(sum.score)),
-        u().el('div', { class: 'label' }, D.copy.summary.points),
-      ]),
+      scoreRow(sum.score, 't44'),
       lines,
       sum.placementContinues ? null : beltPlate(D.belt.info(), [], false),
       u().el('div', { class: 'grow' }),
@@ -165,13 +168,30 @@ D.main = (function () {
     ]));
     D.save.commitNow();
   }
-  // "Fast today: 3" with a red tick for each one.
-  function fastTodayRow(n) {
-    const ticks = u().el('div', { class: 'fastticks' });
-    for (let i = 0; i < Math.min(n, 12); i++) ticks.appendChild(u().el('i'));
-    return u().el('div', { class: 'row', style: { gap: '9px' } }, [
-      u().el('div', { class: 't15' }, D.copy.summary.fastToday(n)), ticks,
+  // The score with its word beside it, not at the far edge (review 2026-09-24).
+  function scoreRow(score, size) {
+    return u().el('div', { class: 'row scorerow' }, [
+      u().el('div', { class: size + ' num' }, D.copy.num(score)),
+      u().el('div', { class: 'label' }, D.copy.summary.points),
     ]);
+  }
+  // "Halfway today: 2 × 3, 4 × 6." The day's questions that got halfway and still are,
+  // each written the way its card showed it (2026-09-24).
+  function halfwayLine() {
+    const list = D.xp.halfwayToday();
+    if (!list.length) return null;
+    const MAX = 8;
+    const names = list.slice(0, MAX).map(x => D.facts.display(x.id, x.flip));
+    return D.copy.summary.halfwayToday(names, Math.max(0, list.length - MAX));
+  }
+  /* Tables that opened, or left the two being worked on, since the child last looked,
+     said once (2026-09-24). A save from before this starts from what it has now. */
+  function tableNewsLine() {
+    const f = D.state.flags, now = D.scheduler.tablesNow();
+    if (!f.tablesSeen || !Array.isArray(f.tablesSeen.open)) { f.tablesSeen = now; return null; }
+    const news = D.scheduler.tableNews(f.tablesSeen);
+    f.tablesSeen = now;
+    return news.opened.length || news.left.length ? D.copy.summary.tables(news.opened, news.left) : null;
   }
 
   /* ---- home ---- */
@@ -193,19 +213,24 @@ D.main = (function () {
     const info = D.belt.info();
     const worn = D.shop.equipped('mark');
 
+    // How it works, from a ? at the top right: a kid will not look in Settings (2026-09-24).
+    const help = u().el('button', { class: 'helpbtn', type: 'button', 'aria-label': D.copy.home.helpLabel }, D.copy.home.help);
+    help.addEventListener('click', () => howItWorks(home));
     const head = u().el('div', { class: 'home-head' }, [
-      u().el('div', { class: 'row', style: { gap: '9px' } }, [
+      u().el('div', { class: 'row', style: { gap: '9px', minWidth: '0' } }, [
         worn ? D.fx.markGlyph(worn) : null,
         u().el('div', { class: 'home-name' }, D.state.profile.name),
       ]),
-      u().el('div', { class: 'col', style: { alignItems: 'flex-end' } }, [
+      u().el('div', { class: 'row', style: { gap: '12px', flex: 'none' } }, [
         u().el('div', { class: 't17', style: { fontWeight: '700' } }, D.copy.home.level(lvl.level)),
-        u().el('div', { class: 't13 dim' }, D.copy.home.xpline(lvl.into, lvl.need)),
+        help,
       ]),
     ]);
     const xp = u().el('div', { class: 'xpline' }, [
       u().el('i', { style: { width: Math.round(100 * lvl.into / lvl.need) + '%' } }),
     ]);
+    const xpWords = u().el('div', { class: 't13 dim', style: { textAlign: 'right', marginTop: '-6px' } },
+                           D.copy.home.toLevel(lvl.need - lvl.into, lvl.level + 1));
 
     const belt = beltPlate(info, [], true);
     const counts = u().el('div', { class: 'sumline' }, [
@@ -213,9 +238,11 @@ D.main = (function () {
       D.state.pbs.score ? u().el('span', { class: 'dim' }, D.copy.home.best(D.state.pbs.score)) : null,
     ]);
 
+    const news = tableNewsLine();
     const workLine = workingLine();
-    const today = D.copy.home.today(p.runsToday || 0, p.fastToday || 0, D.scheduler.sealablePool().length);
+    const today = D.copy.home.today(p.runsToday || 0, D.xp.halfwayToday().length, D.scheduler.sealablePool().length);
     const nudgeItem = D.shop.nudge();
+    const recap = D.recap.plate(home);
 
     const waiting = D.state.inRun && !D.state.inRun.finished;
     const play = u().el('button', { class: 'btn ink wide', type: 'button' }, waiting ? D.copy.home.carryOn : D.copy.home.play);
@@ -228,14 +255,17 @@ D.main = (function () {
     ]);
 
     root.appendChild(u().el('div', { class: 'screen' }, [
-      head, xp,
+      head, xp, xpWords, recap,
       u().el('div', { class: 'grow' }),
       today ? u().el('div', { class: 't15', style: { fontWeight: '700' } }, today) : null,
       belt, counts,
+      news ? u().el('div', { class: 't15' }, news) : null,
       workLine ? u().el('div', { class: 't15' }, workLine) : null,
-      u().el('div', { class: 'row', style: { gap: '7px' } }, [
-        u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
-        nudgeItem ? u().el('div', { class: 't13 dim' }, D.copy.home.nudge(D.copy.shop.names[nudgeItem.id], nudgeItem.price, p.coins)) : null,
+      u().el('div', { class: 'col', style: { gap: '4px' } }, [
+        u().el('div', { class: 'row', style: { gap: '7px' } }, [
+          u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
+        ]),
+        nudgeItem ? u().el('div', { class: 't13 dim' }, D.copy.home.nudge(nudgeItem.id, nudgeItem.price)) : null,
       ]),
       u().el('div', { class: 'grow' }),
       play, nav,
@@ -244,39 +274,27 @@ D.main = (function () {
       D.fx.toast(D.copy.settings.clockMoved(D.state.flags.clockFrozenUntil), 3000);
     }
   }
-  /* The belt bar: sealed questions solid, questions fast once as half marks in a
-     paler shade, never full before the stripe is tied (§13.3). */
-  function beltFill(info) {
-    if (info.black || !info.nextAt) return { solid: 100, pale: 100 };
-    const span = Math.max(1, info.nextAt - info.prevAt);
-    const solid = D.u.clamp((info.sealed - info.prevAt) / span, 0, 1);
-    const pale = D.u.clamp((info.sealed - info.prevAt + 0.5 * (info.outlined || 0)) / span, 0, (span - 0.5) / span);
-    return { solid: Math.round(100 * solid), pale: Math.round(100 * Math.max(solid, pale)) };
-  }
+  /* The plate under the belt. The bar and the words say the same thing: one cell for
+     each seal between the last stripe and the next, sealed ones solid and halfway
+     ones half filled, and the line says how many are still to come (D.belt.bar). */
   function beltPlate(info, events, tall) {
-    const fill = beltFill(info);
+    const bar = D.belt.bar(info);
     const tied = events && events.length;
-    const plate = u().el('div', { class: 'plate' + (tall ? ' lift' : '') }, [
+    const cells = u().el('div', { class: 'sealbar' }, bar.cells.map(c => u().el('i', { class: c })));
+    return u().el('div', { class: 'plate' + (tall ? ' lift' : '') }, [
       beltBand(info, tall, tied),
       u().el('div', { class: tall ? 't22' : 't17', style: { fontWeight: '700' } }, D.copy.belt.now(info.belt, info.stripes)),
-      u().el('div', { class: 'bar-fill' }, [
-        u().el('i', { class: 'pale', style: { width: fill.pale + '%' } }),
-        u().el('i', { style: { width: fill.solid + '%' } }),
-      ]),
-      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.sealed) : D.copy.belt.toNext(info)),
+      cells,
+      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.sealed)
+        : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left }))),
     ]);
-    return plate;
   }
-  // Which table the rounds are working on, how far it is, and when the next one opens (§13.3).
+  // The tables being worked on, each out of its whole 22, and when the next opens (2026-09-24).
   function workingLine() {
-    const focusKey = D.state.focus.primary, second = D.state.focus.secondary;
-    if (!focusKey) return null;
-    const items = D.mastery.activeItems(focusKey);
-    const sealed = items.filter(id => D.mastery.isSealed(id)).length;
+    const keys = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
+    if (!keys.length) return null;
     const next = D.scheduler.nextUnopened();
-    const days = D.scheduler.daysUntilNext();
-    return second ? D.copy.home.workingTwo(focusKey, sealed, items.length, second, next, days)
-                  : D.copy.home.working(focusKey, sealed, items.length, next, days);
+    return D.copy.home.working(keys.map(k => D.belt.tableSeals(k)), next, next ? D.scheduler.nextOpening() : null);
   }
   // A belt drawn as a belt: two tips, the cloth, the black bar with its stripes.
   // A stripe just tied slides on.
@@ -309,17 +327,17 @@ D.main = (function () {
     D.__rs = rs;
     D.run.start(root, { rs: rs, onDone: afterRun, onLeave: home });
   }
+  // The week's recap waits on Home now; it no longer comes between the last card and
+  // the score (2026-09-24).
   function afterRun(sum) {
-    if (D.recap.due()) {
-      if (D.recap.lines().length >= 2) { D.recap.render(root, () => summary(sum)); return; }
-      D.recap.markShown();
-    }
+    D.xp.noteRound(sum);
     summary(sum);
   }
 
   /* ---- the end of a round ----
      One line leads, the most important thing that moved: a stripe or a belt, then
-     questions sealed, then a new best, then the streak (2026-09-14). */
+     questions sealed, then a new best, then the streak (2026-09-14). Every number says
+     what it is, and every question is written the way its card showed it (2026-09-24). */
   function summary(sum) {
     u().clear(root);
     const info = D.belt.info();
@@ -327,11 +345,12 @@ D.main = (function () {
     const pbs = (sum.extra && sum.extra.pbs) || [];
     const scorePb = pbs.find(x => x.kind === 'score');
     const ev = events[events.length - 1];
-    const listed = ids => ids.map(id => D.facts.display(id, false));
+    const flips = sum.flips || {};
+    const listed = ids => ids.map(id => D.facts.display(id, !!flips[id]));
 
     // The child's best time this round, if any: the biggest improvement.
     const pbFact = (sum.pbFacts || []).slice().sort((a, b) => (b.from - b.ms) - (a.from - a.ms))[0];
-    const bestTimeLine = pbFact ? D.copy.summary.bestTime(pbFact.id, pbFact.ms, pbFact.from) : null;
+    const bestTimeLine = pbFact ? D.copy.summary.bestTime(pbFact.id, pbFact.ms, pbFact.from, !!flips[pbFact.id]) : null;
 
     // One line leads: a stripe or belt, a seal, a new best round, the child's best
     // time, and never a streak below the best (§13.3).
@@ -352,26 +371,25 @@ D.main = (function () {
     const lines = u().el('div', { class: 'lines' });
     const add = text => { if (text && text !== lead) lines.appendChild(u().el('div', { class: 't15' }, text)); };
     if (sum.sealed.length && leadIsBelt) add(D.copy.summary.sealed(listed(sum.sealed)));
-    if (D.state.progress.fastToday) lines.appendChild(fastTodayRow(D.state.progress.fastToday));
+    add(halfwayLine());
     if (sum.unsealed.length) add(D.copy.summary.unsealed(listed(sum.unsealed)));
     if (sum.gotBack.length) add(D.copy.summary.gotBack(listed(sum.gotBack)));
     add(bestTimeLine);
     add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.state.pbs.score > sum.score ? D.copy.summary.best(D.state.pbs.score) : null);
-    if (sum.levelUp) {
-      const stock = D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => D.copy.shop.names[it.id]);
-      add(D.copy.summary.levelUp(sum.levelUp, stock));
-    }
+    if (sum.levelUp) add(D.copy.summary.levelUp(sum.levelUp, D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => it.id)));
+    add(tableNewsLine());
 
     const beltBox = beltPlate(info, events, false);
     if (events.length) { D.audio.belt(); D.fx.pop(beltBox); }
 
-    const lvl = D.xp.levelFor(D.state.progress.xp);
-    const tail = u().el('div', { class: 'lines dim t13' }, [
-      u().el('div', { class: 'row', style: { gap: '7px' } }, [
-        u().el('i', { class: 'coin' }),
-        u().el('span', {}, D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, sum.coinsBelt || 0) + ' · ' + D.copy.home.coins(D.state.progress.coins)),
+    // What the round paid and what the child has now, in words (2026-09-24).
+    const p = D.state.progress, lvl = D.xp.levelFor(p.xp);
+    const tail = u().el('div', { class: 'lines t15' }, [
+      u().el('div', { class: 'row', style: { gap: '7px', alignItems: 'flex-start' } }, [
+        u().el('i', { class: 'coin', style: { marginTop: '3px' } }),
+        u().el('span', {}, D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, events, p.coins)),
       ]),
-      u().el('div', {}, [D.copy.summary.xp(sum.xp), ' · ', D.copy.home.level(lvl.level), ' · ', D.copy.home.xpline(lvl.into, lvl.need)].join('')),
+      u().el('div', {}, D.copy.summary.xpLine(sum.xp || 0, lvl.need - lvl.into, lvl.level + 1)),
     ]);
 
     const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.again);
@@ -380,10 +398,7 @@ D.main = (function () {
     back.addEventListener('click', home);
 
     root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'row between' }, [
-        u().el('div', { class: 't64 num' }, D.copy.num(sum.score)),
-        u().el('div', { class: 'label' }, D.copy.summary.points),
-      ]),
+      scoreRow(sum.score, 't64'),
       lead ? u().el('div', { class: leadIsBelt ? 't30' : 't22' }, lead) : null,
       lines, beltBox, tail,
       u().el('div', { class: 'grow' }),
@@ -440,8 +455,12 @@ D.main = (function () {
     } else {
       lines.appendChild(u().el('div', { class: 't17' }, D.belttest.failLine(res)));
     }
-    if (res.xp) lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.xp(res.xp)));
-    if (res.coins) lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.coins(res.coins)));
+    // The same two lines as the end of a round: what it paid, then what there is now.
+    const belts = res.belt || [];
+    const answers = (res.coins || 0) - belts.reduce((n, e) => n + (e.coins || 0), 0);
+    const lvl = D.xp.levelFor(D.state.progress.xp);
+    lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins)));
+    lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.xpLine(res.xp || 0, lvl.need - lvl.into, lvl.level + 1)));
     const back = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
@@ -474,10 +493,12 @@ D.main = (function () {
     u().clear(root);
     const f = D.state.flags;
     const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
-      tile(D.copy.settings.howItWorks, howItWorks),
+      tile(D.copy.settings.howItWorks, () => howItWorks(settings)),
       toggle(D.copy.settings.sound, f.sound, v => { f.sound = v; D.save.commit(); }),
       toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }),
+      u().el('div', { class: 't13 dim' }, D.copy.settings.autoSubmitNote),
       tile(D.copy.settings.paper, () => D.shop.render(root, settings, 'theme')),
+      u().el('div', { class: 't13 dim' }, D.copy.settings.paperNote),
       backupButton(),
       u().el('div', { class: 't13 dim' }, D.copy.settings.backupNote),
     ]);
@@ -509,19 +530,21 @@ D.main = (function () {
     for (const evt of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(evt, cancel);
   }
 
-  /* ---- How it works: the rules, any time ---- */
-  function howItWorks() {
+  /* ---- How it works: five panels, a picture and a few short lines each, from the ?
+     on Home or from Settings, and back to wherever it was opened from (2026-09-24). ---- */
+  function howItWorks(from) {
+    const onBack = typeof from === 'function' ? from : settings;
     u().clear(root);
     const box = u().el('div', { class: 'howto' });
-    const GLYPHS = ['card', 'time', 'overtime', 'seal', 'belt', 'streak', 'wrong', 'coins', 'tick'];
+    const GLYPHS = ['card', 'seal', 'belt', 'streak', 'coins'];
     D.copy.howto.sections.forEach(([head, body], i) => {
-      box.appendChild(u().el('div', { class: 'howrow' }, [
+      box.appendChild(u().el('div', { class: 'howrow howpanel' }, [
         D.fx.glyph(GLYPHS[i] || ''),
         u().el('div', {}, [u().el('h3', {}, head), u().el('p', {}, body)]),
       ]));
     });
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
-    back.addEventListener('click', settings);
+    back.addEventListener('click', onBack);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.howto.title),
       box,

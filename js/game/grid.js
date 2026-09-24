@@ -17,15 +17,12 @@ D.grid = (function () {
   function cellFor(a, b) {
     return op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
   }
-  // Never asked is blank, so the board reads left to right: blank, outline, half,
+  // Never asked is blank, so the board reads left to right: blank, outline, halfway,
   // seal (§13.3). Drawn as a filled square, "not sealed" looked more done than
-  // "fast once" (audit 2026-09-14).
-  function cellClass(id) {
-    const rec = D.mastery.peek(id);
-    if (!rec || rec.seen === 0 || rec.provisional) return 'na';
-    const st = D.mastery.sealState(id);
-    return st === 'sealed' ? 's-sealed' : st === 'fast' ? 's-fast' : '';
-  }
+  // "fast once" (audit 2026-09-14). The state itself is D.mastery.gridState, so a test
+  // can hold it: a question nobody asked is never "not sealed" (2026-09-24).
+  const CLASS = { unasked: 'na', none: '', halfway: 's-fast', sealed: 's-sealed' };
+  function cellClass(id) { return CLASS[D.mastery.gridState(id)]; }
 
   function render(root, onBack) {
     u().clear(root);
@@ -64,11 +61,13 @@ D.grid = (function () {
         const rec = D.mastery.peek(id);
         const cls = cellClass(id);
         const td = u().el('td', { class: cls });
+        // The cell is named as the grid reads it, row times column: 7 × 8 in row 7.
+        const flip = op === 'mul' && a > b;
         td.addEventListener('pointerdown', () => {
           t.querySelectorAll('td.pick').forEach(x => x.classList.remove('pick'));
           td.classList.add('pick');
-          detail.textContent = cls === 'na' ? D.copy.grid.cellUnasked(id, false)
-            : D.copy.grid.cell(id, false, D.mastery.sealState(id), rec && rec.best);
+          detail.textContent = cls === 'na' ? D.copy.grid.cellUnasked(id, flip)
+            : D.copy.grid.cell(id, flip, D.mastery.sealState(id), rec && rec.best);
         });
         row.appendChild(td);
       }

@@ -334,3 +334,33 @@ table.grid th:first-child { white-space: nowrap; }
 .shake { animation: shake 240ms ease-in-out; }
 .howto h3 { margin: 0 0 3px; font: 600 17px/1.3 "Shippori Mincho", "Hiragino Mincho ProN", serif; }
 .howto p { margin: 0; font-size: 15px; line-height: 1.5; }
+
+/* words agent, 2026-09-24 ------------------------------------------------------------
+   Plain structure for the review's words; the art pass restyles these. */
+/* The ? on Home that opens How it works. Round, since only circles and dots are round. */
+.helpbtn {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink);
+  font-weight: 900; font-size: 17px; line-height: 1; padding: 0;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.helpbtn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.home-head .home-name { overflow-wrap: anywhere; }
+/* The bar under the belt: one cell a seal between the last stripe and the next,
+   sealed solid, halfway half filled (D.belt.bar). */
+.sealbar { display: flex; gap: 3px; height: 11px; }
+.sealbar > i { flex: 1 1 0; position: relative; overflow: hidden; background: var(--paper2);
+  border: 1.5px solid var(--ink); border-radius: 2px; }
+.sealbar > i.sealed { background: var(--ink); }
+.sealbar > i.half::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 50%;
+  background: var(--ink2); opacity: 0.45; }
+/* A score and its word, side by side. */
+.row.scorerow { align-items: baseline; gap: 9px; }
+/* What each belt takes, under its band on the Belt screen. */
+.rungcol { flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rungcol > .at { font-size: 13px; color: var(--ink2); text-align: right; }
+/* The week's recap on Home, put away with OK. */
+.plate.recap > .btn { align-self: flex-start; padding: 8px 18px; font-size: 15px; }
+/* How it works: five panels. */
+.howto > .howpanel { padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.howto > .howpanel:last-child { border-bottom: 0; padding-bottom: 0; }

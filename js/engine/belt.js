@@ -64,6 +64,41 @@ D.belt = (function () {
              nextKind: nextKind, nextBelt: nextBelt, testOpen: testOpen() };
   }
 
+  /* The bar under the belt, and the words above it, say one thing: the seals still to
+     come before the next stripe or belt (2026-09-24). One cell for each seal between
+     the last stripe and the next: sealed ones solid, and a halfway question as half a
+     cell, never more of them than there are seals still to come, so the bar is never
+     full before the stripe is tied. The words said "Sealed 4 of 5" (counted from zero)
+     over a bar counted from the last stripe and two-thirds full (fresh playtest). */
+  function bar(given) {
+    const i = given || info();
+    if (i.black || i.nextKind === 'test' || i.nextAt === null || i.nextAt === undefined) {
+      return { cells: ['sealed'], span: 1, done: 1, left: 0, half: 0, solid: 1, pale: 1 };
+    }
+    const span = Math.max(1, i.nextAt - i.prevAt);
+    const done = D.u.clamp(i.sealed - i.prevAt, 0, span - 1);
+    const left = span - done;
+    const half = Math.min(i.outlined || 0, left);
+    const cells = [];
+    for (let k = 0; k < span; k++) cells.push(k < done ? 'sealed' : k < done + half ? 'half' : '');
+    return { cells: cells, span: span, done: done, left: left, half: half,
+             solid: done / span, pale: (done + half / 2) / span };
+  }
+
+  /* One table's seals for Home and the parent's view, out of its whole 22 (times and
+     divide) from the start: counted over what was open, "0 of 11" became "3 of 22" the
+     day divide joined (fresh playtest 2026-09-24). */
+  function tableSeals(key) {
+    const t = D.facts.table(key);
+    const ids = t ? t.items : [];
+    let sealed = 0, halfway = 0;
+    for (const id of ids) {
+      const st = D.mastery.sealState(id);
+      if (st === 'sealed') sealed++; else if (st === 'fast') halfway++;
+    }
+    return { key: key, sealed: sealed, halfway: halfway, total: ids.length };
+  }
+
   /* Raise the belt to what the sealed questions now say. It never lowers. Every stripe and
      belt it passes pays coins, and the list says what happened. */
   function update() {
@@ -102,6 +137,6 @@ D.belt = (function () {
     return { kind: 'belt', belt: 'black', stripes: 0, step: st.step, coins: cfg.COINS_BELT };
   }
 
-  return { state, coreIds, sealedCount, counts, stepFor, describe, info, update, sync, testOpen,
+  return { state, coreIds, sealedCount, counts, stepFor, describe, info, bar, tableSeals, update, sync, testOpen,
            stampTest, passBlack, lastStep };
 })();

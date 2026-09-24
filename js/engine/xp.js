@@ -76,9 +76,53 @@ D.xp = (function () {
         if (cur) out.push({ kind: 'fact', id: run.fastestFact.id, ms: run.fastestFact.ms });
         pbs.fastestFact = { id: run.fastestFact.id, ms: run.fastestFact.ms };
       }
+      noteWeekFastest(run);
+    }
+    return out;
+  }
+  /* The week's own fastest answer, for the recap (2026-09-24). The recap named the
+     all-time best, which could be months old, or set that morning and shown as last
+     week's. save.rollWeek hands it over as last week's when the week turns. */
+  function noteWeekFastest(run) {
+    const p = D.state.progress, f = run.fastestFact;
+    const week = D.u.weekKey(run.day || D.u.gameDay());
+    const cur = p.weekFastest;
+    if (cur && cur.week === week && cur.ms <= f.ms) return;
+    p.weekFastest = { week: week, id: f.id, ms: f.ms, flip: !!(run.flips && run.flips[f.id]) };
+  }
+
+  /* After every round, the questions it made halfway, each the way its card showed it,
+     so the end of a round can name the day's list ("Halfway today: 2 × 3, 4 × 6"). */
+  function noteRound(sum) {
+    const p = D.state.progress;
+    const list = Array.isArray(p.halfwayToday) ? p.halfwayToday : (p.halfwayToday = []);
+    const flips = (sum && sum.flips) || {};
+    for (const id of (sum && sum.fastNew) || []) {
+      if (list.some(x => x.id === id)) continue;
+      list.push({ id: id, flip: !!flips[id] });
+    }
+  }
+  /* The day's halfway questions that are still halfway, in the order they got there.
+     Only a question whose one counted day is today: a check-in on a sealed question
+     also adds a day, and counted in, "Fast today" never matched the red times. */
+  function halfwayToday(day) {
+    const d = day || D.u.gameDay();
+    const shown = id => { const f = D.facts.get(id); return !!f && f.lane !== 'addsub'; };
+    const out = [], seen = new Set();
+    for (const x of (D.state.progress.halfwayToday || [])) {
+      if (seen.has(x.id) || !shown(x.id) || !D.mastery.isHalfwayOn(x.id, d)) continue;
+      seen.add(x.id);
+      out.push({ id: x.id, flip: !!x.flip });
+    }
+    // Anything that got there some other way (a belt test), in its plain orientation.
+    for (const id of Object.keys(D.state.facts)) {
+      if (seen.has(id) || !shown(id) || !D.mastery.isHalfwayOn(id, d)) continue;
+      seen.add(id);
+      out.push({ id: id, flip: false });
     }
     return out;
   }
 
-  return { needed, levelFor, addXp, addCoins, spendCoins, answerXp, creditDay, checkPbs };
+  return { needed, levelFor, addXp, addCoins, spendCoins, answerXp, creditDay, checkPbs,
+           noteWeekFastest, noteRound, halfwayToday };
 })();

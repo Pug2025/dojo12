@@ -168,6 +168,23 @@ D.mastery = (function () {
     return n >= cfg.AUTO_DAYS ? 'sealed' : n > 0 ? 'fast' : 'none';
   }
   function isSealed(id) { return marks(id) >= cfg.AUTO_DAYS; }
+  /* What the Grid draws for a question: never asked, asked and not sealed, halfway,
+     sealed. A question no round has asked is "not asked yet", including one the
+     placement rounds seeded without asking it (review 2026-09-24: never-asked
+     questions must never read as "not sealed"). */
+  function gridState(id) {
+    const r = peek(id);
+    if (!r || r.seen === 0 || r.provisional) return 'unasked';
+    const st = sealState(id);
+    return st === 'sealed' ? 'sealed' : st === 'fast' ? 'halfway' : 'none';
+  }
+  /* Questions that got halfway on this day and still are: their one counted day is
+     today. A check-in on a sealed question also adds a day, and counted as "fast for
+     the first time" it made "Fast today" disagree with the red times (2026-09-24). */
+  function isHalfwayOn(id, day) {
+    const r = peek(id);
+    return !!r && r.days.length === 1 && r.days[0] === (day || D.u.gameDay());
+  }
   /* A miss, or settling into slow answers, takes a mark off. Whatever the fact held,
      it keeps at most one, so the child sees the dot go and the check-ins start
      again from the first wait. Days beyond two were invisible, and shifting one
@@ -365,6 +382,6 @@ D.mastery = (function () {
   }
 
   return { blank, rec, peek, threshold, fixedThreshold, relativeCap, isFastRt, accuracyOk, status, isFast,
-           isKnownPlus, isDue, canCountToday, marks, sealState, isSealed, emptyMark, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
+           isKnownPlus, isDue, canCountToday, marks, sealState, isSealed, gridState, isHalfwayOn, emptyMark, ringMs, baseWindow, fastWrongMs, record, seedKnown, recordProbe,
            statsFor, tableStats, divisionOpen, activeItems, dirty };
 })();

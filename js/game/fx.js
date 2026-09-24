@@ -62,8 +62,12 @@ D.fx = (function () {
     setTimeout(() => node.remove(), 720);
   }
 
-  /* Small drawings for How it works: a card with its time, the seal in its three
-     states, a belt with stripes, the streak pill, the two buttons, a coin. */
+  /* Small drawings for How it works, one kind per panel (2026-09-24): 'card' the card
+     with its timer, gold mark, black tick and a red time; 'seal' a question going
+     halfway (a pencil outline of the seal) and then sealed (the stamped 12); 'belt' a
+     belt with stripes; 'streak' the streak mark at its three steps; 'coins' a coin.
+     The other kinds are kept for anything that still asks for them. The art pass
+     redraws these; the kind names stay. */
   function glyph(kind) {
     const wrap = D.u.el('div', { class: 'howglyph' });
     const svg = document.createElementNS(NS, 'svg');
@@ -72,16 +76,50 @@ D.fx = (function () {
     const rect = (x, y, w, h, fill, stroke, r) => add('rect', { x, y, width: w, height: h, fill, stroke, 'stroke-width': stroke ? 1.5 : 0, rx: r || 0 });
     const text = (x, y, s, size, fill) => { const n = add('text', { x, y, 'font-size': size, 'font-weight': 900, 'text-anchor': 'middle', fill, 'font-family': 'inherit' }); n.textContent = s; return n; };
     const ring = (cx, cy, r, stroke, dash) => add('circle', { cx, cy, r, fill: 'none', stroke, 'stroke-width': 2.5, 'stroke-dasharray': dash || 'none' });
+    // A short radial tick on a circle, at a fraction of the way round from the top.
+    const tickAt = (cx, cy, r, at, stroke, w) => {
+      const a = (at * 360 - 90) * Math.PI / 180;
+      add('line', { x1: cx + Math.cos(a) * (r - 4), y1: cy + Math.sin(a) * (r - 4), x2: cx + Math.cos(a) * (r + 4),
+                    y2: cy + Math.sin(a) * (r + 4), stroke: stroke, 'stroke-width': w, 'stroke-linecap': 'round' });
+    };
     switch (kind) {
-      case 'card': rect(38, 4, 44, 40, 'var(--paper)', 'var(--ink)', 3); text(60, 26, '7 × 8', 12, 'var(--ink)'); text(60, 40, '1.4 s', 7, 'var(--shu)'); break;
+      case 'card': {
+        // The card, its timer part spent (a faint trail) and part left (ink), the gold
+        // mark where fast ends, the black tick at the best time, and a red time.
+        rect(36, 1, 48, 46, 'var(--paper)', 'var(--ink)', 3);
+        ring(60, 22, 17, 'var(--ink2)').setAttribute('opacity', '0.35');
+        add('path', { d: 'M60 5 A17 17 0 1 1 45.8 31.4', fill: 'none', stroke: 'var(--ink)', 'stroke-width': 3, 'stroke-linecap': 'round' });
+        tickAt(60, 22, 17, 0.42, 'var(--kin)', 3.5);
+        tickAt(60, 22, 17, 0.22, 'var(--ink)', 2);
+        text(60, 25, '7 × 8', 8, 'var(--ink)');
+        text(60, 44, '1.4 s', 6.5, 'var(--shu)');
+        break;
+      }
       case 'time': ring(60, 24, 18, 'var(--ink2)'); add('path', { d: 'M60 6 A18 18 0 1 1 42 24', fill: 'none', stroke: 'var(--shu)', 'stroke-width': 3.5, 'stroke-linecap': 'round' });
         add('line', { x1: 74, y1: 12, x2: 80, y2: 6, stroke: 'var(--kin)', 'stroke-width': 4 }); text(60, 28, '7 × 8', 9, 'var(--ink)'); break;
       case 'overtime': ring(60, 24, 18, 'var(--ink2)'); text(60, 28, '7 × 8', 9, 'var(--ink)'); text(60, 44, '4.9 s', 6, 'var(--ink2)'); break;
-      case 'seal': ring(24, 24, 9, 'var(--ink2)'); ring(60, 24, 9, 'var(--shu)'); add('circle', { cx: 96, cy: 24, r: 10, fill: 'var(--shu)' }); ring(96, 24, 6, 'var(--paper)'); break;
+      case 'seal': {
+        // Halfway is a pencil outline of the seal, the place it will go; sealed is the
+        // stamp with 12 cut into it (ART.md, 2026-09-24).
+        add('rect', { x: 18, y: 10, width: 28, height: 28, rx: 2, fill: 'none', stroke: 'var(--ink2)', 'stroke-width': 1.5, 'stroke-dasharray': '3 2' });
+        add('path', { d: 'M54 24 H66 M62 20 L66 24 L62 28', fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+        add('rect', { x: 74, y: 10, width: 28, height: 28, rx: 2, fill: 'var(--shu)', transform: 'rotate(-3 88 24)' });
+        text(88, 29, '12', 13, 'var(--onInk)').setAttribute('transform', 'rotate(-3 88 24)');
+        break;
+      }
       case 'belt': rect(10, 16, 100, 16, 'var(--belt-white)', 'var(--ink)', 2); rect(68, 16, 42, 16, 'var(--belt-bar)', 'none'); rect(74, 16, 3, 16, 'var(--belt-tape)'); rect(81, 16, 3, 16, 'var(--belt-tape)'); break;
-      case 'streak': rect(30, 14, 60, 20, 'var(--shu)', 'none', 3); text(60, 28, '× 1.5', 10, 'var(--onInk)'); break;
+      case 'streak':
+        // The streak mark at three, six and nine in a row.
+        rect(6, 16, 30, 16, 'var(--shu)', null, 3); text(21, 27.5, '× 1.5', 8, 'var(--onInk)');
+        rect(44, 14, 30, 20, 'var(--shu)', null, 3); text(59, 28, '× 2', 10, 'var(--onInk)');
+        rect(82, 12, 32, 24, 'var(--shu)', null, 3); text(98, 29, '× 3', 12, 'var(--onInk)');
+        break;
       case 'wrong': rect(8, 12, 50, 24, 'var(--paper)', 'var(--ink)', 3); rect(64, 12, 48, 24, 'var(--paper)', 'var(--ink2)', 3); text(33, 28, D.copy.rescue.button, 6, 'var(--ink)'); text(88, 28, D.copy.rescue.skip, 6, 'var(--ink2)'); break;
-      case 'coins': add('circle', { cx: 60, cy: 24, r: 14, fill: 'var(--kin)', stroke: 'var(--ink)', 'stroke-width': 2 }); rect(55, 19, 10, 10, 'var(--paper)', 'var(--ink)'); break;
+      case 'coins':
+        // The coin with its square hole, the same one Home and the Shop show.
+        add('circle', { cx: 48, cy: 24, r: 14, fill: 'var(--kin)', stroke: 'var(--ink)', 'stroke-width': 2 }); rect(43, 19, 10, 10, 'var(--paper)', 'var(--ink)');
+        text(80, 29, '+1', 13, 'var(--ink)');
+        break;
       case 'tick': ring(60, 24, 18, 'var(--ink2)'); add('line', { x1: 44, y1: 10, x2: 40, y2: 5, stroke: 'var(--ink)', 'stroke-width': 3 }); add('line', { x1: 74, y1: 12, x2: 80, y2: 6, stroke: 'var(--kin)', 'stroke-width': 4 }); break;
       default: return wrap;
     }

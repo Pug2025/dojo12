@@ -552,8 +552,15 @@ D.runstate = (function () {
       counted: r.correct >= D.cfg.RUN_MIN_CORRECT,
       pbFacts: (r.pbFacts || []).slice(), coinsAnswers: r.coinsAnswers || 0, coinsBonus: r.coinsBonus || 0,
       combo: r.combo, carryComebacks: (r.carryComebacks || []).slice(), carryRetries: (r.carryRetries || []).slice(),
-      levelAtStart: r.levelAtStart,
+      levelAtStart: r.levelAtStart, flips: flipsOf(r.cards),
     };
+  }
+  // Which way round each question was dealt, so the end of a round writes it the way
+  // its card showed it: the card said 10 × 8 and the summary said 8 × 10 (2026-09-24).
+  function flipsOf(cards) {
+    const out = {};
+    for (const c of cards || []) if (c && c.id) out[c.id] = !!c.flip;
+    return out;
   }
 
   /* Close a run out: history, day credit, personal bests, learning load.
@@ -603,5 +610,5 @@ D.runstate = (function () {
   }
 
   return { create: create, resume: resume, comboMult: comboMult, summarize: summarize,
-           finishRun: finishRun };
+           finishRun: finishRun, flipsOf: flipsOf };
 })();

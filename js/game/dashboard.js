@@ -32,7 +32,6 @@ D.dashboard = (function () {
     ];
     const tests = testsPlate(s);
     if (tests) kids.push(tests);
-    kids.push(clockPlate(s));
     if (o.onBack) {
       const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
       back.addEventListener('click', o.onBack);
@@ -41,11 +40,16 @@ D.dashboard = (function () {
     root.appendChild(u().el('div', { class: 'screen' }, kids));
   }
 
+  /* The save check and the phone clock together, each line saying what it checked
+     (2026-09-24): "The numbers add up." and "The phone clock is not ahead of this one."
+     sat in two plates at either end of the page. */
   function checksPlate(s) {
     const found = D.share.checks(s);
-    const rows = [line(found.length ? D.copy.dash.checksBad : D.copy.dash.checksOk,
-                       found.length ? 'dim' : 'dim')];
+    const rows = [line(found.length ? D.copy.dash.checksBad : D.copy.dash.checksOk)];
     for (const c of found) rows.push(line(D.copy.dash.checkLine(c.id, c.n)));
+    const ahead = (s.lastSeenEpoch || 0) - Date.now();
+    rows.push(line(ahead > 5 * 60000 ? D.copy.dash.clockAhead(Math.round(ahead / 60000)) : D.copy.dash.clockOk));
+    if (s.lastSeenEpoch) rows.push(line(D.copy.dash.lastPlayed(D.u.todayKey(new Date(s.lastSeenEpoch)))));
     return plate(D.copy.dash.checks, rows);
   }
 
@@ -63,8 +67,8 @@ D.dashboard = (function () {
   function workingPlate(s) {
     const rows = [];
     for (const key of [s.focus.primary, s.focus.secondary].filter(Boolean)) {
-      const st = D.mastery.tableStats(key);
-      rows.push(u().el('div', { class: 't15' }, D.copy.dash.tableRow(D.copy.tableLabel(key), st.fastPlus, st.total)));
+      const st = D.belt.tableSeals(key);
+      rows.push(u().el('div', { class: 't15' }, D.copy.dash.tableRow(D.copy.tableLabel(key), st.sealed, st.halfway, st.total)));
       const hot = D.scheduler.tableState(key).hot || [];
       if (hot.length) rows.push(line(D.copy.dash.hot(hot)));
     }
@@ -102,9 +106,9 @@ D.dashboard = (function () {
       const row = u().el('tr', {}, [u().el('th', {}, String(a))]);
       for (let b = 2; b <= 12; b++) {
         const id = op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
-        const rec = D.mastery.peek(id);
+        // Never asked is blank here too; the fallback drew it as "not sealed".
         const cls = D.grid ? D.grid.cellClass(id)
-          : (rec && rec.provisional ? 'na' : ({ sealed: 's-sealed', fast: 's-fast' })[D.mastery.sealState(id)] || '');
+          : ({ unasked: 'na', none: '', halfway: 's-fast', sealed: 's-sealed' })[D.mastery.gridState(id)];
         row.appendChild(u().el('td', { class: cls }));
       }
       t.appendChild(row);
@@ -124,15 +128,6 @@ D.dashboard = (function () {
       return line(D.copy.dash.testRow(tt.day, tt.passed, tt.correct, tt.total, tt.medianRt, runMs));
     });
     return plate(D.copy.dash.tests, rows);
-  }
-
-  function clockPlate(s) {
-    const ahead = (s.lastSeenEpoch || 0) - Date.now();
-    const rows = [
-      line(ahead > 5 * 60000 ? D.copy.dash.clockAhead(Math.round(ahead / 60000)) : D.copy.dash.clockOk),
-    ];
-    if (s.lastSeenEpoch) rows.push(line(D.copy.dash.lastPlayed(D.u.todayKey(new Date(s.lastSeenEpoch)))));
-    return plate(D.copy.dash.skew, rows);
   }
 
   /* ---- dashboard.html on its own: a link, a pasted link, or a file ---- */

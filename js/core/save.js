@@ -32,7 +32,8 @@ D.save = (function () {
       progress: { xp: 0, level: 1, coins: 0, daysPlayed: 0, weekKey: D.u.weekKey(today),
                   lastRunDay: null, runsToday: 0,
                   fullXpToday: 0, learnSlots: cfg.LEARN_START, fastWrongs7d: [], stepMisses: [],
-                  doneThisWeek: 0, doneLastWeek: 0 },
+                  doneThisWeek: 0, doneLastWeek: 0,
+                  halfwayToday: [], weekFastest: null, lastWeekFastest: null },
       belt: { step: 0, black: false, blackDay: null, testDay: null },
       placement: null,   // tables round 1 never reached, tried by scouts in the next rounds
       cosmetics: { owned: [], equipped: {} },
@@ -195,6 +196,7 @@ D.save = (function () {
     s.progress.fullXpToday = 0;
     s.progress.fastToday = 0;
     s.progress.sealedToday = 0;
+    s.progress.halfwayToday = [];
     rollWeek(today);
     trimFastWrongs(today);
     commit();
@@ -218,6 +220,11 @@ D.save = (function () {
     while (keys.length > 2) delete s.snapshots[keys.shift()];
     s.progress.doneLastWeek = s.progress.doneThisWeek || 0;
     s.progress.doneThisWeek = 0;
+    // The recap's fastest is the week's own, never the all-time best, which could be
+    // set the same morning (review 2026-09-24).
+    const fast = s.progress.weekFastest;
+    s.progress.lastWeekFastest = fast && fast.week < wk ? fast : null;
+    s.progress.weekFastest = null;
     s.progress.weekKey = wk;
   }
   function trimFastWrongs(day) {

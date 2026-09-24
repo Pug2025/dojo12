@@ -1,5 +1,7 @@
-/* Dojo 12 — the week's recap. Three lines at most, after the first round of a
-   new week, and only when it has at least two of them. Numbers, not adjectives. */
+/* Dojo 12 — the week's recap. Three lines at most, and only when it has at least
+   two of them. Numbers, not adjectives. It sits on Home, titled "Your week", until
+   the child taps OK (2026-09-24): after the first round of a new week it came
+   between the last card and the score, with a Play button. */
 "use strict";
 D.recap = (function () {
   function due() {
@@ -13,8 +15,10 @@ D.recap = (function () {
     if (p.doneLastWeek > 0) out.push(D.copy.recap.done(p.doneLastWeek));
     const moved = mostImproved();
     if (moved) out.push(D.copy.recap.improved(moved.id, false, moved.from, moved.to));
-    const fast = D.state.pbs.fastestFact;
-    if (fast && fast.ms) out.push(D.copy.recap.fastest(fast.id, false, fast.ms));
+    // Last week's own fastest (save.rollWeek). The all-time best could be months old,
+    // or set that morning and shown as last week's (review 2026-09-24).
+    const fast = p.lastWeekFastest;
+    if (fast && fast.ms && D.facts.get(fast.id)) out.push(D.copy.recap.fastest(fast.id, !!fast.flip, fast.ms));
     return out;
   }
 
@@ -42,24 +46,18 @@ D.recap = (function () {
     D.save.commit();
   }
 
-  function render(root, onDone) {
+  /* The plate Home shows while the recap is due, or null. A week with fewer than two
+     lines is marked shown and says nothing. OK puts it away for the week. */
+  function plate(onOk) {
+    if (!due()) return null;
     const list = lines();
-    if (list.length < 2) { markShown(); return onDone(); }
-    markShown();
-    D.u.clear(root);
-    const box = D.u.el('div', { class: 'lines' });
-    for (const line of list.slice(0, 3)) box.appendChild(D.u.el('div', { class: 't17' }, line));
-    const go = D.u.el('button', { class: 'btn ink wide', type: 'button' }, D.copy.recap.close);
-    go.addEventListener('click', onDone);
-    root.appendChild(D.u.el('div', { class: 'screen' }, [
-      D.u.el('div', { class: 'grow' }),
-      D.u.el('div', { class: 'titlebar' }, D.copy.recap.title),
-      box,
-      D.u.el('div', { class: 'grow' }),
-      go,
-    ]));
-    return true;
+    if (list.length < 2) { markShown(); return null; }
+    const ok = D.u.el('button', { class: 'btn', type: 'button' }, D.copy.recap.close);
+    ok.addEventListener('click', () => { markShown(); if (onOk) onOk(); });
+    return D.u.el('div', { class: 'plate recap' }, [
+      D.u.el('div', { class: 't17', style: { fontWeight: '700' } }, D.copy.recap.title),
+    ].concat(list.slice(0, 3).map(line => D.u.el('div', { class: 't15' }, line)), [ok]));
   }
 
-  return { due, lines, mostImproved, render, markShown };
+  return { due, lines, mostImproved, plate, markShown };
 })();

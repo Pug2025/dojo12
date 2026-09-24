@@ -130,6 +130,30 @@ D.scheduler = (function () {
     if (!k) return null;
     return Math.max(0, cfg.FOCUS_MAX_DAYS - focusDays(k));
   }
+  /* When the next table opens on the clock, in the child's terms (2026-09-24). It counts
+     days of play, not days on the calendar: three days off leave it where it was. A day
+     of play counts when its first round ends, and the table opens then, so on the last
+     day it opens after the next round; "tomorrow" on that morning was wrong the same day
+     (fresh playtest). It can open sooner, when the table reaches 80 % fast. */
+  function nextOpening(day) {
+    const k = D.state.focus && D.state.focus.primary;
+    if (!k) return null;
+    const played = (tableState(k).focusDays || []).includes(day || D.u.gameDay());
+    const days = Math.max(0, cfg.FOCUS_MAX_DAYS - focusDays(k));
+    return { days: days, playedToday: played, nextRound: days === 0 || (days === 1 && !played) };
+  }
+  /* What changed in the tables since the child last looked: tables that opened, and
+     tables that left the two being worked on but stay open. "seen" is what was open and
+     in focus then ({ open, focus }). A table that left "Working on" with nothing said
+     read as dropped unfinished (fresh playtest 2026-09-24). */
+  function tableNews(seen) {
+    if (!seen || !Array.isArray(seen.open)) return { opened: [], left: [] };
+    const focus = focusKeys();
+    const opened = openTables().filter(k => seen.open.indexOf(k) < 0);
+    const left = (seen.focus || []).filter(k => k && focus.indexOf(k) < 0 && isOpen(k));
+    return { opened: opened, left: left };
+  }
+  function tablesNow() { return { open: openTables(), focus: focusKeys() }; }
   // Questions fast once that a fast answer today would seal (§13.3). They get first
   // claim on a round; left to the promote block, fifteen of them sat undealt for a
   // day (audit 2026-09-14).
@@ -748,5 +772,5 @@ D.scheduler = (function () {
            plan, spread, settle, adaptLearnSlots, noteScout, ringKindFor, card,
            activateSafety, activateSafetyFamily, updateSafety, noteStepMiss, nextFocus,
            placementActive, placementScouts, endPlacementRound,
-           sealablePool, focusDays, noteFocusDay, daysUntilNext };
+           sealablePool, focusDays, noteFocusDay, daysUntilNext, nextOpening, tableNews, tablesNow };
 })();

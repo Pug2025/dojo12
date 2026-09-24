@@ -1818,8 +1818,8 @@ h2("weekly recap");
   D.save.rollWeek("2026-09-14");           // the week begins with 7 × 8 at 4.1 s
   r.ewma = 2000;
   D.state.progress.doneThisWeek = 6;
+  D.state.progress.weekFastest = { week: "2026-09-14", id: mid(6, 7), ms: 1400, flip: false };
   D.save.rollWeek("2026-09-21");           // and ends at 2.0 s
-  D.state.pbs.fastestFact = { id: mid(6, 7), ms: 1400 };
   const lines = D.recap.lines();
   t("the recap counts last week's questions with both dots", lines.some(l => l === D.copy.recap.done(6)),
     lines.join(" | "));
@@ -1844,27 +1844,27 @@ h2("approved lines");
     [D.copy.run.firstSeal, "Sealed. It comes back now and then to check."],
     [D.copy.run.lostSeal(m78), "7 × 8 lost its seal. Get it fast on another day to seal it again."],
     [D.copy.run.time(1400), "1.4 s"],
-    [D.copy.summary.newBest(270), "New best, 270 more points"],
+    [D.copy.summary.newBest(270), "New best round, 270 points more than before."],
     [D.copy.summary.sealed([D.facts.display(m78, false)]), "Sealed: 7 × 8."],
-    [D.copy.summary.fastNew(3), "Fast on 3 new questions."],
-    [D.copy.summary.gotBack([D.facts.display(m78, false)]), "Missed, then got right: 7 × 8."],
+    [D.copy.summary.halfwayToday(["2 × 3", "4 × 6"]), "Halfway today: 2 × 3, 4 × 6."],
+    [D.copy.summary.gotBack([D.facts.display(m78, false)]), "Got it back: 7 × 8."],
     [D.copy.summary.streak(11, 14), "Longest streak 11"],
     [D.copy.summary.streak(14, 14), "Longest streak 14, your best"],
     [D.copy.belt.stripeTied("white", 2), "Stripe 2 on your white belt."],
     [D.copy.belt.beltTied("blue"), "Blue belt!"],
-    [D.copy.belt.toNext({ sealed: 3, nextAt: 5, nextKind: "stripe", stripes: 2, outlined: 4 }), "Sealed 3 of 5 for stripe 3. 4 are fast once."],
-    [D.copy.belt.toNext({ sealed: 10, nextAt: 12, nextKind: "belt", nextBelt: "blue", stripes: 4, outlined: 0 }), "Sealed 10 of 12 for your blue belt."],
-    [D.copy.summary.coinsLine(5, 5, 10), "+20 coins. 5 for right answers, 5 for the bonus card, 10 for the belt."],
-    [D.copy.summary.coinsLine(4, 0, 0), "+4 coins"],
+    [D.copy.belt.toNext({ step: 2, sealed: 3, nextAt: 5, nextKind: "stripe", stripes: 2, outlined: 5 }), "2 more seals for stripe 3. 5 are halfway."],
+    [D.copy.belt.toNext({ step: 4, sealed: 9, nextAt: 12, nextKind: "belt", nextBelt: "blue", stripes: 4, outlined: 0 }), "3 more seals for your blue belt."],
+    [D.copy.summary.coinsLine(5, 0, [{ kind: "stripe", coins: 10 }, { kind: "stripe", coins: 10 }], 41), "You got 25 coins: 5 for right answers and 20 for the stripes. You have 41."],
+    [D.copy.summary.coinsLine(4, 0, [], 13), "You got 4 coins. You have 13."],
     [D.copy.summary.bestTime(m78, 2100, 2600), "7 × 8 in 2.1 s, your best. Was 2.6 s."],
-    [D.copy.summary.levelUp(5, ["Hexagon"]), "Level 5. New in the Shop: Hexagon."],
-    [D.copy.home.today(3, 4, 6), "Today: 3 rounds, 4 fast for the first time. 6 questions are ready to seal."],
+    [D.copy.summary.levelUp(2, ["theme:matcha", "skin:grid", "sound:wood", "mark:square"]), "Level 2. New in the Shop: Green tea paper, Grid card, Wood sound, Square mark."],
+    [D.copy.home.today(3, 4, 6), "Today: 3 rounds. 4 questions got halfway, and 6 are ready to seal."],
     [D.copy.home.today(0, 0, 9), "9 questions are ready to seal today."],
     [D.copy.belt.failCount(19, 24), "19 of 24. Try again tomorrow."],
     [D.copy.belt.failSlow(24, 24, 4), "24 of 24, but four were too slow. Try again tomorrow."],
-    [D.copy.home.working("5", 8, 22, "7", 2), "Working on the fives, 8 of 22 sealed. The sevens open in 2 days."],
-    [D.copy.home.workingTwo("5", 8, 22, "7", "8", 1), "Working on the fives, 8 of 22 sealed, and the sevens. The eights open tomorrow."],
-    [D.copy.home.sealed(83), "83 questions sealed"],
+    [D.copy.home.working([{ key: "2", sealed: 3, total: 22 }, { key: "4", sealed: 1, total: 22 }], "5", { days: 4, nextRound: false }), "The twos: 3 of 22 sealed, times and divide. The fours: 1 of 22. The fives open within 4 more days of play."],
+    [D.copy.home.working([{ key: "5", sealed: 8, total: 22 }], "sq", { days: 1, nextRound: true }), "The fives: 8 of 22 sealed, times and divide. The squares, like 7 × 7, open after your next round."],
+    [D.copy.home.sealed(83), "You have sealed 83 questions."],
     [D.copy.roundOne.start(["5", "7"]), "You start on the fives, like 5 × 6, and the sevens, like 7 × 6."],
     [D.copy.settings.clockMoved("2026-09-14"), "Clock moved. No new days until 14 September."],
     [D.copy.recap.improved(D.facts.mulId(7, 8), false, 4100, 2000), "Most improved: 7 × 8, 4.1 s to 2.0 s."],
@@ -1915,7 +1915,7 @@ h2("copy transcript");
   const placed = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
   say("screen", placed.length ? D.copy.roundOne.start(placed) : D.copy.roundOne.allOpen);
   say("screen", D.copy.roundOne.rest);
-  say("screen", D.copy.roundOne.coins);
+  say("screen", D.copy.roundOne.coins(firstRound.coinsAnswers, D.state.progress.coins));
   say("screen", D.copy.roundOne.xp);
   say("button", D.copy.roundOne.play);
   lines.push("");
@@ -1993,26 +1993,33 @@ h2("copy transcript");
     }
   }
   const sum = D.runstate.finishRun(rs);
+  D.xp.noteRound(sum);
   lines.push("");
-  say("summary", D.copy.num(sum.score));
-  const pb = ((sum.extra && sum.extra.pbs) || []).find(x => x.kind === "score");
-  say("summary", pb ? D.copy.summary.newBest(pb.delta) : D.copy.summary.best(D.state.pbs.score));
-  if (sum.bestCombo) say("summary", D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo));
-  if (sum.sealed.length) say("summary", D.copy.summary.sealed(sum.sealed.map(id => D.facts.display(id, false))));
-  if (sum.fastNew.length) say("summary", D.copy.summary.fastNew(sum.fastNew.length));
-  if (sum.unsealed.length) say("summary", D.copy.summary.unsealed(sum.unsealed.map(id => D.facts.display(id, false))));
-  if (sum.gotBack.length) say("summary", D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, false))));
+  // In the order the end of a round shows them (main.js summary).
+  const flipOf = id => !!(sum.flips && sum.flips[id]);
+  const shownAs = ids => ids.map(id => D.facts.display(id, flipOf(id)));
+  say("summary", D.copy.num(sum.score) + " " + D.copy.summary.points);
   for (const ev of (sum.extra && sum.extra.belt) || []) {
     say("summary", ev.kind === "belt" ? D.copy.belt.beltTied(ev.belt)
                                       : D.copy.belt.stripeTied(ev.belt, ev.stripes));
   }
+  if (sum.sealed.length) say("summary", D.copy.summary.sealed(shownAs(sum.sealed)));
+  const halfway = D.xp.halfwayToday();
+  if (halfway.length) say("summary", D.copy.summary.halfwayToday(halfway.map(x => D.facts.display(x.id, x.flip))));
+  if (sum.unsealed.length) say("summary", D.copy.summary.unsealed(shownAs(sum.unsealed)));
+  if (sum.gotBack.length) say("summary", D.copy.summary.gotBack(shownAs(sum.gotBack)));
+  const pb = ((sum.extra && sum.extra.pbs) || []).find(x => x.kind === "score");
+  say("summary", pb ? D.copy.summary.newBest(pb.delta) : D.copy.summary.best(D.state.pbs.score));
+  if (sum.bestCombo) say("summary", D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo));
   const beltNow = D.belt.info();
   say("summary", beltNow.black ? D.copy.belt.filled(beltNow.sealed)
-    : D.copy.belt.toNext(Math.max(0, beltNow.nextAt - beltNow.sealed), beltNow.nextKind, beltNow.nextBelt));
-  if (sum.xp) say("summary", D.copy.summary.xp(sum.xp));
-  if (sum.coins) say("summary", D.copy.summary.coins(sum.coins));
-  const focusKey = D.state.focus.primary;
-  if (focusKey) say("home", D.copy.home.working(focusKey, D.scheduler.nextUnopened()));
+    : D.copy.belt.toNext(Object.assign({}, beltNow, { left: D.belt.bar(beltNow).left })));
+  say("summary", D.copy.summary.coinsLine(sum.coinsAnswers, sum.coinsBonus, (sum.extra && sum.extra.belt) || [], D.state.progress.coins));
+  const lvlNow = D.xp.levelFor(D.state.progress.xp);
+  say("summary", D.copy.summary.xpLine(sum.xp, lvlNow.need - lvlNow.into, lvlNow.level + 1));
+  const focusKeys = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
+  const nextKey = D.scheduler.nextUnopened();
+  if (focusKeys.length) say("home", D.copy.home.working(focusKeys.map(k => D.belt.tableSeals(k)), nextKey, nextKey ? D.scheduler.nextOpening() : null));
   lines.push("");
   say("once", D.copy.run.firstStreak(1.5));
   say("once", D.copy.run.firstStamp);
@@ -2310,6 +2317,379 @@ h2("exploit review");
   const worked = D.beyond.topicFacts("mul2x1")[0];
   t("a yes or no Beyond card pays less than one that has to be worked out",
     D.facts.weight(yn) <= 0.5 && D.facts.weight(yn) < D.facts.weight(worked));
+}
+
+/* ================= review 2026-09-24: words =================
+   The design and words review of BUILD 20260924-162329 (qa/review-2026-09-24/). Every
+   number on screen says what it is, "halfway" is the one word for fast once, questions
+   are written the way their card showed them, and How it works says only what the
+   engine does. The Grid and the Belt screen's logic is loaded here so it can be held. */
+h2("review 2026-09-24: words");
+for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
+  vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f });
+}
+{
+  // The approved lines, as the review wrote them (with the changes the report explains).
+  const m78 = D.facts.mulId(7, 8);
+  const stripe = { kind: "stripe", coins: D.cfg.COINS_STRIPE }, belt = { kind: "belt", coins: D.cfg.COINS_BELT };
+  const EXACT = [
+    [D.copy.roundOne.coins(5, 9), "You got 5 coins, one for each right answer. You have 9. Spend them in the Shop."],
+    [D.copy.roundOne.xp, "XP comes from right answers. New levels open more of the Shop."],
+    [D.copy.summary.coinsLine(4, 0, [], 13), "You got 4 coins. You have 13."],
+    [D.copy.summary.coinsLine(5, 0, [stripe, stripe], 41), "You got 25 coins: 5 for right answers and 20 for the stripes. You have 41."],
+    [D.copy.summary.coinsLine(5, 0, [stripe], 31), "You got 15 coins: 5 for right answers and 10 for the stripe. You have 31."],
+    [D.copy.summary.coinsLine(4, 5, [stripe, belt], 120), "You got 69 coins: 4 for right answers, 5 for the bonus card, 10 for the stripe and 50 for the belt. You have 120."],
+    [D.copy.summary.coinsLine(1, 0, [], 14), "You got 1 coin. You have 14."],
+    [D.copy.summary.coinsLine(0, 0, [], 13), "You have 13 coins."],
+    [D.copy.summary.coinsLine(0, 0, [stripe], 50), "You got 10 coins for the stripe. You have 50."],
+    [D.copy.summary.xpLine(35, 10, 2), "35 XP. 10 more for level 2."],
+    [D.copy.summary.levelUp(2, ["theme:matcha", "skin:grid", "sound:wood", "mark:square"]),
+      "Level 2. New in the Shop: Green tea paper, Grid card, Wood sound, Square mark."],
+    [D.copy.home.coins(61), "61 coins"],
+    [D.copy.home.nudge("skin:grain", 20), "Grain, a card pattern, is 20 in the Shop."],
+    [D.copy.home.toLevel(45, 2), "45 more XP for level 2"],
+    [D.copy.shop.coins(16) + " · " + D.copy.shop.owned(0, 29), "16 coins · You own 0 of 29"],
+    [D.copy.shop.shortRow(20, 16), "20 coins · 4 more coins to go"],
+    [D.copy.shop.tooDear(65, 55), "You need 10 more coins."],
+    [D.copy.intro.body, "Type the answer and tap Go. Five cards a round. Answer a question fast on two different days and it's sealed. Every question you seal moves your belt. The first two rounds have no timer and work out where you start."],
+    [D.copy.belt.toNext({ step: 0, sealed: 0, nextAt: 1, nextKind: "stripe", stripes: 0, outlined: 1 }), "Seal 1 question for your first stripe. 1 is halfway."],
+    [D.copy.belt.toNext({ step: 2, sealed: 3, nextAt: 5, nextKind: "stripe", stripes: 2, outlined: 5 }), "2 more seals for stripe 3. 5 are halfway."],
+    [D.copy.belt.toNext({ step: 4, sealed: 9, nextAt: 12, nextKind: "belt", nextBelt: "blue", stripes: 4, outlined: 0 }), "3 more seals for your blue belt."],
+    [D.copy.home.today(3, 0, 0), "Today: 3 rounds."],
+    [D.copy.home.today(3, 2, 0), "Today: 3 rounds. 2 questions got halfway."],
+    [D.copy.home.today(3, 2, 6), "Today: 3 rounds. 2 questions got halfway, and 6 are ready to seal."],
+    [D.copy.home.today(3, 0, 6), "Today: 3 rounds. 6 questions are ready to seal."],
+    [D.copy.summary.halfwayToday(["2 × 3", "4 × 6"]), "Halfway today: 2 × 3, 4 × 6."],
+    [D.copy.summary.newBest(12), "New best round, 12 points more than before."],
+    [D.copy.home.working([{ key: "2", sealed: 3, total: 22 }, { key: "4", sealed: 1, total: 22 }], "5", { days: 4 }),
+      "The twos: 3 of 22 sealed, times and divide. The fours: 1 of 22. The fives open within 4 more days of play."],
+    [D.copy.home.working([{ key: "2", sealed: 3, total: 22 }], "5", { days: 1, nextRound: false }),
+      "The twos: 3 of 22 sealed, times and divide. The fives open within 1 more day of play."],
+    [D.copy.home.working([{ key: "2", sealed: 3, total: 22 }], "5", { days: 0, nextRound: true }),
+      "The twos: 3 of 22 sealed, times and divide. The fives open next."],
+    [D.copy.belt.testLocked(169), "Black belt test. It opens at 169 questions sealed, when your brown belt has four stripes."],
+    [D.copy.belt.names.blue + ": " + D.copy.belt.rungAt(D.belts.sealsFor("blue")), "Blue: 12 sealed"],
+    [D.copy.first.pickPaper + " " + D.copy.first.paperWhy, "Pick a paper. It's the colour of the whole game."],
+    [D.copy.settings.autoSubmit, "Answer as soon as I type it"],
+    [D.copy.recap.title, "Your week"],
+    [D.copy.recap.close, "OK"],
+    [D.copy.summary.gotBack(["10 × 8"]), "Got it back: 10 × 8."],
+    [D.copy.summary.unsealed(["2 × 10"]), "2 × 10 lost its seal. Your belt keeps its place."],
+    [D.copy.forDad.startOverAsk, "Type RESET to start over. Everything this phone has saved for this player is deleted."],
+    [D.copy.dash.checksOk, "Save check: nothing looks edited."],
+    [D.copy.dash.clockOk, "Phone clock: fine."],
+    [D.copy.dash.placement(6), "Tables not tried yet: 6."],
+    [D.copy.summary.bestTime(m78, 2100, 2600, true), "8 × 7 in 2.1 s, your best. Was 2.6 s."],
+  ];
+  const off = EXACT.filter(([got, want]) => got !== want);
+  t("review lines read exactly as approved", off.length === 0,
+    off.map(([got, want]) => JSON.stringify(got) + " should be " + JSON.stringify(want)).join(" | "));
+}
+{
+  // Every shop item says what kind of thing it is, once; the card is "Grid", not "Squares".
+  const names = D.cfg.SHOP.map(it => D.copy.itemName(it.id)).concat(["theme:washi", "theme:night"].map(D.copy.itemName));
+  const doubled = names.filter(n => /\b(\w+) \1\b/i.test(n));
+  t("every shop name says its kind and never doubles a word", doubled.length === 0 &&
+    D.copy.itemName("theme:kraft") === "Brown paper" && D.copy.itemName("theme:washi") === "Rice paper" &&
+    D.copy.shop.names["skin:grid"] === "Grid", doubled.join(", "));
+  const vague = D.cfg.SHOP.filter(it => /a thing/.test(D.copy.home.nudge(it.id, it.price)));
+  t("the Home nudge names what kind of thing every item is", vague.length === 0, vague.map(i => i.id).join(", "));
+}
+{
+  // The coins line adds up to what the round paid, and names each source for what happened.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const ids = [mid(3, 4), mid(3, 5), mid(3, 6)];
+  ids.forEach(id => seedFast(id));
+  const plan = handPlan(ids);
+  plan.cards[1].bonus = true;
+  const rs = D.runstate.create(plan);
+  const c0 = D.state.progress.coins;
+  playAll(rs);
+  const sum = D.runstate.finishRun(rs);
+  const got = D.state.progress.coins - c0;
+  const line = D.copy.summary.coinsLine(sum.coinsAnswers, sum.coinsBonus, sum.extra.belt, D.state.progress.coins);
+  t("the coins line says what the round paid and what the child has",
+    line === "You got " + got + " coins: 3 for right answers and 5 for the bonus card. You have " + D.state.progress.coins + ".", line);
+  // Two stripes tied at once are "the stripes"; a stripe and a belt are named apart.
+  newState();
+  const core = D.belt.coreIds();
+  for (const id of core.slice(0, 2)) D.mastery.rec(id).days = ["2026-09-01", "2026-09-05"];
+  D.mastery.dirty();
+  const two = D.belt.update();
+  t("two stripes in one round are named as stripes, never as the belt",
+    /20 for the stripes\./.test(D.copy.summary.coinsLine(5, 0, two, 99)) && two.every(e => e.kind === "stripe"),
+    D.copy.summary.coinsLine(5, 0, two, 99));
+  for (const id of core.slice(2, 12)) D.mastery.rec(id).days = ["2026-09-01", "2026-09-05"];
+  D.mastery.dirty();
+  const more = D.belt.update();
+  t("a round that ties stripes and a belt names both",
+    /: 20 for the stripes and 50 for the belt\./.test(D.copy.summary.coinsLine(0, 0, more, 99)) &&
+      more.filter(e => e.kind === "stripe").length === 2 && more.filter(e => e.kind === "belt").length === 1,
+    D.copy.summary.coinsLine(0, 0, more, 99));
+}
+{
+  // The belt plate: the words say what is left and the bar shows the same thing, from
+  // the last stripe to the next. "Sealed 4 of 5" sat over a bar 67 % full.
+  newState();
+  const steps = D.cfg.BELT_STEPS;
+  let bad = [];
+  for (let step = 0; step < steps.length; step++) {
+    const prevAt = step > 0 ? steps[step - 1] : 0, nextAt = steps[step];
+    for (let sealed = prevAt; sealed < nextAt; sealed++) {
+      for (const outlined of [0, 1, 2, 5, 40]) {
+        const d = D.belt.describe(step, false);
+        const kind = (step + 1) % 5 === 0 ? "belt" : "stripe";
+        const info = { step: step, belt: d.belt, stripes: d.stripes, black: false, sealed: sealed, outlined: outlined,
+                       prevAt: prevAt, nextAt: nextAt, nextKind: kind, nextBelt: kind === "belt" ? D.cfg.BELT_NAMES[(step + 1) / 5] : d.belt };
+        const bar = D.belt.bar(info);
+        const words = D.copy.belt.toNext(Object.assign({}, info, { left: bar.left }));
+        const said = Number((words.match(/^(?:Seal )?(\d+)/) || [])[1]);
+        const open = bar.cells.filter(c => c !== "sealed").length;
+        const halves = bar.cells.filter(c => c === "half").length;
+        if (bar.left !== nextAt - sealed || said !== bar.left || open !== bar.left ||
+            halves !== Math.min(outlined, bar.left) || bar.cells.length !== nextAt - prevAt ||
+            Math.abs(bar.solid - (sealed - prevAt) / (nextAt - prevAt)) > 1e-9 || bar.pale >= 1) {
+          bad.push(step + "/" + sealed + "/" + outlined + ": " + words + " " + bar.cells.join(","));
+        }
+      }
+    }
+  }
+  t("the belt plate's words and bar count the same seals still to come, at every step", bad.length === 0, bad.slice(0, 3).join(" | "));
+  const playtest = D.belt.bar({ step: 2, sealed: 4, outlined: 0, prevAt: 2, nextAt: 5, nextKind: "stripe" });
+  t("one seal left for stripe 3 is one empty cell of three, not four of five",
+    playtest.cells.join(",") === "sealed,sealed," && D.copy.belt.toNext({ step: 2, sealed: 4, nextAt: 5, nextKind: "stripe",
+      stripes: 2, outlined: 0, left: playtest.left }) === "1 more seal for stripe 3.", playtest.cells.join(","));
+  const twoMore = D.belt.bar({ step: 2, sealed: 3, outlined: 5, prevAt: 2, nextAt: 5, nextKind: "stripe" });
+  t("two seals to go is one solid cell of three, and halfway questions fill at most half of each of the two",
+    twoMore.cells.join(",") === "sealed,half,half" && Math.abs(twoMore.solid - 1 / 3) < 1e-9 && twoMore.pale < 1,
+    twoMore.cells.join(",") + " solid " + twoMore.solid);
+  D.state.belt.step = D.belt.lastStep();
+  const open = D.belt.info();
+  D.belt.stampTest(D.u.gameDay());
+  const taken = D.belt.info();
+  t("the plate says the black belt test is open, or when it opens again after today's try",
+    D.copy.belt.toNext(open) === "Your black belt test is open." &&
+    D.copy.belt.toNext(taken) === "Your black belt test opens again tomorrow.", D.copy.belt.toNext(taken));
+}
+{
+  // Halfway today: named, the way each card showed it, and never a check-in on a sealed question.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const fresh = mid(3, 7), check = mid(2, 9);
+  seedFast(fresh);
+  const r = seedFast(check); r.days = ["2026-08-20", "2026-08-25"];
+  seedFast(mid(2, 3));
+  D.mastery.dirty();
+  const plan = handPlan([fresh, check, mid(2, 3)]);
+  plan.cards[0].flip = true;
+  const rs = D.runstate.create(plan);
+  playAll(rs, { ms: 700 });
+  const sum = D.runstate.finishRun(rs);
+  D.xp.noteRound(sum);
+  const list = D.xp.halfwayToday();
+  t("a check-in on a sealed question went into the old count", sum.fastNew.indexOf(check) >= 0, JSON.stringify(sum.fastNew));
+  t("halfway today names the questions that got halfway, and no check-in",
+    list.some(x => x.id === fresh) && list.every(x => x.id !== check), JSON.stringify(list));
+  const shown = list.map(x => D.facts.display(x.id, x.flip));
+  t("halfway today writes the question the way its card showed it",
+    D.copy.summary.halfwayToday(shown).indexOf("7 × 3") >= 0, D.copy.summary.halfwayToday(shown));
+  t("Home counts the same halfway questions the end of a round names",
+    D.copy.home.today(D.state.progress.runsToday, list.length, 0).indexOf(list.length + " question") >= 0);
+  // A miss the same day takes it off the list; a new day starts a new list.
+  D.mastery.record(fresh, { correct: false, rt: 3000, day: D.u.gameDay() });
+  t("a question missed after it got halfway is not listed as halfway", D.xp.halfwayToday().every(x => x.id !== fresh));
+  advanceHours(24);
+  D.save.touchDay();
+  t("a new day starts with nothing halfway today", D.xp.halfwayToday().length === 0 && D.state.progress.halfwayToday.length === 0);
+}
+{
+  // Every list at the end of a round writes a question the way its card showed it.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const ids = [mid(8, 10), mid(2, 3), mid(2, 4)];
+  seedFast(mid(2, 3)); seedFast(mid(2, 4));
+  const plan = handPlan(ids, ["learning", "maintenance", "maintenance"]);
+  plan.cards[0].flip = true;                     // the card read 10 × 8
+  const rs = D.runstate.create(plan);
+  const miss = answer(rs, false, 3000);
+  if (miss && miss.buttons) rescueThrough(rs, true);
+  playAll(rs);
+  const sum = D.runstate.finishRun(rs);
+  const said = D.copy.summary.gotBack(sum.gotBack.map(id => D.facts.display(id, sum.flips[id])));
+  t("got it back writes 10 × 8 when the card showed 10 × 8", said === "Got it back: 10 × 8.", said);
+}
+{
+  // A table's total is its whole 22 from the start, so it does not jump when divide joins.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  D.scheduler.ensureProgression();
+  const key = D.state.focus.primary;
+  const before = D.belt.tableSeals(key);
+  const products = D.facts.table(key).products;
+  products.forEach(id => { const r = seedFast(id); r.days = ["2026-09-01", "2026-09-05"]; });
+  D.mastery.dirty();
+  const after = D.belt.tableSeals(key);
+  t("a table counts out of 22 before and after divide opens",
+    before.total === 22 && after.total === 22 && D.mastery.divisionOpen(key) && after.sealed === products.length,
+    before.total + " then " + after.total + ", sealed " + after.sealed);
+  const line = D.copy.home.working([after, D.belt.tableSeals(D.state.focus.secondary || "10")], "5", { days: 3 });
+  t("the second table on Home gets its number too", /\. The \w+: \d+ of 22\./.test(line), line);
+  t("the squares say what they are wherever Home or a round's end names them",
+    /squares, like 7 × 7/.test(D.copy.home.working([{ key: "sq", sealed: 0, total: 22 }], "4", { days: 2 })) &&
+    /squares, like 7 × 7, open/.test(D.copy.home.working([{ key: "2", sealed: 0, total: 22 }], "sq", { days: 2 })) &&
+    /squares, like 7 × 7, are open now/.test(D.copy.summary.tables(["sq"], [])));
+}
+{
+  // "Open in N days" counts days played (scheduler.js), and the words say so.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  D.scheduler.ensureProgression();
+  const key = D.state.focus.primary, t2 = D.scheduler.tableState(key);
+  t2.focusDays = [];
+  const n0 = D.scheduler.nextOpening();
+  advanceHours(24 * 3); D.save.touchDay();        // three days off
+  const n1 = D.scheduler.nextOpening();
+  t("days off do not count toward the next table", n0.days === D.cfg.FOCUS_MAX_DAYS && n1.days === n0.days, n0.days + " then " + n1.days);
+  t2.focusDays = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"];
+  const last = D.scheduler.nextOpening();
+  t("on the last day of play it opens after the next round, and says so",
+    last.days === 1 && last.nextRound === true && /open after your next round\./.test(D.copy.home.working([D.belt.tableSeals(key)], "5", last)),
+    D.copy.home.working([D.belt.tableSeals(key)], "5", last));
+  t2.focusDays = ["2026-09-01", "2026-09-02", "2026-09-03", D.u.gameDay()];
+  const played = D.scheduler.nextOpening();
+  t("once today has counted, it is within one more day of play",
+    played.days === 1 && played.nextRound === false && /within 1 more day of play\./.test(D.copy.home.working([D.belt.tableSeals(key)], "5", played)));
+}
+{
+  // A table that opens, and one that steps out of the two being worked on, are said once.
+  newState();
+  const seen = { open: ["2", "10"], focus: ["2", "10"] };
+  D.scheduler.tableState("2").status = "open";
+  D.scheduler.tableState("10").status = "focus";
+  D.scheduler.tableState("5").status = "focus";
+  D.state.focus = { primary: "10", secondary: "5" };
+  const news = D.scheduler.tableNews(seen);
+  t("a table that opened and one that left focus are both named",
+    news.opened.join() === "5" && news.left.join() === "2" &&
+    D.copy.summary.tables(news.opened, news.left) === "The fives, like 5 × 6, are open now. The twos come up less often now.",
+    JSON.stringify(news));
+  t("nothing new says nothing", D.scheduler.tableNews(D.scheduler.tablesNow()).opened.length === 0 &&
+    D.scheduler.tableNews(D.scheduler.tablesNow()).left.length === 0);
+}
+{
+  // The weekly recap's "Fastest" is last week's own, never from today, never the all-time best.
+  setTime(2026, 9, 9, 16, 0);                       // Wednesday of the week of 7 September
+  newState();
+  const ids = [mid(3, 4), mid(3, 5), mid(3, 6)];
+  ids.forEach(id => seedFast(id));
+  const plan1 = handPlan(ids);
+  const rs1 = D.runstate.create(plan1);
+  playAll(rs1, { ms: 1300 });
+  D.runstate.finishRun(rs1);
+  t("the week keeps its own fastest answer", !!D.state.progress.weekFastest &&
+    D.state.progress.weekFastest.week === "2026-09-07" && D.state.progress.weekFastest.ms === 1300,
+    JSON.stringify(D.state.progress.weekFastest));
+  setTime(2026, 9, 14, 16, 0);                      // the next Monday
+  D.save.touchDay();
+  D.state.progress.doneLastWeek = 3;
+  const rs2 = D.runstate.create(handPlan([mid(3, 7), mid(3, 8), mid(3, 9)].map(id => (seedFast(id), id))));
+  playAll(rs2, { ms: 600 });                        // faster, today
+  D.runstate.finishRun(rs2);
+  const lines = D.recap.lines();
+  t("the recap is due on Home in the new week", D.recap.due() === true);
+  t("the recap's fastest is last week's, not today's",
+    lines.some(l => /^Fastest: 3 × \d+, 1\.3 s\.$/.test(l)) && lines.every(l => l.indexOf("0.6 s") < 0), lines.join(" | "));
+  D.state.pbs.fastestFact = { id: mid(6, 7), ms: 500 };
+  t("the recap never names the all-time best as last week's", D.recap.lines().every(l => l.indexOf("6 × 7") < 0));
+}
+{
+  // The Grid never marks a question nobody asked as "not sealed", and Divide shows the
+  // divisions answered in rounds.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const never = mid(3, 4), placed = mid(3, 5), wrong = mid(3, 6), half = mid(3, 7), div = D.facts.divId(24, 4);
+  D.mastery.seedKnown(placed);
+  D.mastery.record(wrong, { correct: false, rt: 3000 });
+  const r = seedFast(half); r.days = [D.u.gameDay()];
+  D.mastery.dirty();
+  t("a question never asked is not asked yet, on the Grid and in its words",
+    D.mastery.gridState(never) === "unasked" && D.grid.cellClass(never) === "na" &&
+    D.mastery.gridState(placed) === "unasked" && D.grid.cellClass(placed) === "na");
+  t("asked, halfway and sealed each have their own mark",
+    D.grid.cellClass(wrong) === "" && D.grid.cellClass(half) === "s-fast" && D.copy.grid.legend.fast === "Halfway");
+  seedFast(mid(2, 3)); seedFast(mid(2, 5));
+  const rs = D.runstate.create(handPlan([mid(2, 3), div, mid(2, 5)]));
+  playAll(rs);
+  t("a division answered right in a round shows on the Divide grid",
+    D.mastery.gridState(div) !== "unasked" && D.grid.cellClass(D.facts.divId(4 * 6, 4)) !== "na", D.mastery.gridState(div));
+}
+{
+  // The streak rules How it works states, held in the engine: a quick wrong guess ends it
+  // even when every Break it down step is right; a slower miss with every step right keeps
+  // it; Show me loses it; it carries into the next round; going Home ends it.
+  const setup = () => {
+    setTime(2026, 9, 9, 16, 0);
+    newState();
+    seedFast(mid(2, 3)); seedFast(mid(2, 4));
+    return D.runstate.create(handPlan([mid(6, 7), mid(2, 3), mid(2, 4)], ["learning", "maintenance", "maintenance"]), { combo: 6 });
+  };
+  let rs = setup();
+  const quick = answer(rs, false, 300);
+  rescueThrough(rs, true);
+  t("a quick wrong guess ends the streak even when every Break it down step is right",
+    !!quick && quick.buttons && rs.raw.combo === 0, "combo " + rs.raw.combo);
+  rs = setup();
+  answer(rs, false, 3000);
+  rescueThrough(rs, true);
+  t("after a slower miss, every Break it down step right keeps the streak", rs.raw.combo === 6, "combo " + rs.raw.combo);
+  rs = setup();
+  answer(rs, false, 3000);
+  rs.chooseSkip();
+  t("Show me loses the streak", rs.raw.combo === 0, "combo " + rs.raw.combo);
+  rs.typedAnswer(D.facts.get(mid(6, 7)).ans);
+  playAll(rs);
+  D.runstate.finishRun(rs);
+  t("the streak carries into the next round", D.state.progress.carryCombo === rs.raw.combo);
+  const main = fs.readFileSync(path.join(ROOT, "js/game/main.js"), "utf8");
+  const homeBody = main.slice(main.indexOf("function home()"), main.indexOf("function beltPlate("));
+  t("going Home ends the streak", /carryCombo = 0/.test(homeBody));
+}
+{
+  // How it works: five panels, and every number in them is the engine's.
+  const S = D.copy.howto.sections, all = S.map(x => x[1]).join(" ");
+  const c = D.cfg;
+  t("How it works is five panels", S.length === 5, S.map(x => x[0]).join(", "));
+  t("How it works gives the streak's steps as the engine has them",
+    c.COMBO_STEP === 3 && /Three right in a row/.test(all) && all.indexOf(c.COMBO_TIERS[1] + " times") >= 0 &&
+    /six makes it 2 times and nine makes it 3/.test(all) && c.COMBO_TIERS.join() === "1,1.5,2,3");
+  t("How it works says the streak ends at Home and on a quick guess, whatever the steps",
+    /Going Home ends it, and so does a quick wrong guess, even if you break it down after\./.test(all) && /Show me loses it\./.test(all));
+  t("How it works gives the black belt test as the engine runs it",
+    all.indexOf(c.TEST_CARDS + " questions, " + c.TEST_PASS_CORRECT + " right with " + c.TEST_PASS_FAST + " fast") >= 0);
+  t("How it works gives what a bonus card, a stripe and a belt pay",
+    all.indexOf(c.BONUS_COINS + " for a bonus card, " + c.COINS_STRIPE + " for a stripe and " + c.COINS_BELT + " for a belt") >= 0);
+  t("How it works says a miss takes a question back a step and the belt keeps its place",
+    /A miss takes a question back a step/.test(all) && /Your belt keeps its place\./.test(all));
+  // "One for each card you get right first try": a slip's retry pays no coin, a comeback does.
+  // If the round screen ever pays for a retry, this line of How it works has to change.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const ids = [mid(2, 3), mid(6, 9), mid(2, 4)];
+  ids.forEach(id => seedAuto(id));
+  const rs = D.runstate.create(handPlan(ids));
+  answer(rs, true, 800);
+  const slip = answer(rs, false, 3000);
+  const retry = answer(rs, true, 800);
+  t("a coin is for a card right first try: a slip's retry pays none",
+    !!slip && slip.slip === true && !!retry && retry.kind === "correct" && retry.coins === 0, retry && ("coins " + retry.coins));
+  t("How it works says so", /one for each card you get right first try/.test(all));
+}
+{
+  // The belt screen's numbers come from BELT_STEPS.
+  const st = D.cfg.BELT_STEPS;
+  t("each belt shows the seals it takes", D.belts.sealsFor("white") === 0 && D.belts.sealsFor("blue") === st[4] &&
+    D.belts.sealsFor("purple") === st[9] && D.belts.sealsFor("brown") === st[14] && D.belts.sealsFor("black") === st[st.length - 1]);
 }
 
 /* ================= results ================= */
