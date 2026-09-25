@@ -304,17 +304,23 @@ D.run = (function () {
     if (bestAt > 0.02) teach('tick', D.copy.run.firstTick, true, true);
     deadline = performance.now() + c.ringMs;
     ringSpan = c.ringMs;
+    drawFrom = performance.now();
     runRing();
   }
   // The clock runs from the deadline, so a ring that paused for a slip picks up
-  // exactly where the time is.
-  let ringSpan = 1;
+  // exactly where the time is. The ensō is drawn in, head to tail, over its first
+  // 180 ms (ART.md) while the clock already runs, so the ink never shows more time than
+  // is left; with reduced motion it is there at once.
+  let ringSpan = 1, drawFrom = 0;
+  const DRAW_MS = 180;
   function runRing() {
     cancelAnimationFrame(raf);
+    const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     (function tick() {
       if (!enso) return;
-      const left = deadline - performance.now();
-      enso.set(left / ringSpan);
+      const now = performance.now(), left = deadline - now;
+      const drawn = still ? 1 : D.u.clamp((now - drawFrom) / DRAW_MS, 0, 1);
+      enso.set(Math.min(drawn, left / ringSpan));
       if (left <= 0) { onExpired(); return; }
       raf = requestAnimationFrame(tick);
     })();
@@ -341,6 +347,9 @@ D.run = (function () {
   }
   function onOvertime() {
     if (enso) enso.set(0);
+    // Running out of time is the newer news about this card: it takes the slot from an
+    // earlier line about the asking (the tick line), which otherwise kept it.
+    if (askLine) setLine('');
     teach('overtime', D.copy.run.overtime, true, true);
     clearTimeout(lateTimer);
     lateTimer = setTimeout(offerHelp, Math.max(0, D.cfg.RESCUE_BUTTON_MS - (performance.now() - t0)));

@@ -160,26 +160,22 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 [data-combo="ink"] .mult { background: var(--ink); }
 [data-combo="round"] .mult { border-radius: 50%; padding: 5px 6px; }
 [data-combo="gold"] .mult { background: var(--kin); color: var(--ink); }
-/* One brush dot a card (review 2026-09-24): faint for the cards to come, an open ink
-   ring for the card on the screen, ink once answered, red when the answer counted
-   toward a seal, and a thin grey ring for a card that was missed. Masks take their
-   colour from the paper's tokens, so every paper recolours them. */
-.pips { display: flex; gap: 9px; flex-wrap: nowrap; justify-content: center; align-items: center; height: 17px; }
+/* The card dots (brush kit): a ring for a card not yet answered, the one on the screen
+   in ink and a little larger, the ones to come quiet in --rule; a brush dot for a card
+   answered, in ink, red when the answer counted toward a seal, --ink2 for a miss. */
+.pips { display: flex; gap: 9px; flex-wrap: nowrap; justify-content: center; align-items: center; height: 19px; }
 .pips > i {
-  display: block; flex: none; width: 7px; height: 7px; background-color: var(--rule);
-  -webkit-mask: url(../img/dot.webp) center / contain no-repeat; mask: url(../img/dot.webp) center / contain no-repeat;
+  display: block; flex: none; width: 15px; height: 15px; background-color: var(--rule);
+  -webkit-mask: url(../img/ring.webp) center / 100% 100% no-repeat; mask: url(../img/ring.webp) center / 100% 100% no-repeat;
 }
-.pips > i.done, .pips > i.fast { width: 13px; height: 13px; background-color: var(--ink); }
+.pips > i.done, .pips > i.fast, .pips > i.miss { -webkit-mask-image: url(../img/dot.webp); mask-image: url(../img/dot.webp); }
+.pips > i.done { background-color: var(--ink); }
 .pips > i.fast { background-color: var(--shu); }
-.pips > i.now, .pips > i.miss {
-  width: 16px; height: 16px; background-color: var(--ink);
-  -webkit-mask-image: url(../img/ring.webp); mask-image: url(../img/ring.webp);
-}
-.pips > i.miss { width: 13px; height: 13px; background-color: var(--ink2); }
+.pips > i.miss { background-color: var(--ink2); }
+.pips > i.now { background-color: var(--ink); width: 17px; height: 17px; }
 /* The black belt test has twenty-four cards to a row. */
-.pips.many { gap: 4px; }
-.pips.many > i { width: 5px; height: 5px; }
-.pips.many > i.done, .pips.many > i.fast, .pips.many > i.miss { width: 9px; height: 9px; }
+.pips.many { gap: 3px; height: 13px; }
+.pips.many > i { width: 9px; height: 9px; }
 .pips.many > i.now { width: 11px; height: 11px; }
 
 .cardwrap { flex: 1 1 0px; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -218,7 +214,7 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
   font-size: clamp(22px, calc(var(--cs, 320px) * 0.13), 44px); font-weight: 900; line-height: 1.12; }
 .answer .slots { height: auto; gap: 0; align-items: flex-end; padding: 0 0.12em; border-bottom: 0.085em solid var(--ink); }
 .answer .slots > i {
-  display: block; width: 0.56em; height: 1.12em; background: none; text-align: center; font-style: normal; color: var(--ink);
+  display: block; width: 0.52em; height: 1.12em; background: none; text-align: center; font-style: normal; color: var(--ink);
 }
 .answer .slots > i.on { background: none; }
 /* The shown answer in pencil, inked over digit by digit as it is typed. */
@@ -234,8 +230,12 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .answer.missed .slots, .answer.missed .typed { display: none; }
 .answer.missed.reveal .slots { display: flex; }
 .answer.missed.reveal.free .typed { display: block; }
+/* The kit's strike keeps its own proportions (512:96) and runs 16 % past the number each
+   side, but never shorter than 1.5 em, so a one-digit answer still gets a whole stroke
+   rather than a stub. Centred on the numerals' cap height (0.65 em down the line). */
 .answer .wrong .strike {
-  position: absolute; left: -0.22em; right: -0.22em; top: 0.47em; height: 0.36em; background-color: var(--ink);
+  position: absolute; left: 50%; top: 0.65em; width: max(1.5em, 132%); aspect-ratio: 512 / 96;
+  transform: translate(-50%, -46%); background-color: var(--ink);
   -webkit-mask: url(../img/strike.webp) center / 100% 100% no-repeat; mask: url(../img/strike.webp) center / 100% 100% no-repeat;
   animation: strike 90ms linear both;
 }
@@ -243,18 +243,49 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .stepline { font-size: 17px; font-weight: 700; text-align: center; padding: 0 14px; }
 
 
-/* The ensō: one brush circle, open, drawn in one breath. */
-.enso { position: absolute; inset: 7%; pointer-events: none; overflow: visible; }
-.enso circle { fill: none; stroke-linecap: round; }
-.enso .track { stroke: var(--ink2); stroke-width: 2.5; opacity: 0.4; }
-.enso .arc { stroke: var(--shu); stroke-width: var(--ensoW, 4.5); }
-.enso .tick-gold { stroke: var(--kin); stroke-width: 5; }
-.enso .tick-best { stroke: var(--ink); stroke-width: 3; }
-[data-ring="thin"] .enso .arc { stroke-width: calc(var(--ensoW, 6) * 0.55); }
-[data-ring="double"] .enso .arc { stroke-dasharray: none; filter: none; stroke-width: calc(var(--ensoW, 6) * 0.5); }
-[data-ring="double"] .enso .track { stroke-width: 6; opacity: 0.3; }
-[data-ring="dotted"] .enso .arc { stroke-linecap: butt; }
-[data-ring="gold"] .enso .arc { stroke: var(--kin); }
+/* The ensō timer (brush kit, art/kit/out/brush/README.md, tested in Chrome 153 and iOS
+   18.6 Safari). Two layers of one brush mask: .trail, the whole stroke faint, the time
+   already spent; .left, the stroke in solid ink from the head to the cut, the time left.
+   One custom property drives it, --left from 1 (full) to 0 (empty). The cut is a
+   conic-gradient intersected with the brush mask: the timer runs clockwise from 124.5 deg
+   (maths angle) for 336 deg, the conic starts in the stroke's gap (bearing 313.5 deg) so the
+   cut sits 12 deg into it at --left 0 and 348 deg at 1, and the ink fades over 2.5 deg either
+   side of the cut. The box must be square (the card is): the mask fills it 100 x 100 %,
+   and mask-size: contain leaves a band on iOS. Never red; the streak no longer thickens it. */
+.enso-t { position: absolute; inset: 7%; pointer-events: none; }
+.enso-t > i {
+  position: absolute; inset: 0; display: block;
+  -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center;
+  mask-size: 100% 100%; mask-repeat: no-repeat; mask-position: center;
+}
+.enso-t > .trail { background-color: var(--ink2); opacity: 0.22; }
+.enso-t > .left {
+  background-color: var(--ink);
+  --cut: calc(12deg + 336deg * var(--left, 1));
+  --cutmask: conic-gradient(from 313.5deg, #000 calc(var(--cut) - 2.5deg), transparent calc(var(--cut) + 2.5deg));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+/* One pair of rules a timer, the url written out each time (a url kept in a custom
+   property can resolve against the page). Brush is the free timer and the default. */
+.enso-t > .trail { -webkit-mask-image: url(../img/enso-brush.webp); mask-image: url(../img/enso-brush.webp); }
+.enso-t > .left { -webkit-mask-image: url(../img/enso-brush.webp), var(--cutmask); mask-image: url(../img/enso-brush.webp), var(--cutmask); }
+[data-ring="thin"] .enso-t > .trail { -webkit-mask-image: url(../img/enso-pen.webp); mask-image: url(../img/enso-pen.webp); }
+[data-ring="thin"] .enso-t > .left { -webkit-mask-image: url(../img/enso-pen.webp), var(--cutmask); mask-image: url(../img/enso-pen.webp), var(--cutmask); }
+[data-ring="double"] .enso-t > .trail { -webkit-mask-image: url(../img/enso-double.webp); mask-image: url(../img/enso-double.webp); }
+[data-ring="double"] .enso-t > .left { -webkit-mask-image: url(../img/enso-double.webp), var(--cutmask); mask-image: url(../img/enso-double.webp), var(--cutmask); }
+[data-ring="dotted"] .enso-t > .trail { -webkit-mask-image: url(../img/enso-dotted.webp); mask-image: url(../img/enso-dotted.webp); }
+[data-ring="dotted"] .enso-t > .left { -webkit-mask-image: url(../img/enso-dotted.webp), var(--cutmask); mask-image: url(../img/enso-dotted.webp), var(--cutmask); }
+[data-ring="gold"] .enso-t > .left { background-color: var(--kin); }
+/* The ticks, on the same box as the mask: the gold one where fast ends, the small ink one
+   at the child's best time. On the Gold timer the gold mark is edged in ink, so it is
+   still the gold mark the child knows and does not sink into the gold stroke. */
+.enso-ticks { position: absolute; inset: 7%; width: 86%; height: 86%; pointer-events: none; overflow: visible; }
+.enso-ticks line { stroke-linecap: butt; }
+.enso-ticks .gold { stroke: var(--kin); stroke-width: 1.7; }
+.enso-ticks .best { stroke: var(--ink); stroke-width: 1.1; }
+.enso-ticks .gold-edge { display: none; stroke: var(--ink); stroke-width: 2.9; }
+[data-ring="gold"] .enso-ticks .gold-edge { display: inline; }
 
 .diagline { min-height: 40px; font-size: 15px; display: flex; align-items: center; justify-content: center; text-align: center; }
 .missbtns { display: flex; gap: 9px; }
@@ -340,7 +371,6 @@ table.grid th:first-child { white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .splat, .answer .wrong .strike, .cardseal.press.fast .hanko-pencil { animation: none; }
-  .enso .arc { transition: none; }
 }
 
 /* ---- shop swatches ---- */
@@ -367,7 +397,7 @@ table.grid th:first-child { white-space: nowrap; }
   width: clamp(32px, calc(var(--cs, 330px) * 0.145), 48px); height: clamp(32px, calc(var(--cs, 330px) * 0.145), 48px);
 }
 .cardseal .hanko-stack > i {
-  position: absolute; inset: 0; visibility: hidden;
+  position: absolute; inset: 0; width: auto; height: auto; visibility: hidden;   /* kit.css sizes .hanko at 52 px */
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
   -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
 }
@@ -406,6 +436,7 @@ table.grid th:first-child { white-space: nowrap; }
 .fastticks { display: flex; gap: 3px; }
 .fastticks > i { width: 5px; height: 14px; background: var(--shu); border-radius: 1px; }
 .floatcoin { display: flex; align-items: center; gap: 4px; font-size: 17px; color: var(--ink); }
+.floatcoin .coin { width: 20px; height: 20px; }   /* the seal kit's size for the coin that floats off the card */
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .shake { animation: shake 240ms ease-in-out; }
 .howto h3 { margin: 0 0 3px; font: 600 17px/1.3 "Shippori Mincho", "Hiragino Mincho ProN", serif; }
