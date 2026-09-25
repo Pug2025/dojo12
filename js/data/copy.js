@@ -186,11 +186,11 @@ D.copy = (function () {
     howto: {
       title: 'How it works',
       sections: [
-        ['The card', "Type the answer and tap Go. A question you've been getting right gets a timer. Beat its gold mark and that's fast. A red time means it counted toward a seal. The small tick is your best time. If the timer runs out, the card stays up and a right answer still counts, though not as fast."],
+        ['The card', "Type the answer and tap Go. A question you've been getting right gets a timer. Beat its gold mark and that's fast. A red time means it counted toward a seal. The small tick is your best time."],
         ['The seal', "The first red time on a question puts it halfway. A red time on another day seals it, and a sealed question comes back now and then to check. A miss takes a question back a step, and so does getting slow at a sealed one. Your belt keeps its place."],
-        ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The fourth stripe on brown opens the black belt test: 24 questions, 22 right with 20 fast, no Break it down.'],
+        ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The fourth stripe on brown opens the black belt test.'],
         ['The streak', 'Three right in a row and your points count 1.5 times, six makes it 2 times and nine makes it 3. The streak carries into the next round. Going Home ends it, and so does a quick wrong guess, even if you break it down after. After any other miss, Break it down with every step right keeps it. Show me loses it.'],
-        ['Points, coins and XP', 'Points are for beating your best round. Fast answers and a streak score more. Coins buy things in the Shop. Every right answer pays one, but not after Break it down or Show me. A bonus card pays 5 more, a stripe 10 and a belt 50. Right answers also give XP, and new levels put more in the Shop.'],
+        ['Points, coins and XP', 'Points are for beating your best round. Fast answers and a streak score more. Coins buy things in the Shop. Every right answer pays one, but not after Break it down or Show me. Right answers also give XP, and new levels put more in the Shop.'],
       ],
     },
 

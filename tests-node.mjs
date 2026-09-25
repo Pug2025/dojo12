@@ -2695,10 +2695,14 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
     /six makes it 2 times and nine makes it 3/.test(all) && c.COMBO_TIERS.join() === "1,1.5,2,3");
   t("How it works says the streak ends at Home and on a quick guess, whatever the steps",
     /Going Home ends it, and so does a quick wrong guess, even if you break it down after\./.test(all) && /Show me loses it\./.test(all));
-  t("How it works gives the black belt test as the engine runs it",
-    all.indexOf(c.TEST_CARDS + " questions, " + c.TEST_PASS_CORRECT + " right with " + c.TEST_PASS_FAST + " fast") >= 0);
-  t("How it works gives what a bonus card, a stripe and a belt pay",
-    all.indexOf("A bonus card pays " + c.BONUS_COINS + " more, a stripe " + c.COINS_STRIPE + " and a belt " + c.COINS_BELT + ".") >= 0);
+  // The test's numbers and what each source pays live where they happen (the Belt screen, the
+  // end-of-round ledger), so How it works stays five short panels (2026-09-25).
+  t("How it works names the black belt test and the Belt screen gives it as the engine runs it",
+    /opens the black belt test\./.test(all) &&
+    D.copy.belt.testRules.indexOf(c.TEST_CARDS + " questions") === 0 &&
+    D.copy.belt.testRules.indexOf("Get " + c.TEST_PASS_CORRECT + " right, with " + c.TEST_PASS_FAST + " of them fast.") >= 0);
+  t("How it works says what points, coins and XP are for",
+    /Points are for beating your best round\./.test(all) && /Coins buy things in the Shop\./.test(all) && /XP/.test(all));
   t("How it works says a miss takes a question back a step and the belt keeps its place",
     /A miss takes a question back a step/.test(all) && /Your belt keeps its place\./.test(all));
   t("How it works calls the best-time tick the small tick, which is light ink on the dark papers",
