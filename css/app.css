@@ -364,7 +364,9 @@ table.grid th:first-child { white-space: nowrap; }
   font-size: 15px; z-index: 50; max-width: calc(100% - 32px); text-align: center;
 }
 .holdbar { position: relative; overflow: hidden; }
-.holdbar > .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--shu); opacity: 0.25; }
+/* Holding to leave draws an ink line along the button's foot: never a see-through red
+   fill (ART.md: no translucent panels, red is never a warning). */
+.holdbar > .fill { position: absolute; left: 0; bottom: 0; width: 0; height: 2px; background: var(--ink); }
 
 /* ---- the install screen ---- */
 .shot { color: var(--ink); }
