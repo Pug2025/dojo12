@@ -146,14 +146,14 @@ D.main = (function () {
     if (sum.placementContinues) {
       // Round 1's end is short: the score and its line sit in the middle of the paper.
       parts.splice(1, 0, u().el('div', { class: 'grow' }));
-      parts.push(halfwayLine(beat, beat.t + 60));
+      parts.push(halfwayLine(beat));
     } else {
       const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
       parts.push(u().el('div', { class: 'start' }, [
         u().el('div', { class: 't17' }, keep(focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen)),
         u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest),
       ]));
-      parts.push(halfwayLine(beat, beat.t + 60));
+      parts.push(halfwayLine(beat));
       parts.push(beltPlate(D.belt.info()));
       parts.push(ledger(D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins),
                         D.copy.roundOne.xp, xpBefore(sum.xp, false), beat));
@@ -194,11 +194,12 @@ D.main = (function () {
         if (thumps < 3 - (last ? 0 : reserve || 0)) { thumps++; D.audio.thump(ms / 1000 + 0.07); }
         b.t = Math.max(b.t, ms + 120);
       },
-      // Anything else drawn in at `ms`, lasting `len`.
-      draw(node, ms, cls, len) {
+      // Anything else drawn in at `ms`, lasting `len`. A quiet one (a pencil square) does
+      // not hold back what comes after it.
+      draw(node, ms, cls, len, quiet) {
         node.classList.add(cls);
         node.style.animationDelay = Math.round(ms) + 'ms';
-        b.t = Math.max(b.t, ms + (len || 0));
+        if (!quiet) b.t = Math.max(b.t, ms + (len || 0));
       },
     };
     return b;
@@ -253,10 +254,10 @@ D.main = (function () {
       return u().el('span', { class: 'mk stack' + (big ? ' big' : ''), 'aria-hidden': 'true' },
                     [u().el('i', { class: big ? 'hanko-pencil' : 'hanko-pencil-sm' }), seal]);
     },
-    // Halfway: the pencil square where the seal will go.
-    pencil: (beat, at) => (x, i) => {
+    // Halfway: the pencil square where the seal will go, pencilled in at once, in turn.
+    pencil: (beat) => (x, i) => {
       const n = u().el('i', { class: 'hanko-pencil-sm mk', 'aria-hidden': 'true' });
-      beat.draw(n, at + i * 40, 'pencilin', 200);
+      beat.draw(n, 80 + i * 30, 'pencilin', 200, true);
       return n;
     },
     // A lost seal lifts off and leaves its pencil square, as it does on the card.
@@ -269,11 +270,11 @@ D.main = (function () {
   // "Halfway today: 2 × 3, 4 × 6." The day's questions that got halfway and still are,
   // each written the way its card showed it, eight named at most (2026-09-24), each with
   // its pencil square.
-  function halfwayLine(beat, at) {
+  function halfwayLine(beat) {
     const list = D.xp.halfwayToday();
     if (!list.length) return null;
     const MAX = 8, more = Math.max(0, list.length - MAX);
-    return markedLine(names => D.copy.summary.halfwayToday(names, more), list.slice(0, MAX), marks.pencil(beat, at));
+    return markedLine(names => D.copy.summary.halfwayToday(names, more), list.slice(0, MAX), marks.pencil(beat));
   }
   // The level, stamped: the blank stone with its number on it (seal kit), named for VoiceOver.
   function levelStamp(n) {
@@ -424,7 +425,7 @@ D.main = (function () {
     (o.fresh || []).forEach((n, k) => {
       const tape = tapes[n - 1];
       if (!tape) return;
-      const at = (o.at || 0) + k * 300;
+      const at = (o.at || 0) + k * 240;
       tape.classList.add('new');
       tape.style.animationDelay = at + 'ms';
       after = at + 420;
@@ -523,12 +524,12 @@ D.main = (function () {
     if (leadIsBelt) {
       // The stripes this round tied on the belt the child has now, in the order they were tied.
       const fresh = events.filter(e => e.kind === 'stripe' && e.belt === info.belt).map(e => e.stripes);
-      const tieAt = beat.t + 100, t0 = beat.t;
+      const tieAt = 120, t0 = beat.t;
       parts.push(ceremony(lead, 'lead big'));
       const plate = beltPlate(info, { fresh: fresh, at: tieAt, beat: beat });
       parts.push(plate);
       // The seals come while the stripe is still going on, down the page.
-      beat.t = t0 + 300;
+      beat.t = t0 + 110;
       // A new colour has no stripe to tie: the new belt pops as it lands, with the belt's sound.
       setTimeout(() => {
         if (!screen || !screen.isConnected) return;
@@ -547,7 +548,7 @@ D.main = (function () {
                                 marks.seal(beat, beat.t + 60, leadIsSeal), leadIsSeal ? 'lead sealed' : 't15');
       if (leadIsSeal) parts.push(sealed); else add(sealed);
     }
-    add(halfwayLine(beat, beat.t + 40));
+    add(halfwayLine(beat));
     if (sum.unsealed.length) add(markedLine(names => D.copy.summary.unsealed(names), items(sum.unsealed), marks.lift(beat, beat.t + 200)));
     // A question that lost its seal this round is not also listed as "got it back": under
     // "lost its seal" that read as the seal coming back, which takes another day. The card
