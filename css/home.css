@@ -48,6 +48,7 @@
 .home .beltplate + .btn.ink { margin-top: 20px; }
 /* The rest of the numbers, smaller, in the order a kid scans them. */
 .home .rest { display: flex; flex-direction: column; gap: 7px; margin-top: 18px; line-height: 1.4; }
+.home .rest > div { text-wrap: pretty; }
 .home .rest .pair { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .home .rest .coins { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
 .home .rest .coins > .coin { align-self: center; margin-right: -1px; }
@@ -105,7 +106,8 @@ body:has(.screen.home) .toast { bottom: calc(62px + env(safe-area-inset-bottom))
 
 /* A new level lands as a stamp beside what it put in the Shop. */
 .sum .levelup { display: flex; align-items: center; gap: 14px; }
-.sum .levelup .hanko-level { width: 52px; height: 52px; }
+/* The stone is 10/13 of its box: the box steps left so the stone lines up with the text. */
+.sum .levelup .hanko-level { width: 52px; height: 52px; margin-left: -6px; }
 .sum .levelup .hanko-level > b { font-size: 31px; }
 .sum .levelup .hanko-level.two > b { font-size: 24px; }
 

@@ -417,6 +417,8 @@ D.main = (function () {
   function beltPlate(info, opts) {
     const o = opts || {};
     const belt = D.kit.belt(info.belt, info.stripes, {});
+    // A black belt keeps the seal its test stamped on the band, as a stamp stays on cloth.
+    if (info.black) belt.appendChild(u().el('i', { class: 'hanko beltseal askew', 'aria-hidden': 'true' }));
     const tapes = belt.querySelectorAll('.tape');
     let after = 0;
     (o.fresh || []).forEach((n, k) => {
@@ -523,10 +525,16 @@ D.main = (function () {
       const fresh = events.filter(e => e.kind === 'stripe' && e.belt === info.belt).map(e => e.stripes);
       const tieAt = beat.t + 100, t0 = beat.t;
       parts.push(ceremony(lead, 'lead big'));
-      parts.push(beltPlate(info, { fresh: fresh, at: tieAt, beat: beat }));
+      const plate = beltPlate(info, { fresh: fresh, at: tieAt, beat: beat });
+      parts.push(plate);
       // The seals come while the stripe is still going on, down the page.
       beat.t = t0 + 300;
-      setTimeout(() => { if (screen && screen.isConnected) D.audio.belt(); }, fresh.length ? tieAt : 0);
+      // A new colour has no stripe to tie: the new belt pops as it lands, with the belt's sound.
+      setTimeout(() => {
+        if (!screen || !screen.isConnected) return;
+        if (!fresh.length) D.fx.pop(plate.querySelector('.belt'));
+        D.audio.belt();
+      }, tieAt);
     } else if (lead && !leadIsSeal) {
       parts.push(ceremony(lead, 'lead'));
     }
@@ -639,10 +647,10 @@ D.main = (function () {
     let screen = null;
     if (res.passed) {
       parts.push(ceremony(D.copy.belt.blackBelt, 'lead big'));
+      // The black belt carries its seal on the band left of the knot (beltPlate); here it
+      // comes down.
       const plate = beltPlate(D.belt.info());
-      // The belt kit's band_left: a clear stretch of the outer wrap left of the knot.
-      const seal = u().el('i', { class: 'hanko beltseal', 'aria-hidden': 'true' });
-      plate.querySelector('.belt').appendChild(seal);
+      const seal = plate.querySelector('.beltseal');
       const at = beat.t + 260;
       beat.stamp(seal, at, true);
       setTimeout(() => {
@@ -652,6 +660,8 @@ D.main = (function () {
       }, at + 70);
       parts.push(plate);
     } else {
+      // Short, so it sits in the middle of the paper, as round 1's end does.
+      parts.splice(1, 0, u().el('div', { class: 'grow' }));
       parts.push(u().el('div', { class: 'lead t22' }, D.belttest.failLine(res)));
     }
     // The same ledger as the end of a round: what it paid, then what there is now.
@@ -661,10 +671,10 @@ D.main = (function () {
     parts.push(ledger(D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins),
                       D.copy.summary.xpLine(res.xp || 0, lvl.need - lvl.into, lvl.level + 1),
                       xpBefore(res.xp, false), beat));
-    if (res.passed) parts.push(backupButton());
     const back = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
-    screen = u().el('div', { class: 'screen sum test' }, parts.concat([u().el('div', { class: 'grow' }), back]));
+    screen = u().el('div', { class: 'screen sum test' + (res.passed ? '' : ' solo') },
+                    parts.concat([u().el('div', { class: 'grow' }), res.passed ? backupButton() : null, back]));
     root.appendChild(screen);
   }
 
