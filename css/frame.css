@@ -235,3 +235,8 @@
 .fr-flag { font-weight: 700; }
 .fr-dash-belt { width: min(100%, 250px); margin: 2px 0 4px; }
 .fr-dash > .btn { margin-top: 12px; }
+
+/* Numerals are never Mincho (ART.md): digits inside a Mincho title or the game's name are
+   set in Zen Kaku Gothic, a shade smaller so they sit on the Mincho's line. */
+.tnum { font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-weight: 700;
+  font-size: 0.94em; font-variant-numeric: tabular-nums; letter-spacing: 0; }

@@ -20,9 +20,36 @@ D.frame = (function () {
     l: { w: 20.0, padL: 0.708, x1: 0.759 },
     2: { w: 14.56, padL: 0.919, x1: 0.743 },
   };
+  /* Numerals are never Mincho (ART.md): the digits in a title or the game's name are set
+     in the numerals' own face, so "Round 1 done." and "Dojo 12" keep the Gothic figures the
+     seal is cut in. Text nodes only; done once per node. */
+  function gothicDigits(el) {
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const hits = [];
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (/\d/.test(n.nodeValue) && !(n.parentElement && n.parentElement.classList.contains('tnum'))) hits.push(n);
+    }
+    for (const n of hits) {
+      const frag = document.createDocumentFragment();
+      for (const part of n.nodeValue.split(/(\d+(?:[.,]\d+)*)/)) {
+        if (!part) continue;
+        frag.appendChild(/^\d/.test(part) ? u().el('span', { class: 'tnum' }, part) : document.createTextNode(part));
+      }
+      n.parentNode.replaceChild(frag, n);
+    }
+    // One run of text: a title bar lays its children out as flex items, which would trim
+    // the spaces around the digits and set them as a column of their own.
+    if (hits.length && !(el.childNodes.length === 1 && el.firstChild.classList && el.firstChild.classList.contains('tline'))) {
+      const line = u().el('span', { class: 'tline' });
+      while (el.firstChild) line.appendChild(el.firstChild);
+      el.appendChild(line);
+    }
+    return el;
+  }
   function fitTitleBar(el) {
     const p = el.parentElement;
     if (!p || !el.isConnected) return null;
+    gothicDigits(el);
     const pcs = getComputedStyle(p);
     const room = p.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
     if (!(room > 40)) return null;              // not laid out yet: the next sweep fits it
@@ -31,7 +58,7 @@ D.frame = (function () {
     // The title on one line in its own face (longhands: WebKit leaves the computed
     // 'font' shorthand empty).
     const probe = document.createElement('span');
-    probe.textContent = el.textContent;
+    probe.innerHTML = el.innerHTML;
     probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0';
     for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'fontFeatureSettings']) probe.style[k] = cs[k];
     document.body.appendChild(probe);
@@ -108,7 +135,7 @@ D.frame = (function () {
     const o = opts || {};
     return u().el('div', { class: 'fr-face' + (o.cls ? ' ' + o.cls : '') }, [
       mark(o),
-      u().el('div', { class: 'fr-name' }, D.copy.install.name),
+      gothicDigits(u().el('div', { class: 'fr-name' }, D.copy.install.name)),
     ]);
   }
 
