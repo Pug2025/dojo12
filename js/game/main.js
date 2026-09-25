@@ -72,14 +72,17 @@ D.main = (function () {
     setTimeout(() => field.focus(), 120);
   }
 
-  /* Two papers are free. The rest are shop stock, so nothing here is taken back. */
+  /* Two papers are free. The rest are shop stock, so nothing here is taken back.
+     Each is a sheet of that paper with a card on it and its name in its own ink, the
+     game as it will look (review 2026-09-24: two squares read as tick boxes, the empty
+     one unticked and the dark one ticked). */
   function paperPick() {
     u().clear(root);
-    const list = u().el('div', { class: 'col', style: { gap: '9px' } });
+    const list = u().el('div', { class: 'paperpick' });
     for (const value of D.cfg.FREE_PAPERS) {
-      const b = u().el('button', { class: 'btn wide row between', type: 'button' }, [
-        u().el('span', {}, D.copy.shop.names['theme:' + value]),
-        D.shop.paperSwatch(value),
+      const name = D.copy.shop.names['theme:' + value];
+      const b = u().el('button', { class: 'paperpick-b', type: 'button', 'aria-label': name }, [
+        D.shop.paperSwatch(value, name),
       ]);
       b.addEventListener('click', () => {
         D.state.profile.theme = value;
@@ -91,7 +94,7 @@ D.main = (function () {
       });
       list.appendChild(b);
     }
-    root.appendChild(u().el('div', { class: 'screen' }, [
+    root.appendChild(u().el('div', { class: 'screen scr-paperpick' }, [
       u().el('div', { class: 'grow' }),
       u().el('div', { class: 'titlebar' }, D.copy.first.pickPaper),
       u().el('div', { class: 't15' }, D.copy.first.paperWhy),
