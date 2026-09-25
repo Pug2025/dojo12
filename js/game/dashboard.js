@@ -5,11 +5,17 @@
 D.dashboard = (function () {
   const u = () => D.u;
 
+  /* The look (review 2026-09-24): a report on paper, plain and adult. The name and level
+     over an ink rule, then one ruled section a subject, the label small above it, the
+     child's own tied belt drawn as Home draws it. No boxes, and no red: a check that
+     fails is set in ink, heavier, never red. */
   function plate(label, children) {
-    return u().el('div', { class: 'plate' },
+    return u().el('section', { class: 'fr-sec' },
       [u().el('div', { class: 'label' }, label)].concat(children));
   }
-  function line(text, cls) { return u().el('div', { class: 't13' + (cls ? ' ' + cls : ' dim') }, text); }
+  function line(text, cls) { return u().el('div', { class: 't15' + (cls ? ' ' + cls : '') }, text); }
+  // the small grey line under a main one
+  function sub(text) { return u().el('div', { class: 't13 dim' }, text); }
   function stat(label, value) {
     return u().el('div', { class: 'sumline' }, [
       u().el('span', { class: 'dim' }, label),
@@ -23,9 +29,9 @@ D.dashboard = (function () {
     D.beyond.build();
     u().clear(root);
     const kids = [
-      u().el('div', { class: 'row between' }, [
+      u().el('div', { class: 'fr-dash-head' }, [
         u().el('div', { class: 'home-name' }, s.profile.name || D.copy.dash.title),
-        u().el('div', { class: 'seal' }, D.copy.dash.level(D.xp.levelFor(s.progress.xp).level)),
+        u().el('div', { class: 'fr-dash-level' }, D.copy.dash.level(D.xp.levelFor(s.progress.xp).level)),
       ]),
       checksPlate(s), beltPlate(s), workingPlate(s), weekPlate(s),
       gridPlate('mul'), gridPlate('div'),
@@ -37,7 +43,7 @@ D.dashboard = (function () {
       back.addEventListener('click', o.onBack);
       kids.push(back);
     }
-    root.appendChild(u().el('div', { class: 'screen' }, kids));
+    root.appendChild(u().el('div', { class: 'screen fr-dash' }, kids));
   }
 
   /* The save check and the phone clock together, each line saying what it checked
@@ -45,20 +51,18 @@ D.dashboard = (function () {
      sat in two plates at either end of the page. */
   function checksPlate(s) {
     const found = D.share.checks(s);
-    const rows = [line(found.length ? D.copy.dash.checksBad : D.copy.dash.checksOk)];
-    for (const c of found) rows.push(line(D.copy.dash.checkLine(c.id, c.n)));
+    const rows = [line(found.length ? D.copy.dash.checksBad : D.copy.dash.checksOk, found.length ? 'fr-flag' : '')];
+    for (const c of found) rows.push(line(D.copy.dash.checkLine(c.id, c.n), 'fr-flag'));
     const ahead = (s.lastSeenEpoch || 0) - Date.now();
-    rows.push(line(ahead > 5 * 60000 ? D.copy.dash.clockAhead(Math.round(ahead / 60000)) : D.copy.dash.clockOk));
-    if (s.lastSeenEpoch) rows.push(line(D.copy.dash.lastPlayed(D.u.todayKey(new Date(s.lastSeenEpoch)))));
+    rows.push(ahead > 5 * 60000 ? line(D.copy.dash.clockAhead(Math.round(ahead / 60000)), 'fr-flag') : line(D.copy.dash.clockOk));
+    if (s.lastSeenEpoch) rows.push(line(D.copy.dash.lastPlayed(D.u.todayKey(new Date(s.lastSeenEpoch))), 'dim'));
     return plate(D.copy.dash.checks, rows);
   }
 
   function beltPlate(s) {
     const info = D.belt.info();
-    const bar = u().el('div', { class: 'bar' });
-    for (let i = 0; i < info.stripes; i++) bar.appendChild(u().el('i'));
     return plate(D.copy.dash.belt, [
-      u().el('div', { class: 'beltband b-' + info.belt }, [u().el('div', { class: 'cloth' }), bar]),
+      D.kit.belt(info.belt, info.stripes, { cls: 'fr-dash-belt' }),
       u().el('div', { class: 't15' }, D.copy.dash.beltLine(info.belt, info.stripes, info.sealed)),
       stat(D.copy.dash.coinsLabel, D.copy.num(s.progress.coins)),
     ]);
@@ -70,10 +74,10 @@ D.dashboard = (function () {
       const st = D.belt.tableSeals(key);
       rows.push(u().el('div', { class: 't15' }, D.copy.dash.tableRow(D.copy.tableLabel(key), st.sealed, st.halfway, st.total)));
       const hot = D.scheduler.tableState(key).hot || [];
-      if (hot.length) rows.push(line(D.copy.dash.hot(hot)));
+      if (hot.length) rows.push(sub(D.copy.dash.hot(hot)));
     }
-    if (s.placement && s.placement.tables) rows.push(line(D.copy.dash.placement(s.placement.tables.length)));
-    if (!rows.length) rows.push(line(D.copy.dash.noData));
+    if (s.placement && s.placement.tables) rows.push(sub(D.copy.dash.placement(s.placement.tables.length)));
+    if (!rows.length) rows.push(sub(D.copy.dash.noData));
     return plate(D.copy.dash.working, rows);
   }
 
@@ -89,7 +93,7 @@ D.dashboard = (function () {
            (s.progress.fastWrongs7d || []).filter(d => D.u.daysBetween(d, day) < 7).length),
     ];
     const moved = D.recap.mostImproved();
-    if (moved) rows.push(line(D.copy.recap.improved(moved.id, false, moved.from, moved.to)));
+    if (moved) rows.push(sub(D.copy.recap.improved(moved.id, false, moved.from, moved.to)));
     return plate(D.copy.dash.week, rows);
   }
 
@@ -97,7 +101,7 @@ D.dashboard = (function () {
     const keys = D.facts.TABLE_ORDER.filter(k => k !== 'sq' && D.scheduler.isOpen(k))
       .map(Number).sort((a, b) => a - b);
     const label = op === 'mul' ? D.copy.dash.products : D.copy.dash.divisions;
-    if (!keys.length) return plate(label, [line(D.copy.dash.noData)]);
+    if (!keys.length) return plate(label, [sub(D.copy.dash.noData)]);
     const t = u().el('table', { class: 'grid' });
     const head = u().el('tr', {}, [u().el('th', {}, op === 'mul' ? '×' : '÷')]);
     for (let n = 2; n <= 12; n++) head.appendChild(u().el('th', {}, String(n)));
