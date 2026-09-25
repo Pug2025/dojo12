@@ -621,7 +621,6 @@ D.main = (function () {
         const index = out.card ? test.raw.cards.indexOf(out.card) : -1;
         // Fast is what the test counts toward its twenty: right and inside the fixed line.
         const fast = test.raw.inTime > inTime;
-        if (fast) redDot(index);
         return { correct: out.kind === 'correct', fast: fast, points: out.points, sealed: out.sealed,
                  index: index, done: out.done, streak: test.raw.correct };
       },
@@ -630,16 +629,6 @@ D.main = (function () {
         return { correct: false, index: out.card ? test.raw.cards.indexOf(out.card) : -1, done: out.done };
       },
       onDone: () => testResult(test.result()),
-    });
-  }
-  // A fast answer's dot is red, as in a round. cards.js paints an answered dot "done"
-  // right after answer() returns and does not read `fast` yet, so the red goes on just
-  // after it; once cards.js paints it itself this adds nothing.
-  function redDot(index) {
-    Promise.resolve().then(() => {
-      const pips = root.querySelector('.pips');
-      const dot = pips && pips.children[index];
-      if (dot) dot.classList.add('fast');
     });
   }
   /* A pass is the moment ART.md gives it: the seal slammed onto the black belt's band,

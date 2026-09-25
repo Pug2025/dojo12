@@ -126,7 +126,8 @@ D.cards = (function () {
         D.audio.correct(out.streak || 1);
         if (out.sealed) { D.fx.seal(dom.card); D.audio.thump(0.07); }
         if (out.points) D.fx.float(dom.card, '+' + D.copy.num(out.points), null, dom.left);
-        if (p) p.className = 'done';
+        // Red when it counted toward the test's twenty (main.js judges it at the fixed line).
+        if (p) p.className = out.fast ? 'done fast' : 'done';
       } else {
         D.audio.miss();
         // What was typed stays, struck through in one dry stroke (ART.md).
