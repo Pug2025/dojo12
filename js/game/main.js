@@ -435,6 +435,9 @@ D.main = (function () {
     const row = info.black || info.nextKind === 'test' ? null
       : u().el('div', { class: 'sealrow', 'aria-hidden': 'true' },
                bar.cells.map(c => u().el('i', { class: c === 'sealed' ? 'cell-sealed' : c === 'half' ? 'cell-halfway' : 'open' })));
+    // Thirteen places fit a line; more (a brown belt's stripe takes 17) are set in two even
+    // lines rather than thirteen and four.
+    if (row && bar.cells.length > 13) row.style.maxWidth = (Math.ceil(bar.cells.length / 2) * 26) + 'px';
     const under = u().el('div', { class: 'under' }, [row, u().el('div', { class: 'next' },
       glue(info.black ? D.copy.belt.filled(info.sealed) : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left }))))]);
     if (after && o.beat) o.beat.draw(under, after, 'drawin', 160);
