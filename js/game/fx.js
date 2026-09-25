@@ -186,54 +186,69 @@ D.fx = (function () {
     return n;
   }
 
-  /* ---- the ensō ----
-     One brush circle, open at the top right, drawn clockwise from the top. The
-     remaining time is a shu stroke that shortens; the gold tick sits where an
-     answer stops counting as fast, and a small ink tick at this child's own best
-     time on the question. pathLength normalises the circle to 100 units, so the
-     dash maths does not care how big the card is on a given phone. */
+  /* ---- the ensō (brush kit, art/kit/out/brush/README.md) ----
+     The timer is the icon's own brush stroke. Two layers of one mask: the whole stroke
+     faint (the time spent) and the stroke in solid ink cut by a conic gradient (the time
+     left). One custom property, --left, from 1 (full) to 0, moves the cut back from the
+     dry tail toward the head; css/app.css holds the layers. Never red (ART.md). The four
+     timers share one mapping (start 124.5 deg, sweep 336 deg, radius 0.4374, centre of
+     the box), so the ticks sit at startDeg - sweepDeg * at, the same formula as the cut:
+     the gold tick where an answer stops counting as fast, the small ink tick at this
+     child's best time. EDGES are each stroke's inner and outer radius every 6 deg along
+     the timer, in thousandths of the box (from the kit's spec.json, which does not
+     ship), so a tick crosses exactly that stroke's width. The box must be square. */
+  const ENSO = { startDeg: 124.5, sweepDeg: 336, step: 6 };
+  const EDGES = {
+    brush: [427,464,406,472,401,473,402,476,404,477,407,477,411,478,413,477,414,477,417,477,417,477,418,477,419,476,420,475,421,474,423,473,422,472,421,470,421,469,420,468,421,467,419,466,418,465,416,464,416,462,415,462,414,461,414,460,415,459,415,458,416,458,417,458,418,458,420,458,421,458,423,458,425,458,426,459,428,460,430,462,432,461,434,461,436,462,438,462,440,461,442,462,444,464,444,463,446,463,446,450,447,450,448,450,448,450,449,450,449,450,449,450,449,450],
+    thin: [432,443,432,443,432,445,436,444,438,445,439,446,441,448,441,449,442,450,442,452,442,453,442,454,442,454,441,455,441,455,440,454,439,455,438,454,436,453,435,452,434,451,433,450,432,449,432,448,431,447,431,446,430,445,430,444,430,443,430,443,431,442,431,442,432,442,434,443,435,443,436,443,438,444,439,446,440,448,442,449,444,450,445,452,446,454,448,455,449,456,450,457,451,458,452,459,453,460,453,460,453,460,453,459,453,459,453,459,454,457,453,456,453,455],
+    double: [427,462,407,469,404,471,405,474,407,475,409,476,412,476,414,476,416,476,418,476,418,476,419,476,420,476,421,474,421,474,422,473,422,472,421,471,420,470,419,469,420,467,418,466,416,466,415,465,414,464,414,463,413,463,412,462,412,461,413,461,413,460,414,460,416,460,417,461,418,461,420,462,421,462,423,464,424,464,426,466,428,465,430,466,432,467,434,468,435,468,436,469,438,469,439,470,439,468,440,443,440,443,441,444,441,448,442,462,442,462,442,443,442,442],
+    dotted: [453,471,453,471,453,471,402,453,433,460,421,462,438,451,425,469,435,461,421,462,430,447,445,474,419,459,424,471,444,459,431,459,424,463,432,445,424,462,432,444,434,447,421,450,432,452,424,458,423,449,421,453,441,454,421,456,422,445,420,455,426,446,427,453,424,454,429,440,432,451,436,456,429,456,426,450,426,462,446,456,430,456,442,450,443,447,460,464,449,463,443,465,455,456,449,471,456,467,444,461,452,455,453,455,446,449,444,448,448,448,448,448,448,448],
+  };
+  // The timer the child uses, by the Shop's name for it; Gold is the brush stroke in gold.
+  function ensoFile() {
+    const ring = (document.documentElement && document.documentElement.getAttribute('data-ring')) || 'brush';
+    return EDGES[ring] ? ring : 'brush';
+  }
   function enso(container, opts) {
     const o = opts || {};
-    const R = 46, CX = 50, CY = 50;
+    const box = D.u.el('div', { class: 'enso-t' }, [D.u.el('i', { class: 'trail' }), D.u.el('i', { class: 'left' })]);
+    container.appendChild(box);
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('class', 'enso');
+    svg.setAttribute('class', 'enso-ticks');
     svg.setAttribute('viewBox', '0 0 100 100');
-    function circle(cls, dash, offset, rotate) {
-      const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', String(CX)); c.setAttribute('cy', String(CY)); c.setAttribute('r', String(R));
-      c.setAttribute('class', cls);
-      c.setAttribute('pathLength', '100');
-      if (dash) c.setAttribute('stroke-dasharray', dash);
-      if (offset) c.setAttribute('stroke-dashoffset', offset);
-      c.setAttribute('transform', 'rotate(' + rotate + ' ' + CX + ' ' + CY + ')');
-      return c;
+    svg.setAttribute('aria-hidden', 'true');
+    const e = EDGES[ensoFile()];
+    function line(cls, x1, y1, x2, y2) {
+      const l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', x1.toFixed(2)); l.setAttribute('y1', y1.toFixed(2));
+      l.setAttribute('x2', x2.toFixed(2)); l.setAttribute('y2', y2.toFixed(2));
+      l.setAttribute('class', cls);
+      svg.appendChild(l);
     }
-    // The track is drawn open, thick at the start of the stroke and thin at its tail.
-    svg.appendChild(circle('track', '94 6', '0', -84));
-    const arc = circle('arc', '100 0', '0', -90);
-    svg.appendChild(arc);
-    function tick(cls, at) {
-      const angle = (at * 360 - 90) * Math.PI / 180;
-      const line = document.createElementNS(NS, 'line');
-      line.setAttribute('x1', String(CX + Math.cos(angle) * (R - 5)));
-      line.setAttribute('y1', String(CY + Math.sin(angle) * (R - 5)));
-      line.setAttribute('x2', String(CX + Math.cos(angle) * (R + 5)));
-      line.setAttribute('y2', String(CY + Math.sin(angle) * (R + 5)));
-      line.setAttribute('class', cls);
-      svg.appendChild(line);
+    // A tick crosses the stroke where the cut is when --left equals `at`, from a little
+    // inside the stroke's inner edge to a little outside its outer edge.
+    function tick(cls, at, over) {
+      const deg = ENSO.sweepDeg * at, th = (ENSO.startDeg - deg) * Math.PI / 180;
+      const n = e.length / 2, i = D.u.clamp(Math.floor(deg / ENSO.step), 0, n - 2), f = (deg - i * ENSO.step) / ENSO.step;
+      const rin = (e[2 * i] + f * (e[2 * i + 2] - e[2 * i])) / 10 - 100 * over;
+      const rout = (e[2 * i + 1] + f * (e[2 * i + 3] - e[2 * i + 1])) / 10 + 100 * over;
+      const c = Math.cos(th), sn = Math.sin(th);
+      // On the Gold timer the gold mark is edged in ink, or it sinks into the gold stroke.
+      if (cls === 'gold') line('gold-edge', 50 + rin * c, 50 - rin * sn, 50 + rout * c, 50 - rout * sn);
+      line(cls, 50 + rin * c, 50 - rin * sn, 50 + rout * c, 50 - rout * sn);
     }
-    if (o.bestAt > 0.02 && o.bestAt < 0.99) tick('tick-best', o.bestAt);
-    if (o.goldAt > 0.02 && o.goldAt < 0.99) tick('tick-gold', o.goldAt);
+    if (o.bestAt > 0.02 && o.bestAt < 0.99) tick('best', o.bestAt, 0.022);
+    if (o.goldAt > 0.02 && o.goldAt < 0.99) tick('gold', o.goldAt, 0.02);
     container.appendChild(svg);
+    let shown = '';
     return {
-      node: svg,
-      set(fraction) {
-        const f = D.u.clamp(fraction, 0, 1) * 100;
-        arc.setAttribute('stroke-dasharray', f + ' ' + (100 - f));
+      node: box,
+      // 1 is full, 0 is empty. Written only when it changes at the fourth decimal.
+      set(left) {
+        const v = D.u.clamp(left, 0, 1).toFixed(4);
+        if (v !== shown) { shown = v; box.style.setProperty('--left', v); }
       },
-      // The stroke thickens at three, six and nine in a row (ART.md).
-      thickness(tier) { container.style.setProperty('--ensoW', [4.5, 4.5, 6.5, 8.5][D.u.clamp(tier, 0, 3)] + 'px'); },
-      remove() { svg.remove(); },
+      remove() { box.remove(); svg.remove(); },
     };
   }
 

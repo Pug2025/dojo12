@@ -89,11 +89,14 @@ D.cards = (function () {
     function startRing(ms) {
       const info = opts.ringInfo ? opts.ringInfo() : {};
       ring = D.fx.enso(dom.card, { goldAt: info.goldAt || 0, bestAt: info.bestAt || 0 });
-      deadline = performance.now() + ms;
+      const from = performance.now();
+      deadline = from + ms;
+      const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
       (function tick() {
         if (!ring) return;
-        const left = deadline - performance.now();
-        ring.set(left / ms);
+        const now = performance.now(), left = deadline - now;
+        // Drawn in over 180 ms as the card appears, while the clock runs (ART.md).
+        ring.set(Math.min(still ? 1 : D.u.clamp((now - from) / 180, 0, 1), left / ms));
         if (left <= 0) { onExpired(); return; }
         raf = requestAnimationFrame(tick);
       })();
