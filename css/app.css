@@ -159,7 +159,7 @@ button { font: inherit; color: inherit; border: 0; background: none; touch-actio
 .mult { background: var(--shu); color: var(--onInk); font-weight: 900; font-size: 13px; padding: 3px 6px; border-radius: 3px; }
 [data-combo="ink"] .mult { background: var(--ink); }
 [data-combo="round"] .mult { border-radius: 50%; padding: 5px 6px; }
-[data-combo="gold"] .mult { background: var(--kin); color: var(--ink); }
+[data-combo="gold"] .mult { background: var(--kin); color: var(--onKin, var(--ink)); }
 /* The card dots (brush kit): a ring for a card not yet answered, the one on the screen
    in ink and a little larger, the ones to come quiet in --rule; a brush dot for a card
    answered, in ink, red when the answer counted toward a seal, --ink2 for a miss. */
