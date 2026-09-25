@@ -37,7 +37,7 @@
    outside the ring, so the pair is centred, not the ring: 10 % to the left. ---- */
 .fr-face { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .fr-mark { --mark: 168px; position: relative; flex: none; width: var(--mark); height: var(--mark);
-  transform: translateX(-10%); }
+  left: calc(var(--mark) * -0.1); }
 .fr-mark > i { position: absolute; display: block; }
 .fr-mark > .fr-enso { inset: 0; background-color: var(--ink);
   -webkit-mask-image: url(../img/enso-mark.webp); mask-image: url(../img/enso-mark.webp);
@@ -58,6 +58,9 @@
   animation: fr-draw 640ms cubic-bezier(.35, .1, .3, 1) 120ms both;
 }
 @keyframes fr-draw { from { --fr-draw: 0deg; } to { --fr-draw: 360deg; } }
+/* Drawn: back to the one mask, or the second layer leaves a hairline at the box's edge. */
+.fr-mark.draw > .fr-enso.drawn { animation: none;
+  -webkit-mask-image: url(../img/enso-mark.webp); mask-image: url(../img/enso-mark.webp); }
 .fr-mark.draw > .hanko-12 { animation: fr-slam 130ms ease-out 800ms both; }
 @keyframes fr-slam { 0% { transform: scale(1.6) rotate(-7deg); opacity: 0; }
   60% { transform: scale(0.96) rotate(-4deg); opacity: 1; } 100% { transform: rotate(-4deg); opacity: 1; } }
@@ -69,12 +72,12 @@
 /* ---- the install screen (iPhone Safari only): the face, the reason, the two taps ---- */
 .fr-install { align-items: center; text-align: center; }
 .fr-install .fr-mark { --mark: clamp(128px, 21vh, 184px); }
-.fr-install-line { max-width: 300px; margin-top: 30px; font-size: 17px; font-weight: 700; line-height: 1.4; }
+.fr-install-line { max-width: 300px; margin-top: 30px; font-size: 17px; font-weight: 700; line-height: 1.4; text-wrap: balance; }
 .fr-steps { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; color: var(--ink); }
 .fr-steps .fr-g-share { width: 34px; height: 43px; }
 .fr-steps .fr-g-add { width: 40px; height: 40px; }
 .fr-steps .fr-g-then { width: 22px; height: 10px; color: var(--ink2); }
-.fr-install-how { font-size: 15px; color: var(--ink2); }
+.fr-install-how { font-size: 15px; color: var(--ink); }
 
 /* ---- glyphs: strokes in the text's colour ---- */
 .fr-glyph { display: block; flex: none; overflow: visible; }
@@ -86,23 +89,38 @@
 
 /* ---- the name screen: the face, then the question, the field and Start. The face
    sits high, so the field and Start stay above the keyboard when it opens. ---- */
-.fr-first .fr-mark { --mark: clamp(112px, 19vh, 164px); }
-.fr-first > .fr-lead { flex: 0.55 1 0px; min-height: 8px; }
-.fr-first > .fr-face { margin-bottom: 22px; }
+.fr-first .fr-mark { --mark: clamp(108px, 18vh, 160px); }
+.fr-first > .fr-lead { flex: 0 0 clamp(4px, 4vh, 40px); }
+.fr-first > .fr-face { margin-bottom: 20px; }
+.fr-first > .titlebar.fr-centre { align-self: center; }
+.fr-first > .field { text-align: center; }
 .fr-first > .link.small { align-self: center; }
 .fr-first > .grow { flex: 1 1 0px; }
+/* A short phone (375 x 667): the keyboard takes about 260 of its 667 points, so the
+   face gives up height and Start stays above the keys. */
+@media (max-height: 700px) {
+  .fr-first .fr-mark { --mark: 96px; }
+  .fr-first > .fr-lead { flex-basis: 4px; }
+  .fr-first > .fr-face { gap: 8px; margin-bottom: 12px; }
+}
+/* more than one player: each name in the face names are set in */
+.fr-names { align-self: stretch; margin-top: 8px; }
+.fr-names .fr-label { font: 600 22px/1.25 "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif; }
+/* bringing a saved game back: the file link sits under the button, not across the page */
+.restorebox > .link { align-self: flex-start; }
 
-/* ---- the one screen before round 1: the title, the card the round will deal, the
-   words, and Start. ---- */
+/* ---- the one screen before round 1: the title, the card the round will deal and the
+   words under it as one group, and Start. ---- */
 .fr-demo { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.fr-demo .card { flex: none; width: 196px; height: 196px; --cs: 196px; }
-.fr-intro > .fr-demo { margin: 6px 0 4px; }
-.fr-intro > .t15 { line-height: 1.5; }
+.fr-demo .card { --cs: clamp(150px, 27vh, 232px); flex: none; width: var(--cs); height: var(--cs); }
+.fr-intro > .grow { flex: 1 1 0px; }
+.fr-intro > .fr-intro-after { flex-grow: 1.4; }
+.fr-intro-words { margin-top: 14px; line-height: 1.5; }
 
 /* ---- a calm list of paper rows (Settings, For Dad): ruled like a table in a printed
    book, ink above and below, hairlines between; no box and no shadow on any row. ---- */
 .fr-list { display: flex; flex-direction: column; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
-.fr-list > * + * { border-top: 1px solid var(--rule); }
+.fr-list > :not(:first-child) { border-top: 1px solid var(--rule); }
 .fr-row {
   position: relative; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 3px;
   width: 100%; min-height: 54px; margin: 0; padding: 14px 4px;
@@ -192,8 +210,10 @@
 .fr-pic-belt { width: 150px; }
 .fr-pic-belt .belt { width: 150px; }
 /* the streak's three steps */
-.fr-pic-streak { align-items: flex-end; gap: 8px; }
-.fr-pic-streak .streak { gap: 7px; }
+.fr-pic-streak { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; row-gap: 8px; }
+.fr-pic-streak .streak { display: contents; }
+.fr-pic-streak .label { justify-self: end; }
+.fr-pic-streak .mult { justify-self: start; }
 /* points, a coin, a level */
 .fr-pic-coins { align-items: flex-start; gap: 8px; }
 .fr-pic-coins .scorebox { gap: 5px; }
@@ -201,3 +221,17 @@
 .fr-coinrow .coin.big { width: 30px; height: 30px; vertical-align: 0; }
 .fr-pic-coins .hanko-level { width: 42px; height: 42px; }
 .fr-pic-coins .hanko-level > b { font-size: 25px; }
+
+/* ---- What Dad sees: a report on paper, plain and adult. The name and level over an
+   ink rule, one ruled section a subject, the child's tied belt as Home draws it. A
+   check that fails is set heavier in ink, never red. ---- */
+.fr-dash { width: 100%; max-width: 560px; margin: 0 auto; gap: 0; }
+.fr-dash-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 2px 0 12px; border-bottom: 1.5px solid var(--ink); }
+.fr-dash-level { flex: none; font-size: 17px; font-weight: 700; }
+.fr-sec { display: flex; flex-direction: column; gap: 7px; padding: 14px 0 16px; }
+.fr-sec + .fr-sec { border-top: 1px solid var(--rule); }
+.fr-sec > .label { margin-bottom: 1px; }
+.fr-flag { font-weight: 700; }
+.fr-dash-belt { width: min(100%, 250px); margin: 2px 0 4px; }
+.fr-dash > .btn { margin-top: 12px; }

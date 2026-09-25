@@ -50,8 +50,15 @@ D.frame = (function () {
     }
     el.classList.remove('bar-s', 'bar-m', 'bar-l', 'bar-2');
     if (bar !== 'm') el.classList.add('bar-' + bar);
+    const padR = Math.round(width * (1 - BARS[bar].x1) + 4);
     el.style.width = Math.round(width) + 'px';
-    el.style.paddingRight = Math.round(width * (1 - BARS[bar].x1) + 4) + 'px';
+    el.style.paddingRight = padR + 'px';
+    // A centred title (.fr-centre) centres its words, not the brush: the dry end trails
+    // off to the right of them, as a hand would leave it.
+    if (el.classList.contains('fr-centre')) {
+      const shift = Math.min((padR - BARS[bar].padL * em) / 2, Math.max(0, (room - width) / 2));
+      el.style.transform = 'translateX(' + Math.round(shift) + 'px)';
+    }
     el.dataset.bar = bar;
     el.dataset.textw = text;
     el.dataset.fit = el.textContent;
@@ -90,9 +97,11 @@ D.frame = (function () {
      with the name under it. draw: the ensō is brushed in and the seal stamped after it. */
   function mark(opts) {
     const o = opts || {};
+    const enso = u().el('i', { class: 'fr-enso' });
+    // Once brushed in, the stroke keeps only its own mask (frame.css: .drawn).
+    if (o.draw) enso.addEventListener('animationend', () => enso.classList.add('drawn'), { once: true });
     return u().el('div', { class: 'fr-mark' + (o.draw ? ' draw' : ''), 'aria-hidden': 'true' }, [
-      u().el('i', { class: 'fr-enso' }),
-      u().el('i', { class: 'hanko-12' }),
+      enso, u().el('i', { class: 'hanko-12' }),
     ]);
   }
   function face(opts) {

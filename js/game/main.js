@@ -66,7 +66,7 @@ D.main = (function () {
     root.appendChild(u().el('div', { class: 'screen fr-first' }, [
       u().el('div', { class: 'fr-lead' }),
       D.frame.face({ draw: true }),
-      u().el('div', { class: 'titlebar' }, D.copy.first.askName),
+      u().el('div', { class: 'titlebar fr-centre' }, D.copy.first.askName),
       field, go,
       u().el('div', { class: 'grow' }),
       link, box,
@@ -115,9 +115,8 @@ D.main = (function () {
       u().el('div', { class: 'titlebar' }, D.copy.intro.title),
       u().el('div', { class: 'grow' }),
       D.frame.firstCard(D.facts.mulId(7, 8)),
-      u().el('div', { class: 'grow' }),
-      u().el('div', { class: 't15' }, D.copy.intro.body),
-      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 't15 fr-intro-words' }, D.copy.intro.body),
+      u().el('div', { class: 'grow fr-intro-after' }),
       go,
     ]));
   }
