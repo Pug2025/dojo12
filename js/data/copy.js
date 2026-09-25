@@ -157,6 +157,8 @@ D.copy = (function () {
 
     /* ---- install and first launch ---- */
     install: {
+      // The game's name under its mark, on the install and name screens (2026-09-24).
+      name: 'Dojo 12',
       line: 'Add this to your Home Screen so your progress saves.',
       how: 'Tap Share, then Add to Home Screen.',
     },

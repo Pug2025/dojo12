@@ -22,35 +22,20 @@ D.install = (function () {
   }
   function needsInstall() { return isIOS() && !isStandalone(); }
 
+  /* The game's face first, as on the icon it is about to put on the Home Screen: the
+     ensō, the "12" seal and the name. Then why, and the two taps, drawn the way the
+     iPhone draws them: Share, then Add to Home Screen (review 2026-09-24). */
   function render(root) {
-    const u = D.u;
+    const u = D.u, F = D.frame;
     u.clear(root);
-    root.appendChild(u.el('div', { class: 'screen centre col' }, [
+    root.appendChild(u.el('div', { class: 'screen fr-install' }, [
       u.el('div', { class: 'grow' }),
-      u.el('div', { class: 'titlebar' }, D.copy.install.line),
-      u.el('div', { class: 'shot col centre', style: { gap: '10px' } }, [
-        shareGlyph(), u.el('div', { class: 't15' }, D.copy.install.how),
-      ]),
+      F.face({ draw: true }),
+      u.el('div', { class: 'fr-install-line' }, D.copy.install.line),
+      u.el('div', { class: 'fr-steps', 'aria-hidden': 'true' }, [F.glyph('share'), F.glyph('then'), F.glyph('add')]),
+      u.el('div', { class: 'fr-install-how' }, D.copy.install.how),
       u.el('div', { class: 'grow' }),
     ]));
-  }
-  // The iOS Share glyph, drawn rather than shipped, so the screen needs no asset.
-  function shareGlyph() {
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 44 56');
-    svg.setAttribute('width', '54'); svg.setAttribute('height', '68');
-    const parts = [
-      ['path', { d: 'M22 4 L22 34', stroke: 'currentColor', 'stroke-width': '3', 'stroke-linecap': 'round' }],
-      ['path', { d: 'M13 13 L22 4 L31 13', stroke: 'currentColor', 'stroke-width': '3', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }],
-      ['path', { d: 'M8 22 L4 22 L4 52 L40 52 L40 22 L36 22', stroke: 'currentColor', 'stroke-width': '3', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }],
-    ];
-    for (const [tag, attrs] of parts) {
-      const n = document.createElementNS(ns, tag);
-      for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]);
-      svg.appendChild(n);
-    }
-    return svg;
   }
 
   return { isIOS, isStandalone, needsInstall, render };

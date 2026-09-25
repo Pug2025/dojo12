@@ -41,7 +41,8 @@ D.main = (function () {
     home();
   }
 
-  /* ---- first launch ---- */
+  /* ---- first launch: the game's face over the first question (review 2026-09-24).
+     The face sits high, so the field and Start stay above the keyboard. ---- */
   function firstLaunch() {
     u().clear(root);
     const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
@@ -62,8 +63,9 @@ D.main = (function () {
     const box = u().el('div', { class: 'col', style: { gap: '9px' } });
     const link = u().el('button', { class: 'link small', type: 'button' }, D.copy.first.haveSave);
     link.addEventListener('click', () => toggleRestore(box));
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
+    root.appendChild(u().el('div', { class: 'screen fr-first' }, [
+      u().el('div', { class: 'fr-lead' }),
+      D.frame.face({ draw: true }),
       u().el('div', { class: 'titlebar' }, D.copy.first.askName),
       field, go,
       u().el('div', { class: 'grow' }),
@@ -102,19 +104,18 @@ D.main = (function () {
   }
 
   /* ---- the one screen before round 1 (2026-09-14). The timer, the seal and the
-     streak are taught the first time each one happens. ---- */
+     streak are taught the first time each one happens. Its card is the round's own,
+     as round 1 will deal it: the five card dots, the sum at the numerals' weight, the
+     answer line, and no timer (review 2026-09-24). ---- */
   function intro() {
     u().clear(root);
-    const card = u().el('div', { class: 'card', style: { width: '210px', height: '210px', '--cs': '210px' } }, [
-      u().el('div', { class: 'question' }, '7 × 8'),
-      u().el('div', { class: 'slots' }, [u().el('i', { class: 'on' }), u().el('i')]),
-    ]);
     const go = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.intro.start);
     go.addEventListener('click', startRoundOne);
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }),
-      u().el('div', { class: 'cardwrap', style: { flex: 'none' } }, [card]),
+    root.appendChild(u().el('div', { class: 'screen fr-intro' }, [
       u().el('div', { class: 'titlebar' }, D.copy.intro.title),
+      u().el('div', { class: 'grow' }),
+      D.frame.firstCard(D.facts.mulId(7, 8)),
+      u().el('div', { class: 'grow' }),
       u().el('div', { class: 't15' }, D.copy.intro.body),
       u().el('div', { class: 'grow' }),
       go,
@@ -486,9 +487,12 @@ D.main = (function () {
      The link is built before the button is live, because Safari will not open
      the share sheet across an awaited compression. Whatever happens, the child
      is told what happened. */
-  function backupButton() {
-    const b = u().el('button', { class: 'btn wide', type: 'button', disabled: 'disabled' },
-                     D.copy.settings.backup);
+  // asRow: the calm row Settings lists it as, with its note and the Share glyph.
+  function backupButton(asRow) {
+    const b = asRow
+      ? D.frame.row(D.copy.settings.backup, { note: D.copy.settings.backupNote, end: D.frame.glyph('share') })
+      : u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.backup);
+    b.setAttribute('disabled', 'disabled');
     D.share.precompute().then(() => b.removeAttribute('disabled')).catch(() => {});
     b.addEventListener('click', () => {
       if (D.share.shareNow()) { D.fx.toast(D.copy.settings.backupHow, 3200); return; }
@@ -498,30 +502,34 @@ D.main = (function () {
     return b;
   }
 
-  /* ---- settings ---- */
+  /* ---- settings: one calm list of paper rows, each saying what it is set to or where
+     it goes, its note under it; For Dad sits apart, quiet, behind its hold
+     (review 2026-09-24). ---- */
   function settings() {
     u().clear(root);
     const f = D.state.flags;
-    const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
-      tile(D.copy.settings.howItWorks, () => howItWorks(settings)),
+    const F = D.frame;
+    const paper = D.state.profile.theme || D.cfg.FREE_PAPERS[0];
+    const list = u().el('div', { class: 'fr-list' }, [
+      F.row(D.copy.settings.howItWorks, { end: F.glyph('go'), onClick: () => howItWorks(settings) }),
       toggle(D.copy.settings.sound, f.sound, v => { f.sound = v; D.save.commit(); }),
-      toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }),
-      u().el('div', { class: 't13 dim' }, D.copy.settings.autoSubmitNote),
-      tile(D.copy.settings.paper, () => D.shop.render(root, settings, 'theme')),
-      u().el('div', { class: 't13 dim' }, D.copy.settings.paperNote),
-      backupButton(),
-      u().el('div', { class: 't13 dim' }, D.copy.settings.backupNote),
+      toggle(D.copy.settings.autoSubmit, f.autoSubmit, v => { f.autoSubmit = v; D.save.commit(); }, D.copy.settings.autoSubmitNote),
+      F.row(D.copy.settings.paper, { value: D.copy.shop.names['theme:' + paper], note: D.copy.settings.paperNote,
+                                     end: F.glyph('go'), onClick: () => D.shop.render(root, settings, 'theme') }),
+      backupButton(true),
     ]);
-    const dad = u().el('button', { class: 'btn quiet wide holdbar', type: 'button' },
-                       [u().el('i', { class: 'fill' }), u().el('span', {}, D.copy.settings.forDad)]);
-    holdFor(dad, 2000, forDad, D.copy.settings.forDadHold);
+    // The hold's words sit under it, so nothing has to pop up to explain it.
+    const dad = F.row(D.copy.settings.forDad, { cls: 'fr-quiet fr-hold', note: D.copy.settings.forDadHold });
+    dad.appendChild(u().el('i', { class: 'fill' }));
+    holdFor(dad, 2000, forDad);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
     back.addEventListener('click', home);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.settings.title),
-      rows,
+      list,
       u().el('div', { class: 'grow' }),
-      dad, back,
+      u().el('div', { class: 'fr-solo' }, [dad]),
+      back,
     ]));
   }
   /* The parent's corner: a hold, so it is out of a child's way without being a
@@ -541,16 +549,19 @@ D.main = (function () {
   }
 
   /* ---- How it works: five panels, a picture and a few short lines each, from the ?
-     on Home or from Settings, and back to wherever it was opened from (2026-09-24). ---- */
+     on Home or from Settings, and back to wherever it was opened from (2026-09-24).
+     Each picture is drawn with the pieces the game itself uses (D.frame.picture), set
+     beside its words so the page reads as five short things. ---- */
   function howItWorks(from) {
     const onBack = typeof from === 'function' ? from : settings;
     u().clear(root);
-    const box = u().el('div', { class: 'howto' });
-    const GLYPHS = ['card', 'seal', 'belt', 'streak', 'coins'];
+    const box = u().el('div', { class: 'fr-howto' });
+    const PICTURES = ['card', 'seal', 'belt', 'streak', 'coins'];
     D.copy.howto.sections.forEach(([head, body], i) => {
-      box.appendChild(u().el('div', { class: 'howrow howpanel' }, [
-        D.fx.glyph(GLYPHS[i] || ''),
-        u().el('div', {}, [u().el('h3', {}, head), u().el('p', {}, body)]),
+      box.appendChild(u().el('section', { class: 'fr-panel' }, [
+        D.frame.picture(PICTURES[i]),
+        u().el('h3', {}, head),
+        u().el('p', {}, body),
       ]));
     });
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
@@ -563,14 +574,23 @@ D.main = (function () {
     ]));
   }
 
+  /* ---- For Dad: the same calm rows, plain and adult. A row that asks for more opens
+     under itself; Start over sits apart and quiet, and a reset is never red. ---- */
   function forDad() {
     u().clear(root);
-    const rows = u().el('div', { class: 'col', style: { gap: '9px' } }, [
-      tile(D.copy.forDad.dashboard, () => D.dashboard.render(root, { onBack: forDad })),
-    ]);
-    const restore = tile(D.copy.forDad.restore, () => toggleRestore(rows));
-    const rename = tile(D.copy.forDad.changeName, () => {
-      if (rows.querySelector('.namebox')) return;
+    const F = D.frame;
+    // A row and the slot it opens into; the row says whether it is open.
+    const opener = (label, fill, cls) => {
+      const slot = u().el('div', { class: 'fr-slot' });
+      const b = F.row(label, { cls: cls, end: F.glyph('open') });
+      b.setAttribute('aria-expanded', 'false');
+      b.addEventListener('click', () => {
+        if (slot.firstChild) u().clear(slot); else fill(slot);
+        b.setAttribute('aria-expanded', String(!!slot.firstChild));
+      });
+      return u().el('div', { class: 'fr-item' }, [b, slot]);
+    };
+    const rename = slot => {
       const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
                                       autocapitalize: 'words', maxlength: '14', value: D.state.profile.name });
       const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.saveName);
@@ -585,13 +605,11 @@ D.main = (function () {
       };
       go.addEventListener('click', saveName);
       field.addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
-      rows.appendChild(u().el('div', { class: 'col namebox', style: { gap: '8px' } }, [field, go]));
-    });
+      slot.appendChild(u().el('div', { class: 'col namebox', style: { gap: '10px' } }, [field, go]));
+    };
     // Start over wipes this player's save and goes back to the name screen, so
     // the whole first run can be seen again (Jamie, 2026-09-14).
-    const over = u().el('button', { class: 'btn quiet wide', type: 'button' }, D.copy.forDad.startOver);
-    over.addEventListener('click', () => {
-      if (rows.querySelector('.resetbox')) return;
+    const reset = slot => {
       const field = u().el('input', { class: 'field', type: 'text', autocapitalize: 'characters' });
       const go = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.forDad.startOver);
       go.addEventListener('click', () => {
@@ -599,17 +617,23 @@ D.main = (function () {
         D.save.reset();
         location.reload();
       });
-      rows.appendChild(u().el('div', { class: 'col resetbox', style: { gap: '8px' } }, [
+      slot.appendChild(u().el('div', { class: 'col resetbox', style: { gap: '10px' } }, [
         u().el('div', { class: 't15' }, D.copy.forDad.startOverAsk), field, go,
       ]));
-    });
+    };
+    const list = u().el('div', { class: 'fr-list' }, [
+      F.row(D.copy.forDad.dashboard, { end: F.glyph('go'), onClick: () => D.dashboard.render(root, { onBack: forDad }) }),
+      opener(D.copy.forDad.restore, toggleRestore),
+      opener(D.copy.forDad.changeName, rename),
+    ]);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
     back.addEventListener('click', settings);
     root.appendChild(u().el('div', { class: 'screen' }, [
       u().el('div', { class: 'titlebar' }, D.copy.forDad.title),
-      rows, restore, rename,
+      list,
       u().el('div', { class: 'grow' }),
-      over, back,
+      u().el('div', { class: 'fr-solo' }, [opener(D.copy.forDad.startOver, reset, 'fr-quiet')]),
+      back,
     ]));
   }
 
@@ -656,31 +680,30 @@ D.main = (function () {
     home();
   }
 
-  function toggle(labelText, on, fn) {
-    const state = u().el('span', { class: 'seal' }, on ? D.copy.settings.on : D.copy.settings.off);
-    const b = u().el('button', { class: 'btn wide row between', type: 'button' }, [
-      u().el('span', {}, labelText), state,
-    ]);
+  /* A setting that is on or off: a row with its stamp, On the solid red block and Off
+     an empty ink outline (review 2026-09-24: both were red). */
+  function toggle(labelText, on, fn, note) {
+    const state = D.frame.stamp(on);
+    const b = D.frame.row(labelText, { end: state, note: note });
+    b.setAttribute('role', 'switch');
+    b.setAttribute('aria-checked', String(!!on));
     b.addEventListener('click', () => {
       on = !on;
-      state.textContent = on ? D.copy.settings.on : D.copy.settings.off;
-      state.style.background = on ? 'var(--shu)' : 'var(--ink2)';
+      D.frame.setStamp(state, on);
+      b.setAttribute('aria-checked', String(on));
       fn(on);
     });
-    state.style.background = on ? 'var(--shu)' : 'var(--ink2)';
     return b;
   }
 
+  // More than one player on this phone: the game's face, then each name, in the face
+  // names are set in (PLAN §7.1: names only).
   function profilePick(list) {
     u().clear(root);
-    const box = u().el('div', { class: 'col', style: { gap: '9px' } });
-    for (const p of list) {
-      const b = u().el('button', { class: 'btn wide', type: 'button' }, p.name);
-      b.addEventListener('click', () => open(p.slug));
-      box.appendChild(b);
-    }
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'grow' }), box, u().el('div', { class: 'grow' }),
+    const box = u().el('div', { class: 'fr-list fr-names' });
+    for (const p of list) box.appendChild(D.frame.row(p.name, { end: D.frame.glyph('go'), onClick: () => open(p.slug) }));
+    root.appendChild(u().el('div', { class: 'screen fr-first' }, [
+      u().el('div', { class: 'fr-lead' }), D.frame.face(), box, u().el('div', { class: 'grow' }),
     ]));
   }
 
