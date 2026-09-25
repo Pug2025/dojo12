@@ -14,6 +14,9 @@
                  ones, where light ink reads stronger;
      --wash      a thin wash of the paper's own ink, for a Grid square that has
                  been asked: the fibre still shows through it;
+     --onKin     figures set on gold (the Gold streak mark): always a dark ink, which
+                 on Night and Charcoal is their --onInk, since their ink is light and
+                 light on gold read at 1.6:1;
      --sqTint    the Grid's tint for the squares (7 × 7) along its diagonal: a pale
                  wash of gold on the light papers; on Night and Charcoal gold turns
                  grey at any faint strength, so there the square is dyed a shade
@@ -35,6 +38,7 @@
   --sqTint: rgba(201, 162, 39, 0.22);
   --tileSize: 420px 900px;
   --printInk: #1A1611;
+  --onKin:  #1A1611;
 }
 /* Night is aizome, washi dipped in indigo, with off-white ink. Never navy (ART.md).
    --onInk is a shade deeper than the paper kit's #152A4B so the streak mark reads
@@ -55,6 +59,7 @@
   --sqTint: rgba(7, 20, 42, 0.32);
   --tileSize: 420px 900px;
   --printInk: #BBBEBE;
+  --onKin:  #11223C;
 }
 [data-theme="matcha"] {
   --paper:  #E4E7D4;
@@ -72,6 +77,7 @@
   --sqTint: rgba(183, 146, 38, 0.24);
   --tileSize: 420px 900px;
   --printInk: #1E2416;
+  --onKin:  #1E2416;
 }
 [data-theme="sakura"] {
   --paper:  #F2E3E1;
@@ -89,6 +95,7 @@
   --sqTint: rgba(190, 147, 48, 0.22);
   --tileSize: 420px 900px;
   --printInk: #241A1A;
+  --onKin:  #241A1A;
 }
 /* --shu is a shade deeper than it was (#A83A1C) so the streak mark's paper-coloured
    figures read at 4.5:1 on it, and a red time on this paper does too (both 3.76). */
@@ -108,6 +115,7 @@
   --sqTint: rgba(222, 170, 40, 0.30);
   --tileSize: 420px 900px;
   --printInk: #241A0F;
+  --onKin:  #120C06;
 }
 /* --shu is lighter than it was (#D4482C), close to Night's, so the streak mark's dark
    figures read at 4.6:1 on it, and a red time on this paper does too (both 3.65). */
@@ -127,6 +135,7 @@
   --sqTint: rgba(0, 0, 0, 0.34);
   --tileSize: 420px 900px;
   --printInk: #C6C0B2;
+  --onKin:  #23211C;
 }
 /* Gold leaf is a warmer gold than it was, so the leaf reads as gold rather than cream. */
 [data-theme="kinpaku"] {
@@ -145,6 +154,7 @@
   --sqTint: rgba(168, 135, 27, 0.30);
   --tileSize: 420px 980px;
   --printInk: #1F1A0F;
+  --onKin:  #1F1A0F;
 }
 
 /* The belt cloth. A coloured belt with a black rank bar holding white stripes,

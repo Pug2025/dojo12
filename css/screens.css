@@ -258,7 +258,7 @@ body { background-color: transparent; background-image: none; }
 }
 .pv-mult.v-ink { background-color: var(--ink); }
 .pv-mult.v-round { border-radius: 50%; padding: 7px 9px; }
-.pv-mult.v-gold { background-color: var(--kin); color: var(--ink); }
+.pv-mult.v-gold { background-color: var(--kin); color: var(--onKin, var(--ink)); }
 
 /* A mark beside the player's name, as Home sets it. */
 .pv-named { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 0 12px; }
