@@ -15,6 +15,9 @@
 .home .who .hanko-level.two > b { font-size: 21px; }
 .home .xp { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .home .plate.recap { margin-top: 14px; }
+/* The paper left over goes mostly under the numbers: above the belt it read as the dead
+   band the review found. */
+.home > .grow.top { flex: 1 1 0; max-height: 88px; min-height: 16px; }
 
 /* XP is one ink line with the part earned toward the next level laid on it in red (ART.md). */
 .home .xpline, .sum .xpline {
@@ -33,7 +36,7 @@
 /* Numerals are never Mincho: a number inside a Mincho line is set in the Gothic. */
 .mincho .nb { font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-weight: 700; }
 .beltplate > .under { display: flex; flex-direction: column; align-items: center; gap: 7px; margin-top: 9px; }
-.beltplate .next { font-size: 15px; line-height: 1.4; max-width: 34ch; text-wrap: balance; }
+.beltplate .next { font-size: 17px; line-height: 1.35; text-wrap: balance; }
 /* One place for each seal still between the last stripe and the next (D.belt.bar), in the
    kit's marks: a stamped seal for each sealed, the pencil square where a halfway question
    could fill the place, and the paper's shadow side, the stone's size, for the rest. The
@@ -58,6 +61,7 @@ body:has(.screen.home) .toast { bottom: calc(62px + env(safe-area-inset-bottom))
 .sum .scorerow { gap: 10px; }
 .sum .score { font-size: 64px; font-weight: 900; letter-spacing: -1px; line-height: 1.05; }
 .sum .titlebar + .scorerow .score { font-size: 44px; letter-spacing: -0.5px; }
+.sum.solo .score { font-size: 64px; letter-spacing: -1px; }
 /* The score is brushed in numeral by numeral, 40 ms apart (ART.md): each one is laid down
    left to right as a brush would. The clip opens wider than the glyph, so nothing of it
    is cut once it is down. */
@@ -78,15 +82,22 @@ body:has(.screen.home) .toast { bottom: calc(62px + env(safe-area-inset-bottom))
 .marked { line-height: 1.8; }
 .marked .q { white-space: nowrap; }
 .marked .mk { display: inline-block; vertical-align: middle; width: 24px; height: 24px; margin: -4px 3px 0 0; }
+/* A pencil square is a quiet mark: a little smaller than a stamped seal beside a line. */
+.marked .mk.hanko-pencil-sm { width: 21px; height: 21px; margin-right: 2px; }
 .sum .lead.sealed { font: 600 22px/1.6 "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif; }
 .sum .lead.sealed .q { font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-weight: 700; }
 .sum .lead.sealed .mk { width: 34px; height: 34px; margin: -6px 4px 0 1px; }
+.sum .lead + .beltplate { margin-top: 4px; }
+.sum .lines + .beltplate { margin-top: 6px; }
+/* On the end of a round the belt is a little smaller, unless a stripe or a belt leads. */
+.sum .beltplate > .belt { width: min(100%, 300px); }
+.sum .lead.big + .beltplate > .belt { width: min(100%, 340px); }
 /* A seal or a level comes down with ART.md's slam (1.6 to 1, -6deg to -3deg, 120 ms). */
 .stampin { animation: slam 120ms ease-out both; }
 /* Halfway is pencilled in; a lost seal lifts off its pencil square, as on the card. */
 .pencilin { animation: pencil-in 200ms ease-out both; }
-.mk.lift { position: relative; }
-.mk.lift > i { position: absolute; inset: 0; width: auto; height: auto; }
+.mk.stack { position: relative; }
+.mk.stack > i { position: absolute; inset: 0; width: auto; height: auto; }
 .liftoff { animation: hanko-lift 460ms ease-in forwards; }
 /* After a stripe is tied, the words under the belt come. */
 .drawin { animation: drawin 180ms ease-out both; }
@@ -113,7 +124,7 @@ body:has(.screen.home) .toast { bottom: calc(62px + env(safe-area-inset-bottom))
 /* A short phone: the belt and the score give up some size so the buttons stay near. */
 @media (max-height: 700px) {
   .sum .score { font-size: 52px; }
-  .sum .beltplate > .belt { width: min(100%, 270px); }
+  .sum .beltplate > .belt, .sum .lead.big + .beltplate > .belt { width: min(100%, 260px); }
   .home .beltplate > .belt { width: min(100%, 300px); }
 }
 

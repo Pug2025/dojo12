@@ -144,6 +144,8 @@ D.main = (function () {
       scoreRow(sum.score, beat),
     ];
     if (sum.placementContinues) {
+      // Round 1's end is short: the score and its line sit in the middle of the paper.
+      parts.splice(1, 0, u().el('div', { class: 'grow' }));
       parts.push(halfwayLine(beat, beat.t + 60));
     } else {
       const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
@@ -162,7 +164,8 @@ D.main = (function () {
     again.addEventListener('click', sum.placementContinues ? startRoundOne : startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.roundOne.home);
     back.addEventListener('click', home);
-    root.appendChild(u().el('div', { class: 'screen sum' }, parts.concat([u().el('div', { class: 'grow' }), again, back])));
+    root.appendChild(u().el('div', { class: 'screen sum' + (sum.placementContinues ? ' solo' : '') },
+                            parts.concat([u().el('div', { class: 'grow' }), again, back])));
     D.save.commitNow();
   }
   // A question never breaks across two lines: "4 ×" at the end of one line and "4" on the
@@ -201,6 +204,9 @@ D.main = (function () {
     return b;
   }
   function still() { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  // "stripe 3", "level 3" and "12 more" stay on one line: "stripe" at the end of one line and
+  // "3." on the next read as two things, like a question broken at its sign.
+  function glue(text) { return text ? String(text).replace(/(stripe|level|belt|[0-9]) ([0-9]|more)/g, '$1\xa0$2') : text; }
   // The score, brushed in numeral by numeral 40 ms apart (ART.md), its word beside it
   // rather than at the far edge (review 2026-09-24).
   function scoreRow(score, beat) {
@@ -239,11 +245,13 @@ D.main = (function () {
   }
   // The marks: one per meaning, as on the card and in the Grid (seal kit).
   const marks = {
-    // Sealed this round: the ensō seal, each stamped in turn.
+    // Sealed this round: the ensō seal stamped onto its pencil square, each in turn, as
+    // the seal lands on the card.
     seal: (beat, at, big) => (x, i) => {
-      const n = u().el('i', { class: (big ? 'hanko' : 'hanko-sm') + ' mk', 'aria-hidden': 'true' });
-      beat.stamp(n, at + i * 150);
-      return n;
+      const seal = u().el('i', { class: big ? 'hanko' : 'hanko-sm' });
+      beat.stamp(seal, at + i * 150);
+      return u().el('span', { class: 'mk stack' + (big ? ' big' : ''), 'aria-hidden': 'true' },
+                    [u().el('i', { class: big ? 'hanko-pencil' : 'hanko-pencil-sm' }), seal]);
     },
     // Halfway: the pencil square where the seal will go.
     pencil: (beat, at) => (x, i) => {
@@ -255,7 +263,7 @@ D.main = (function () {
     lift: (beat, at) => (x, i) => {
       const seal = u().el('i', { class: 'hanko-sm' });
       beat.draw(seal, at + i * 120, 'liftoff', 460);
-      return u().el('span', { class: 'mk lift', 'aria-hidden': 'true' }, [u().el('i', { class: 'hanko-pencil-sm' }), seal]);
+      return u().el('span', { class: 'mk stack', 'aria-hidden': 'true' }, [u().el('i', { class: 'hanko-pencil-sm' }), seal]);
     },
   };
   // "Halfway today: 2 × 3, 4 × 6." The day's questions that got halfway and still are,
@@ -296,9 +304,9 @@ D.main = (function () {
   function ledger(coinText, xpText, before, beat) {
     const lvl = D.xp.levelFor(D.state.progress.xp);
     return u().el('div', { class: 'ledger t15' }, [
-      u().el('div', { class: 'lrow' }, [u().el('i', { class: 'coin big' }), u().el('div', {}, coinText)]),
+      u().el('div', { class: 'lrow' }, [u().el('i', { class: 'coin big' }), u().el('div', {}, glue(coinText))]),
       u().el('div', { class: 'lrow' }, [u().el('i', { class: 'lmark' }), u().el('div', {}, [
-        u().el('div', {}, xpText), xpLine(lvl, before, beat, beat ? beat.t + 60 : 0),
+        u().el('div', {}, glue(xpText)), xpLine(lvl, before, beat, beat ? beat.t + 60 : 0),
       ])]),
     ]);
   }
@@ -378,7 +386,8 @@ D.main = (function () {
       today ? u().el('div', {}, today) : null,
       news ? u().el('div', {}, keep(news)) : null,
       workLine ? u().el('div', {}, keep(workLine)) : null,
-      sealedLine || best ? u().el('div', { class: 'pair' }, [u().el('span', {}, sealedLine || ''), best ? u().el('span', { class: 'dim' }, best) : null]) : null,
+      sealedLine || best ? u().el('div', { class: sealedLine ? 'pair' : '' },
+        [sealedLine ? u().el('span', {}, sealedLine) : null, best ? u().el('span', { class: 'dim' }, best) : null]) : null,
       u().el('div', { class: 'coins' }, [
         u().el('i', { class: 'coin' }),
         u().el('span', {}, D.copy.home.coins(p.coins)),
@@ -388,7 +397,7 @@ D.main = (function () {
 
     root.appendChild(u().el('div', { class: 'screen home' }, [
       head, xp, recap,
-      u().el('div', { class: 'grow' }),
+      u().el('div', { class: 'grow top' }),
       beltPlate(info),
       play, rest,
       u().el('div', { class: 'grow' }),
@@ -424,7 +433,7 @@ D.main = (function () {
       : u().el('div', { class: 'sealrow', 'aria-hidden': 'true' },
                bar.cells.map(c => u().el('i', { class: c === 'sealed' ? 'cell-sealed' : c === 'half' ? 'cell-halfway' : 'open' })));
     const under = u().el('div', { class: 'under' }, [row, u().el('div', { class: 'next' },
-      info.black ? D.copy.belt.filled(info.sealed) : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left })))]);
+      glue(info.black ? D.copy.belt.filled(info.sealed) : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left }))))]);
     if (after && o.beat) o.beat.draw(under, after, 'drawin', 160);
     return u().el('div', { class: 'beltplate' }, [belt, ceremony(D.copy.belt.now(info.belt, info.stripes), 'beltname'), under]);
   }
