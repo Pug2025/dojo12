@@ -81,11 +81,15 @@ body { background-color: transparent; background-image: none; }
    read as a keyline, not as gilt (paper kit). The band is cut from a full layer with
    an even-odd frame, so it keeps its width on a card of any size. */
 [data-skin="gilt"] .card { box-shadow: 2px 2px 0 var(--ink); }
+/* A hair of deeper gold inside the band, the leaf's own edge, as on a gilded frame. */
+:root[data-skin="gilt"] .card:not([data-skin]), .card[data-skin="gilt"] {
+  box-shadow: 2px 2px 0 var(--ink), inset 0 0 0 calc(var(--gw) + 1px) var(--kin);
+}
 :root[data-skin="gilt"] .card:not([data-skin])::before, .card[data-skin="gilt"]::before {
   content: "";
   background-color: var(--kin);
   background-image: url(../img/paper-kinpaku.webp);
-  background-size: 420px 980px; background-position: -37px -512px;
+  background-size: 210px 490px; background-position: -37px -212px;
   -webkit-clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0,
     var(--gw) var(--gw), var(--gw) calc(100% - var(--gw)), calc(100% - var(--gw)) calc(100% - var(--gw)),
     calc(100% - var(--gw)) var(--gw), var(--gw) var(--gw));
@@ -137,17 +141,6 @@ body { background-color: transparent; background-image: none; }
 }
 .chart-legend > span { display: flex; align-items: center; gap: 9px; min-width: 0; }
 
-/* The squares' tint: a pale wash of the paper's gold on the light papers; on Night and
-   Charcoal gold turns grey at any faint strength, so the square is dyed a shade deeper
-   instead, the other way from the asked squares' lighter wash. */
-:root, [data-theme="washi"] { --sqTint: rgba(201, 162, 39, 0.22); }
-[data-theme="night"]   { --sqTint: rgba(7, 20, 42, 0.32); }
-[data-theme="matcha"]  { --sqTint: rgba(183, 146, 38, 0.24); }
-[data-theme="sakura"]  { --sqTint: rgba(190, 147, 48, 0.22); }
-[data-theme="kraft"]   { --sqTint: rgba(222, 170, 40, 0.30); }
-[data-theme="sumi"]    { --sqTint: rgba(0, 0, 0, 0.34); }
-[data-theme="kinpaku"] { --sqTint: rgba(168, 135, 27, 0.30); }
-
 /* ================= the Belt screen: a ladder =================
    Five tied belts from the belt kit, white at the top and black at the foot, each with
    the seals it takes beside it. A passed belt wears four stripes at full strength. The
@@ -171,7 +164,7 @@ body { background-color: transparent; background-image: none; }
 .rung2.now .rung-name > span { background-color: var(--shu); color: var(--onInk); padding: 1px 10px 3px; margin-left: -1px; }
 .rung-at { font-size: 13px; color: var(--ink2); }
 .rung-next { font-size: 13px; font-weight: 700; line-height: 1.35; }
-.rung2.later > .rung-belt { opacity: 0.5; }
+.rung2.later > .rung-belt { opacity: 0.62; }
 .rung2.later .rung-name > span { color: var(--ink2); }
 .scr-belt .belt-test { gap: 8px; }
 .scr-belt .belt-test-title { font-size: 17px; font-weight: 700; }
@@ -205,10 +198,9 @@ body { background-color: transparent; background-image: none; }
 .stile.on .stile-status > span, .stile.ask .stile-status > span {
   background-color: var(--shu); color: var(--onInk); font-weight: 700; padding: 2px 7px 3px;
 }
-.stile.dim .stile-b { box-shadow: none; border-color: var(--ink2); }
-.stile.dim .stile-b:active { transform: none; }
-.stile.dim .stile-name { color: var(--ink2); }
-.stile.dim .pv > * { opacity: 0.62; }
+.stile.shut .stile-b { box-shadow: none; border-color: var(--ink2); }
+.stile.shut .stile-b:active { transform: none; }
+.stile.shut .stile-name { color: var(--ink2); }
 
 /* The previews. A preview is a small stage: a sheet of paper (its own, for a paper),
    with the thing on it at the size a child can read. */
@@ -219,6 +211,12 @@ body { background-color: transparent; background-image: none; }
 .mini-q { font-weight: 900; font-size: 19px; letter-spacing: -0.5px; line-height: 1; white-space: nowrap; }
 .pv-ring .card.mini { width: 88px; height: 88px; }
 .pv-ring .mini-q { font-size: 15px; letter-spacing: 0; }
+
+/* A pattern on a card this small prints half as strong again: at thumbnail size a faint
+   print is lost, and on a full card the child sees the whole field of it. */
+.pv .card[data-skin="grain"]::before { opacity: 0.2; }
+.pv .card[data-skin="grid"]::before { opacity: 0.15; }
+.pv .card[data-skin="wave"]::before, .pv .card[data-skin="hemp"]::before { opacity: 0.14; }
 
 /* A timer as a card shows it (the brush kit's two layers of one mask), held a little
    over half full: the stroke in ink from its head to the cut, the rest a faint trail,
@@ -294,7 +292,7 @@ body { background-color: transparent; background-image: none; }
   transition: transform 60ms ease, box-shadow 60ms ease;
 }
 .paperpick-b:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
-.paperpick-b > .pv-theme { flex: 1 1 auto; height: 214px; flex-direction: column; gap: 16px; }
-.paperpick-b .card.mini { width: 112px; height: 112px; }
-.paperpick-b .mini-q { font-size: 27px; }
+.paperpick-b > .pv-theme { flex: 1 1 auto; height: 250px; flex-direction: column; gap: 18px; }
+.paperpick-b .card.mini { width: 124px; height: 124px; }
+.paperpick-b .mini-q { font-size: 30px; }
 .pv-label { font-size: 17px; font-weight: 700; }

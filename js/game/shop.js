@@ -143,7 +143,7 @@ D.shop = (function () {
     // A tile the child cannot afford is dimmed like a locked one, with the shortfall on
     // it (§13.3): drawn at full strength it read as buyable (audit 2026-09-14).
     const state = (on ? ' on' : '') + (have ? ' have' : '') + (asking ? ' ask' : '') +
-      (!have && (!canSee || short) ? ' dim' : '');
+      (!have && (!canSee || short) ? ' shut' : '');
     return shell(item, D.copy.shop.names[item.id], status, state, () => {
       if (item.kind === 'sound') listen(item.value);   // heard before it is bought
       if (have) {

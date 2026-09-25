@@ -13,7 +13,11 @@
                  papers, and part of the way from the paper to the ink on the dark
                  ones, where light ink reads stronger;
      --wash      a thin wash of the paper's own ink, for a Grid square that has
-                 been asked: the fibre still shows through it. */
+                 been asked: the fibre still shows through it;
+     --sqTint    the Grid's tint for the squares (7 × 7) along its diagonal: a pale
+                 wash of gold on the light papers; on Night and Charcoal gold turns
+                 grey at any faint strength, so there the square is dyed a shade
+                 deeper instead, the other way from an asked square's wash. */
 :root,
 [data-theme="washi"] {
   --paper:  #EFE8D8;
@@ -28,6 +32,7 @@
   --grainA: rgba(26, 22, 17, 0.05);
   --grainB: rgba(26, 22, 17, 0.03);
   --wash:   rgba(26, 22, 17, 0.075);
+  --sqTint: rgba(201, 162, 39, 0.22);
   --tileSize: 420px 900px;
   --printInk: #1A1611;
 }
@@ -47,6 +52,7 @@
   --grainA: rgba(239, 233, 220, 0.05);
   --grainB: rgba(239, 233, 220, 0.03);
   --wash:   rgba(239, 233, 220, 0.09);
+  --sqTint: rgba(7, 20, 42, 0.32);
   --tileSize: 420px 900px;
   --printInk: #BBBEBE;
 }
@@ -63,6 +69,7 @@
   --grainA: rgba(30, 36, 22, 0.05);
   --grainB: rgba(30, 36, 22, 0.03);
   --wash:   rgba(30, 36, 22, 0.075);
+  --sqTint: rgba(183, 146, 38, 0.24);
   --tileSize: 420px 900px;
   --printInk: #1E2416;
 }
@@ -79,6 +86,7 @@
   --grainA: rgba(36, 26, 26, 0.05);
   --grainB: rgba(36, 26, 26, 0.03);
   --wash:   rgba(36, 26, 26, 0.075);
+  --sqTint: rgba(190, 147, 48, 0.22);
   --tileSize: 420px 900px;
   --printInk: #241A1A;
 }
@@ -97,6 +105,7 @@
   --grainA: rgba(36, 26, 15, 0.06);
   --grainB: rgba(36, 26, 15, 0.035);
   --wash:   rgba(36, 26, 15, 0.08);
+  --sqTint: rgba(222, 170, 40, 0.30);
   --tileSize: 420px 900px;
   --printInk: #241A0F;
 }
@@ -115,6 +124,7 @@
   --grainA: rgba(239, 232, 216, 0.05);
   --grainB: rgba(239, 232, 216, 0.03);
   --wash:   rgba(239, 232, 216, 0.08);
+  --sqTint: rgba(0, 0, 0, 0.34);
   --tileSize: 420px 900px;
   --printInk: #C6C0B2;
 }
@@ -132,6 +142,7 @@
   --grainA: rgba(31, 26, 15, 0.05);
   --grainB: rgba(31, 26, 15, 0.03);
   --wash:   rgba(31, 26, 15, 0.075);
+  --sqTint: rgba(168, 135, 27, 0.30);
   --tileSize: 420px 980px;
   --printInk: #1F1A0F;
 }
