@@ -1,1 +1,298 @@
-/* Dojo 12 — screens (review 2026-09-24 art pass). Loaded after app.css and kit.css. */
+/* Dojo 12 — screens (review 2026-09-24 art pass). Loaded after app.css and kit.css.
+   The papers under everything, the card's paper and its Shop patterns, and the Grid,
+   the Belt screen, the Shop and the paper pick. Every image url is written out in the
+   rule that uses it: a url kept in a custom property can resolve against the page, and
+   the game lives in a folder on its host (brush kit, found in testing). */
+
+/* ================= the papers (art/kit/out/paper) =================
+   Paper has fibre (ART.md, Okami). Each paper is a tile of its own sheet laid over its
+   colour. The root carries it, so it is painted once and scrolls with the page; the
+   body stays clear so it never covers it (app.css drew a dot grid there). Any element
+   with its own data-theme, such as a paper in the Shop, is a sheet of that paper, and
+   takes its ink as well, since color inherits as a value and not as a token. Never give
+   these a background shorthand: it would reset the tile. */
+body { background-color: transparent; background-image: none; }
+:root, [data-theme] {
+  background-color: var(--paper);
+  background-size: var(--tileSize, 420px 900px);
+  color: var(--ink);
+}
+:root, [data-theme="washi"] { background-image: url(../img/paper-washi.webp); }
+[data-theme="night"]   { background-image: url(../img/paper-night.webp); }
+[data-theme="matcha"]  { background-image: url(../img/paper-matcha.webp); }
+[data-theme="sakura"]  { background-image: url(../img/paper-sakura.webp); }
+[data-theme="kraft"]   { background-image: url(../img/paper-kraft.webp); }
+[data-theme="sumi"]    { background-image: url(../img/paper-sumi.webp); }
+[data-theme="kinpaku"] { background-image: url(../img/paper-kinpaku.webp); }
+
+/* ================= the card's paper and its patterns =================
+   The card is a sheet of the same paper cut from another part of it. A card on the
+   page takes the page's paper and the pattern the child wears; a card in a preview
+   carries its own data-theme and data-skin and takes those instead, so the Shop can
+   show one paper or pattern on another. These rules also retire app.css's CSS dot and
+   line patterns, which were drawn at lower specificity. */
+.card { isolation: isolate; --gw: 5px; }
+:root .card {
+  background-image: url(../img/paper-washi.webp);
+  background-size: var(--tileSize, 420px 900px);
+  background-position: -143px -397px;
+}
+:root[data-theme="night"] .card:not([data-theme]), .card[data-theme="night"] { background-image: url(../img/paper-night.webp); }
+:root[data-theme="matcha"] .card:not([data-theme]), .card[data-theme="matcha"] { background-image: url(../img/paper-matcha.webp); }
+:root[data-theme="sakura"] .card:not([data-theme]), .card[data-theme="sakura"] { background-image: url(../img/paper-sakura.webp); }
+:root[data-theme="kraft"] .card:not([data-theme]), .card[data-theme="kraft"] { background-image: url(../img/paper-kraft.webp); }
+:root[data-theme="sumi"] .card:not([data-theme]), .card[data-theme="sumi"] { background-image: url(../img/paper-sumi.webp); }
+:root[data-theme="kinpaku"] .card:not([data-theme]), .card[data-theme="kinpaku"] { background-image: url(../img/paper-kinpaku.webp); }
+.card[data-theme="washi"] { background-image: url(../img/paper-washi.webp); }
+
+/* A Shop pattern is printed on the card faintly in the paper's ink from a hand-cut
+   block: an alpha mask tinted --printInk, under everything on the card (the timer, the
+   sum, the seal). Masks are drawn at one image pixel a CSS pixel and centred, as the
+   kit made them for a 330 px card. */
+.card::before {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: -1; pointer-events: none;
+  background-color: var(--printInk, var(--ink));
+  -webkit-mask-repeat: repeat; mask-repeat: repeat;
+  -webkit-mask-position: 50% 50%; mask-position: 50% 50%;
+}
+:root[data-skin="grain"] .card:not([data-skin])::before, .card[data-skin="grain"]::before {
+  content: ""; opacity: 0.13;
+  -webkit-mask-image: url(../img/card-grain.webp); mask-image: url(../img/card-grain.webp);
+  -webkit-mask-size: 330px 330px; mask-size: 330px 330px;
+}
+:root[data-skin="grid"] .card:not([data-skin])::before, .card[data-skin="grid"]::before {
+  content: ""; opacity: 0.1;
+  -webkit-mask-image: url(../img/card-grid.webp); mask-image: url(../img/card-grid.webp);
+  -webkit-mask-size: 330px 336px; mask-size: 330px 336px;
+}
+:root[data-skin="wave"] .card:not([data-skin])::before, .card[data-skin="wave"]::before {
+  content: ""; opacity: 0.09;
+  -webkit-mask-image: url(../img/card-wave.webp); mask-image: url(../img/card-wave.webp);
+  -webkit-mask-size: 336px 336px; mask-size: 336px 336px;
+}
+:root[data-skin="hemp"] .card:not([data-skin])::before, .card[data-skin="hemp"]::before {
+  content: ""; opacity: 0.09;
+  -webkit-mask-image: url(../img/card-hemp.webp); mask-image: url(../img/card-hemp.webp);
+  -webkit-mask-size: 330px 286px; mask-size: 330px 286px;
+}
+/* Gold edge: a band of gold leaf laid round the card just inside its ink edge. The
+   leaf is the Gold leaf paper's own tile over the paper's --kin, so it carries the
+   leaves, their seams and the way each catches the light; a flat yellow inset line
+   read as a keyline, not as gilt (paper kit). The band is cut from a full layer with
+   an even-odd frame, so it keeps its width on a card of any size. */
+[data-skin="gilt"] .card { box-shadow: 2px 2px 0 var(--ink); }
+/* A hair of deeper gold inside the band, the leaf's own edge, as on a gilded frame. */
+:root[data-skin="gilt"] .card:not([data-skin]), .card[data-skin="gilt"] {
+  box-shadow: 2px 2px 0 var(--ink), inset 0 0 0 calc(var(--gw) + 1px) var(--kin);
+}
+:root[data-skin="gilt"] .card:not([data-skin])::before, .card[data-skin="gilt"]::before {
+  content: "";
+  background-color: var(--kin);
+  background-image: url(../img/paper-kinpaku.webp);
+  background-size: 210px 490px; background-position: -37px -212px;
+  -webkit-clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+    var(--gw) var(--gw), var(--gw) calc(100% - var(--gw)), calc(100% - var(--gw)) calc(100% - var(--gw)),
+    calc(100% - var(--gw)) var(--gw), var(--gw) var(--gw));
+  clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+    var(--gw) var(--gw), var(--gw) calc(100% - var(--gw)), calc(100% - var(--gw)) calc(100% - var(--gw)),
+    calc(100% - var(--gw)) var(--gw), var(--gw) var(--gw));
+}
+
+/* ================= the Grid: a wall chart =================
+   Eleven columns share the width after the row numbers, and every square is as tall as
+   it is wide, so the chart fills the screen at 390 and still fits at 375 (a square of
+   29 px there). Bare paper is a question not asked yet; asked, the square takes a thin
+   wash of ink with the fibre showing through; halfway and sealed carry the seal kit's
+   pencil square and small ensō seal (kit.css, as ::after), rested at -3deg as a hand
+   leaves them. The squares are tinted along the diagonal. */
+.scr-grid table.chart { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.chart col.chart-headcol { width: 24px; }
+.chart[data-op="div"] col.chart-headcol { width: 34px; }
+.chart th {
+  font-size: 13px; font-weight: 700; color: var(--ink2); line-height: 1; padding: 0 0 5px;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+.chart tbody th { padding: 0 5px 0 0; text-align: right; white-space: nowrap; }
+.chart th.chart-corner { font-weight: 500; }
+.chart th.pick { color: var(--ink); font-weight: 900; }
+.chart td { position: relative; padding: 0; border: 1px solid var(--rule); }
+.chart td::before { content: ""; display: block; padding-top: 100%; }
+/* The chart's edge is ink, as every edge is (ART.md); the lines inside are rule. */
+.chart tbody tr:first-child td { border-top: 1.5px solid var(--ink); }
+.chart tbody tr:last-child td { border-bottom: 1.5px solid var(--ink); }
+.chart tbody td:nth-child(2) { border-left: 1.5px solid var(--ink); }
+.chart tbody td:last-child { border-right: 1.5px solid var(--ink); }
+.chart td.c-asked, .chart-key.c-asked { background-color: var(--wash); }
+.chart td.c-sq, .chart-key.c-sq { box-shadow: inset 0 0 0 40px var(--sqTint); }
+/* The tapped square, framed in ink inside its lines. */
+.chart td.pick { outline: 2px solid var(--ink); outline-offset: -2px; }
+.chart td { cursor: pointer; }
+
+/* A key square: the same square as the chart's, at 26 px. */
+.chart-key {
+  position: relative; display: block; flex: none; width: 26px; height: 26px;
+  border: 1px solid var(--rule);
+}
+.chart-line { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 15px; font-weight: 700; }
+.chart-line:not(.on) .chart-key { visibility: hidden; }
+.chart-legend {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px;
+  font-size: 13px; color: var(--ink2);
+}
+.chart-legend > span { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+/* ================= the Belt screen: a ladder =================
+   Five tied belts from the belt kit, white at the top and black at the foot, each with
+   the seals it takes beside it. A passed belt wears four stripes at full strength. The
+   belt the child is on has its name in a solid red block: red is "this one, now"
+   (ART.md), a block and never a border. The belts to come are quieter, but in their own
+   colours, so the ladder still shows what each one is. */
+.scr-belt .belt-intro { display: flex; flex-direction: column; gap: 3px; }
+.scr-belt .belt-count { font-weight: 700; }
+.ladder { display: flex; flex-direction: column; }
+.rung2 {
+  display: grid; grid-template-columns: 54% minmax(0, 1fr); align-items: center; gap: 14px;
+  padding: 11px 0; border-top: 1px solid var(--rule);
+}
+.rung2:first-child { border-top: 0; padding-top: 4px; }
+.rung2 > .rung-belt { width: 100%; }
+.rung-words { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.rung-name > span {
+  display: inline-block; font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-weight: 600; font-size: 22px; line-height: 1.25;
+}
+.rung2.now .rung-name > span { background-color: var(--shu); color: var(--onInk); padding: 1px 10px 3px; margin-left: -1px; }
+.rung-at { font-size: 13px; color: var(--ink2); }
+.rung-next { font-size: 13px; font-weight: 700; line-height: 1.35; }
+.rung2.later > .rung-belt { opacity: 0.62; }
+.rung2.later .rung-name > span { color: var(--ink2); }
+.scr-belt .belt-test { gap: 8px; }
+.scr-belt .belt-test-title { font-size: 17px; font-weight: 700; }
+
+/* ================= the Shop: tiles with a real preview =================
+   Two tiles to a row. Each is a paper-faced button: the preview, the name, and what a
+   tap does now. The item in use says so in a solid red block ("this one, now"), and so
+   does the price once it is asked for with a first tap. A tile that cannot be bought
+   yet lies flat on the paper, no offset, its words in pencil; it still answers a tap. */
+.scr-shop .shop-head { align-items: flex-start; }
+.scr-shop .shop-purse { align-items: flex-end; gap: 2px; padding-top: 4px; }
+.shop-list { display: flex; flex-direction: column; gap: 10px; }
+.shop-group { display: flex; flex-direction: column; gap: 1px; margin-top: 10px; }
+.shop-group-name { font-size: 17px; font-weight: 700; }
+.shop-tiles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 11px 10px; }
+.stile { position: relative; display: flex; min-width: 0; }
+.stile-b {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: stretch;
+  padding: 0; text-align: left; background-color: var(--paper);
+  border: 1.5px solid var(--ink); border-radius: 4px; box-shadow: 2px 2px 0 var(--ink);
+  overflow: hidden; transition: transform 60ms ease, box-shadow 60ms ease;
+}
+.stile-b:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.stile-b:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.stile .pv { height: 104px; border-bottom: 1px solid var(--rule); }
+.stile .pv-theme { border-bottom: 0; }
+.stile-name { font-size: 17px; font-weight: 700; line-height: 1.25; padding: 8px 10px 0; }
+.stile-status { display: block; font-size: 13px; line-height: 1.35; color: var(--ink2); padding: 3px 10px 10px; }
+.stile-status > span { display: inline-block; }
+.stile.have .stile-status { color: var(--ink); font-weight: 700; }
+.stile.on .stile-status > span, .stile.ask .stile-status > span {
+  background-color: var(--shu); color: var(--onInk); font-weight: 700; padding: 2px 7px 3px;
+}
+.stile.shut .stile-b { box-shadow: none; border-color: var(--ink2); }
+.stile.shut .stile-b:active { transform: none; }
+.stile.shut .stile-name { color: var(--ink2); }
+
+/* The previews. A preview is a small stage: a sheet of paper (its own, for a paper),
+   with the thing on it at the size a child can read. */
+.pv { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card.mini {
+  flex: none; width: 78px; height: 78px; max-width: none; max-height: none; gap: 0; --gw: 3px;
+}
+.mini-q { font-weight: 900; font-size: 19px; letter-spacing: -0.5px; line-height: 1; white-space: nowrap; }
+.pv-ring .card.mini { width: 88px; height: 88px; }
+.pv-ring .mini-q { font-size: 15px; letter-spacing: 0; }
+
+/* A pattern on a card this small prints half as strong again: at thumbnail size a faint
+   print is lost, and on a full card the child sees the whole field of it. */
+.pv .card[data-skin="grain"]::before { opacity: 0.2; }
+.pv .card[data-skin="grid"]::before { opacity: 0.15; }
+.pv .card[data-skin="wave"]::before, .pv .card[data-skin="hemp"]::before { opacity: 0.14; }
+
+/* A timer as a card shows it (the brush kit's two layers of one mask), held a little
+   over half full: the stroke in ink from its head to the cut, the rest a faint trail,
+   and the gold mark where fast ends. Its own classes, so the timer the child wears on
+   the page never changes the one drawn here. */
+.pv-enso { position: absolute; top: 7%; right: 7%; bottom: 7%; left: 7%; pointer-events: none; --left: 0.6; }
+.pv-enso > i {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: block;
+  -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center;
+  mask-size: 100% 100%; mask-repeat: no-repeat; mask-position: center;
+}
+.pv-enso > .trail { background-color: var(--ink2); opacity: 0.22; }
+.pv-enso > .left {
+  background-color: var(--ink);
+  --cut: calc(12deg + 336deg * var(--left));
+  --cutmask: conic-gradient(from 313.5deg, #000 calc(var(--cut) - 2.5deg), transparent calc(var(--cut) + 2.5deg));
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.pv-enso.v-brush > .trail, .pv-enso.v-gold > .trail { -webkit-mask-image: url(../img/enso-brush.webp); mask-image: url(../img/enso-brush.webp); }
+.pv-enso.v-brush > .left, .pv-enso.v-gold > .left { -webkit-mask-image: url(../img/enso-brush.webp), var(--cutmask); mask-image: url(../img/enso-brush.webp), var(--cutmask); }
+.pv-enso.v-thin > .trail { -webkit-mask-image: url(../img/enso-pen.webp); mask-image: url(../img/enso-pen.webp); }
+.pv-enso.v-thin > .left { -webkit-mask-image: url(../img/enso-pen.webp), var(--cutmask); mask-image: url(../img/enso-pen.webp), var(--cutmask); }
+.pv-enso.v-double > .trail { -webkit-mask-image: url(../img/enso-double.webp); mask-image: url(../img/enso-double.webp); }
+.pv-enso.v-double > .left { -webkit-mask-image: url(../img/enso-double.webp), var(--cutmask); mask-image: url(../img/enso-double.webp), var(--cutmask); }
+.pv-enso.v-dotted > .trail { -webkit-mask-image: url(../img/enso-dotted.webp); mask-image: url(../img/enso-dotted.webp); }
+.pv-enso.v-dotted > .left { -webkit-mask-image: url(../img/enso-dotted.webp), var(--cutmask); mask-image: url(../img/enso-dotted.webp), var(--cutmask); }
+.pv-enso.v-gold > .left { background-color: var(--kin); }
+.pv-ticks { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+.pv-ticks line { stroke-linecap: butt; }
+.pv-ticks .gold { stroke: var(--kin); stroke-width: 2.4; }
+.pv-ticks .edge { stroke: var(--ink); stroke-width: 4; }
+
+/* The streak as a round shows it, drawn a size up so it reads on a tile. */
+.pv-streak { display: flex; align-items: center; gap: 8px; }
+.pv-streak > .label { font-size: 15px; }
+.pv-mult {
+  background-color: var(--shu); color: var(--onInk); font-weight: 900; font-size: 17px; line-height: 1.2;
+  padding: 4px 8px; border-radius: 3px; font-variant-numeric: tabular-nums;
+}
+.pv-mult.v-ink { background-color: var(--ink); }
+.pv-mult.v-round { border-radius: 50%; padding: 7px 9px; }
+.pv-mult.v-gold { background-color: var(--kin); color: var(--onKin, var(--ink)); }
+
+/* A mark beside the player's name, as Home sets it. */
+.pv-named { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 0 12px; }
+.pv-named > .mark { width: 24px; height: 24px; flex: none; }
+.pv-name {
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif; font-weight: 600; font-size: 22px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+
+/* A sound's play button: a round paper key (only circles and dots are round) with the
+   same hard offset as every key, over the middle of the tile's preview. */
+.pv-play {
+  position: absolute; left: 50%; top: 53px; z-index: 1; transform: translate(-50%, -50%);
+  width: 48px; height: 48px; padding: 0; border-radius: 50%;
+  border: 1.5px solid var(--ink); background-color: var(--paper); color: var(--ink);
+  box-shadow: 2px 2px 0 var(--ink); display: flex; align-items: center; justify-content: center;
+  transition: transform 60ms ease, box-shadow 60ms ease;
+}
+.pv-play:active { transform: translate(calc(-50% + 2px), calc(-50% + 2px)); box-shadow: 0 0 0 var(--ink); }
+.pv-play svg { width: 22px; height: 22px; display: block; margin-left: 3px; }
+.pv-play path { fill: currentColor; }
+
+/* ================= the paper pick on first launch =================
+   The two free papers side by side, each a sheet of that paper with a card on it and its
+   name in its own ink: the game as it will look, not two squares that read as tick
+   boxes (review 2026-09-24). */
+.paperpick { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.paperpick-b {
+  display: flex; padding: 0; border: 1.5px solid var(--ink); border-radius: 4px;
+  box-shadow: 2px 2px 0 var(--ink); overflow: hidden;
+  transition: transform 60ms ease, box-shadow 60ms ease;
+}
+.paperpick-b:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.paperpick-b > .pv-theme { flex: 1 1 auto; height: 250px; flex-direction: column; gap: 18px; }
+.paperpick-b .card.mini { width: 124px; height: 124px; }
+.paperpick-b .mini-q { font-size: 30px; }
+.pv-label { font-size: 17px; font-weight: 700; }

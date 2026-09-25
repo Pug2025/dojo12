@@ -432,6 +432,9 @@ D.copy = (function () {
       lockedRow: (level, price) => 'Level ' + level + ' · ' + count(price, 'coin', 'coins'),
       shortRow: (price, have) => count(price, 'coin', 'coins') + ' · ' + count(price - have, 'more coin to go', 'more coins to go'),
       owned: (n, total) => 'You own ' + n + ' of ' + total,
+      // A sound's play button when sound is turned off, so the button is never silent
+      // for no reason (review 2026-09-24).
+      soundOff: 'Sound is off in Settings.',
       groups: { theme: 'Paper', skin: 'Card', ring: 'Timer', combo: 'Streak', sound: 'Sound', mark: 'Mark' },
       notes: {
         theme: 'Changes the whole look.',

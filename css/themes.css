@@ -1,7 +1,26 @@
 /* Dojo 12 — papers (ART.md). Every paper sets the same tokens and nothing else;
    the material rules in app.css never change with the paper. Washi and Night are
    free and picked on first launch, the rest are shop stock.
-   Belt colours are the real cloth and never change with the paper. */
+   Belt colours are the real cloth and never change with the paper.
+
+   Each paper is also a sheet: a tile of its own fibre laid over --paper (the paper
+   kit, art/kit/out/paper). screens.css lays the tile; the url is written out there,
+   once per paper, and never kept in a custom property, where WebKit can resolve it
+   against the page instead of this folder (brush kit, found in testing). The tokens
+   here that go with the tile:
+     --tileSize  the tile's size in CSS px (Gold leaf's leaves need a taller one);
+     --printInk  the colour a Shop card pattern is printed in: the ink on the light
+                 papers, and part of the way from the paper to the ink on the dark
+                 ones, where light ink reads stronger;
+     --wash      a thin wash of the paper's own ink, for a Grid square that has
+                 been asked: the fibre still shows through it;
+     --onKin     figures set on gold (the Gold streak mark): always a dark ink, which
+                 on Night and Charcoal is their --onInk, since their ink is light and
+                 light on gold read at 1.6:1;
+     --sqTint    the Grid's tint for the squares (7 × 7) along its diagonal: a pale
+                 wash of gold on the light papers; on Night and Charcoal gold turns
+                 grey at any faint strength, so there the square is dyed a shade
+                 deeper instead, the other way from an asked square's wash. */
 :root,
 [data-theme="washi"] {
   --paper:  #EFE8D8;
@@ -15,32 +34,50 @@
   --onInk:  #EFE8D8;
   --grainA: rgba(26, 22, 17, 0.05);
   --grainB: rgba(26, 22, 17, 0.03);
+  --wash:   rgba(26, 22, 17, 0.075);
+  --sqTint: rgba(201, 162, 39, 0.22);
+  --tileSize: 420px 900px;
+  --printInk: #1A1611;
+  --onKin:  #1A1611;
 }
+/* Night is aizome, washi dipped in indigo, with off-white ink. Never navy (ART.md).
+   --onInk is a shade deeper than the paper kit's #152A4B so the streak mark reads
+   at 4.6:1 on --shu (it was 4.18). */
 [data-theme="night"] {
-  --paper:  #1B2436;
-  --paper2: #232E44;
-  --paper3: #2C3850;
-  --ink:    #ECE6D8;
-  --ink2:   #9AA4B8;
-  --rule:   #3A4760;
-  --shu:    #D9553C;
-  --kin:    #D8B44A;
-  --onInk:  #1B2436;
-  --grainA: rgba(236, 230, 216, 0.05);
-  --grainB: rgba(236, 230, 216, 0.03);
+  --paper:  #1E3B62;
+  --paper2: #274670;
+  --paper3: #31527F;
+  --ink:    #EFE9DC;
+  --ink2:   #B4C0D2;
+  --rule:   #45648F;
+  --shu:    #E4623F;
+  --kin:    #DDB84E;
+  --onInk:  #11223C;
+  --grainA: rgba(239, 233, 220, 0.05);
+  --grainB: rgba(239, 233, 220, 0.03);
+  --wash:   rgba(239, 233, 220, 0.09);
+  --sqTint: rgba(7, 20, 42, 0.32);
+  --tileSize: 420px 900px;
+  --printInk: #BBBEBE;
+  --onKin:  #11223C;
 }
 [data-theme="matcha"] {
   --paper:  #E4E7D4;
   --paper2: #D6DBC1;
   --paper3: #C6CDAD;
   --ink:    #1E2416;
-  --ink2:   #636B52;
+  --ink2:   #626951;
   --rule:   #B7BE9F;
   --shu:    #B33F22;
   --kin:    #B79226;
   --onInk:  #E4E7D4;
   --grainA: rgba(30, 36, 22, 0.05);
   --grainB: rgba(30, 36, 22, 0.03);
+  --wash:   rgba(30, 36, 22, 0.075);
+  --sqTint: rgba(183, 146, 38, 0.24);
+  --tileSize: 420px 900px;
+  --printInk: #1E2416;
+  --onKin:  #1E2416;
 }
 [data-theme="sakura"] {
   --paper:  #F2E3E1;
@@ -54,20 +91,34 @@
   --onInk:  #F2E3E1;
   --grainA: rgba(36, 26, 26, 0.05);
   --grainB: rgba(36, 26, 26, 0.03);
+  --wash:   rgba(36, 26, 26, 0.075);
+  --sqTint: rgba(190, 147, 48, 0.22);
+  --tileSize: 420px 900px;
+  --printInk: #241A1A;
+  --onKin:  #241A1A;
 }
+/* --shu is a shade deeper than it was (#A83A1C) so the streak mark's paper-coloured
+   figures read at 4.5:1 on it, and a red time on this paper does too (both 3.76). */
 [data-theme="kraft"] {
   --paper:  #D9C4A3;
   --paper2: #CBB390;
   --paper3: #B99F79;
   --ink:    #241A0F;
-  --ink2:   #6E5A42;
+  --ink2:   #5F4D39;
   --rule:   #AE9470;
-  --shu:    #A83A1C;
+  --shu:    #943216;
   --kin:    #9C7A1E;
   --onInk:  #D9C4A3;
   --grainA: rgba(36, 26, 15, 0.06);
   --grainB: rgba(36, 26, 15, 0.035);
+  --wash:   rgba(36, 26, 15, 0.08);
+  --sqTint: rgba(222, 170, 40, 0.30);
+  --tileSize: 420px 900px;
+  --printInk: #241A0F;
+  --onKin:  #120C06;
 }
+/* --shu is lighter than it was (#D4482C), close to Night's, so the streak mark's dark
+   figures read at 4.6:1 on it, and a red time on this paper does too (both 3.65). */
 [data-theme="sumi"] {
   --paper:  #23211C;
   --paper2: #2C2A24;
@@ -75,24 +126,35 @@
   --ink:    #EFE8D8;
   --ink2:   #A29882;
   --rule:   #4A463C;
-  --shu:    #D4482C;
+  --shu:    #E4603E;
   --kin:    #D4B03C;
   --onInk:  #23211C;
   --grainA: rgba(239, 232, 216, 0.05);
   --grainB: rgba(239, 232, 216, 0.03);
+  --wash:   rgba(239, 232, 216, 0.08);
+  --sqTint: rgba(0, 0, 0, 0.34);
+  --tileSize: 420px 900px;
+  --printInk: #C6C0B2;
+  --onKin:  #23211C;
 }
+/* Gold leaf is a warmer gold than it was, so the leaf reads as gold rather than cream. */
 [data-theme="kinpaku"] {
-  --paper:  #F0E3C0;
-  --paper2: #E4D3A5;
-  --paper3: #D4BF88;
+  --paper:  #EDDCAB;
+  --paper2: #E2CE98;
+  --paper3: #D3BC80;
   --ink:    #1F1A0F;
-  --ink2:   #6B5E3C;
-  --rule:   #C9B27F;
+  --ink2:   #695D3B;
+  --rule:   #C8AF74;
   --shu:    #B3341C;
   --kin:    #A8871B;
-  --onInk:  #F0E3C0;
+  --onInk:  #EDDCAB;
   --grainA: rgba(31, 26, 15, 0.05);
   --grainB: rgba(31, 26, 15, 0.03);
+  --wash:   rgba(31, 26, 15, 0.075);
+  --sqTint: rgba(168, 135, 27, 0.30);
+  --tileSize: 420px 980px;
+  --printInk: #1F1A0F;
+  --onKin:  #1F1A0F;
 }
 
 /* The belt cloth. A coloured belt with a black rank bar holding white stripes,
