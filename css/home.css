@@ -1,1 +1,137 @@
-/* Dojo 12 — home (review 2026-09-24 art pass). Loaded after app.css and kit.css. */
+/* Dojo 12 — Home and the end of a round (review 2026-09-24 art pass). Loaded after app.css
+   and kit.css. Home leads with the belt, drawn big, and the one sentence of what comes
+   next; the end of a round is a result made in ink: the score brushed in, the seals
+   stamped, the stripe tied on, a level stamped. Every colour is a token, so every paper
+   recolours it, and the kit's pictures are laid as kit.css lays them. */
+
+/* ---- Home ---- */
+.screen.home { gap: 0; padding-top: 12px; }
+.home-head { align-items: center; }
+.home .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.home .home-name { font-size: 30px; line-height: 1.2; }
+/* The level is a small red seal beside the name (ART.md), the kit's stamp at 44 px. */
+.home .who .hanko-level { width: 44px; height: 44px; }
+.home .who .hanko-level > b { font-size: 26px; }
+.home .who .hanko-level.two > b { font-size: 21px; }
+.home .xp { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.home .plate.recap { margin-top: 14px; }
+/* The paper left over goes mostly under the numbers: above the belt it read as the dead
+   band the review found. */
+.home > .grow.top { flex: 1 1 0; max-height: 88px; min-height: 16px; }
+
+/* XP is one ink line with the part earned toward the next level laid on it in red (ART.md). */
+.home .xpline, .sum .xpline {
+  position: relative; height: 5px; background: none; border: 0; border-radius: 0; overflow: visible;
+}
+.home .xpline::before, .sum .xpline::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 2px; height: 1px; background: var(--ink2);
+}
+.home .xpline > i, .sum .xpline > i { position: absolute; left: 0; top: 0; height: 5px; background: var(--shu); }
+
+/* The belt, drawn big, with its name and what comes next under it, centred like the
+   label under a thing on a wall. The rest of Home is set flush left. */
+.beltplate { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.beltplate > .belt { width: min(100%, 340px); }
+.beltname { font-size: 22px; line-height: 1.25; margin-top: 6px; }
+/* Numerals are never Mincho: a number inside a Mincho line is set in the Gothic. */
+.mincho .nb { font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-weight: 700; }
+.beltplate > .under { display: flex; flex-direction: column; align-items: center; gap: 7px; margin-top: 9px; }
+.beltplate .next { font-size: 17px; line-height: 1.35; text-wrap: balance; }
+/* One place for each seal still between the last stripe and the next (D.belt.bar), in the
+   kit's marks: a stamped seal for each sealed, the pencil square where a halfway question
+   could fill the place, and the paper's shadow side, the stone's size, for the rest. The
+   small seal files are drawn for boxes of 20 to 30 px. */
+.sealrow { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 338px; }
+.sealrow > i { position: relative; display: block; flex: none; width: 24px; height: 24px; }
+.sealrow > i.open::after { content: ""; position: absolute; inset: 3px; background: var(--paper2); transform: rotate(-3deg); }
+
+.home .beltplate + .btn.ink { margin-top: 20px; }
+/* The rest of the numbers, smaller, in the order a kid scans them. */
+.home .rest { display: flex; flex-direction: column; gap: 7px; margin-top: 18px; line-height: 1.4; }
+.home .rest > div { text-wrap: pretty; }
+.home .rest .pair { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.home .rest .coins { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.home .rest .coins > .coin { align-self: center; margin-right: -1px; }
+.home .navrow { margin-top: 16px; }
+/* A toast on Home sits above the links, clear of Play and of them: "Bought. It is in use
+   now." covered Belt and Shop (review 2026-09-24). */
+body:has(.screen.home) .toast { bottom: calc(62px + env(safe-area-inset-bottom)); }
+
+/* ---- the end of a round ---- */
+.screen.sum { gap: 14px; }
+.sum .scorerow { gap: 10px; }
+.sum .score { font-size: 64px; font-weight: 900; letter-spacing: -1px; line-height: 1.05; }
+.sum .titlebar + .scorerow .score { font-size: 44px; letter-spacing: -0.5px; }
+.sum.solo .score { font-size: 64px; letter-spacing: -1px; }
+/* The score is brushed in numeral by numeral, 40 ms apart (ART.md): each one is laid down
+   left to right as a brush would. The clip opens wider than the glyph, so nothing of it
+   is cut once it is down. */
+.sum .score .ch { display: inline-block; animation: brushin 110ms cubic-bezier(.3, .7, .4, 1) backwards; }
+@keyframes brushin {
+  from { clip-path: inset(-30% 100% -30% -20%); opacity: 0.35; }
+  to { clip-path: inset(-30% -20% -30% -20%); opacity: 1; }
+}
+/* The line that leads is ceremony, in Mincho (ART.md); a stripe or a belt is the big one. */
+.sum .lead { font-size: 22px; line-height: 1.3; text-wrap: balance; }
+.sum .lead.big { font-size: 30px; line-height: 1.2; }
+.sum .lead.t22 { font-weight: 700; }
+.sum .lines { gap: 6px; }
+.sum .start { display: flex; flex-direction: column; gap: 5px; }
+.sum .start > .t17 { line-height: 1.35; }
+
+/* A line that names questions, each with its mark in front of it. */
+.marked { line-height: 1.8; }
+.marked .q { white-space: nowrap; }
+.marked .mk { display: inline-block; vertical-align: middle; width: 24px; height: 24px; margin: -4px 3px 0 0; }
+/* A pencil square is a quiet mark: a little smaller than a stamped seal beside a line. */
+.marked .mk.hanko-pencil-sm { width: 21px; height: 21px; margin-right: 2px; }
+.sum .lead.sealed { font: 600 22px/1.6 "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif; }
+.sum .lead.sealed .q { font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif; font-weight: 700; }
+.sum .lead.sealed .mk { width: 34px; height: 34px; margin: -6px 4px 0 1px; }
+.sum .lead + .beltplate { margin-top: 4px; }
+.sum .lines + .beltplate { margin-top: 6px; }
+/* On the end of a round the belt is a little smaller, unless a stripe or a belt leads. */
+.sum .beltplate > .belt { width: min(100%, 300px); }
+.sum .lead.big + .beltplate > .belt { width: min(100%, 340px); }
+/* A seal or a level comes down with ART.md's slam (1.6 to 1, -6deg to -3deg, 120 ms). */
+.stampin { animation: slam 120ms ease-out both; }
+/* Halfway is pencilled in; a lost seal lifts off its pencil square, as on the card. */
+.pencilin { animation: pencil-in 200ms ease-out both; }
+.mk.stack { position: relative; }
+.mk.stack > i { position: absolute; inset: 0; width: auto; height: auto; }
+.liftoff { animation: hanko-lift 460ms ease-in forwards; }
+/* After a stripe is tied, the words under the belt come. */
+.drawin { animation: drawin 180ms ease-out both; }
+@keyframes drawin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* A new level lands as a stamp beside what it put in the Shop. */
+.sum .levelup { display: flex; align-items: center; gap: 14px; }
+/* The stone is 10/13 of its box: the box steps left so the stone lines up with the text. */
+.sum .levelup .hanko-level { width: 52px; height: 52px; margin-left: -6px; }
+.sum .levelup .hanko-level > b { font-size: 31px; }
+.sum .levelup .hanko-level.two > b { font-size: 24px; }
+
+/* Coins and XP in one small ledger: the coin drawn beside the coins, XP over its line. */
+.sum .ledger { display: flex; flex-direction: column; gap: 9px; padding-top: 12px; border-top: 1px solid var(--rule); line-height: 1.4; }
+.sum .lrow { display: grid; grid-template-columns: 22px 1fr; column-gap: 10px; align-items: start; }
+.sum .lrow > .coin { margin-top: 0; }
+.sum .lrow .xpline { margin-top: 8px; }
+.xpgrow { animation: xpgrow 520ms cubic-bezier(.3, .7, .4, 1) backwards; }
+@keyframes xpgrow { from { width: var(--from); } }
+
+/* The black belt test passed: the seal comes down on the band left of the knot (the belt
+   kit's band_left anchor, 0.1995 and 0.1394 of the picture). */
+.beltseal { position: absolute; width: 46px; height: 46px; left: calc(19.95% - 23px); top: calc(13.94% - 23px); }
+
+/* A short phone: the belt and the score give up some size so the buttons stay near. */
+@media (max-height: 700px) {
+  .sum .score { font-size: 52px; }
+  .sum .beltplate > .belt, .sum .lead.big + .beltplate > .belt { width: min(100%, 260px); }
+  .home .beltplate > .belt { width: min(100%, 300px); }
+}
+
+/* Reduced motion keeps the pop and the seal, and drops the draw-ins (ART.md). */
+@media (prefers-reduced-motion: reduce) {
+  .sum .score .ch, .pencilin, .drawin, .xpgrow { animation: none; }
+  .liftoff { animation: none; opacity: 0; }
+}

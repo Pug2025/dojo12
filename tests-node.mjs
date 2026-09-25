@@ -2996,6 +2996,61 @@ h2("review 2026-09-24: offline");
   t("every file the service worker lists exists", absent.length === 0, absent.join(", "));
 }
 
+/* ================= review 2026-09-24: Home and the end of a round =================
+   The black belt test judges fast at the fixed line (§13.3). Its card (cards.js) draws the
+   gold mark where main.js says and turns a dot red when main.js says an answer was fast,
+   so both must follow the test's own line, never the child's. The end of a round stamps
+   each new seal, and only the first three thump. */
+h2("review 2026-09-24: home and the end of a round");
+{
+  const main = fs.readFileSync(path.join(ROOT, "js/game/main.js"), "utf8");
+  const testBody = main.slice(main.indexOf("function startTest()"), main.indexOf("function testResult("));
+  t("the belt test's gold mark is drawn at the fixed line it judges by",
+    /goldAt:[^\n]*fixedThreshold\(/.test(testBody) && !/D\.mastery\.threshold\(/.test(testBody));
+  t("the belt test tells its card which answers were fast, by the test's own count",
+    /fast: fast/.test(testBody) && /test\.raw\.inTime > inTime/.test(testBody));
+  // An answer between the fixed line and a careful child's own line is right, would be fast
+  // in a round, and is slow for the test: its dot must stay ink.
+  newState();
+  seedCoreFast();
+  for (const id of D.belt.coreIds()) { const r = D.mastery.rec(id); r.ewma = 3600; r.seen = Math.max(r.seen, 4); }
+  D.mastery.dirty();
+  D.state.belt.step = D.belt.lastStep();
+  const test = D.belttest.create();
+  const p = test.present(), id = p.card.id;
+  const fixed = D.mastery.fixedThreshold(id), own = D.mastery.threshold(id);
+  t("a careful child's own fast line sits past the test's fixed line", own > fixed, fixed + " / " + own);
+  const before = test.raw.inTime;
+  const out = test.submit(D.facts.get(id).ans, Math.round((fixed + own) / 2));
+  t("an answer between the two lines is right and not fast for the test",
+    out.kind === "correct" && test.raw.inTime === before, JSON.stringify({ kind: out.kind, inTime: test.raw.inTime }));
+  const q = test.present(), before2 = test.raw.inTime;
+  test.submit(D.facts.get(q.card.id).ans, 600);
+  t("a quick right answer is fast for the test", test.raw.inTime === before2 + 1);
+}
+{
+  // beats() is the end of a round's clock; it runs here with a stub for the sound.
+  const main = fs.readFileSync(path.join(ROOT, "js/game/main.js"), "utf8");
+  const src = main.slice(main.indexOf("function beats("), main.indexOf("function still("));
+  const heard = [];
+  const beats = new Function("D", src + "\nreturn beats;")({ audio: { thump: d => heard.push(d) } });
+  const node = () => ({ classList: { add() {} }, style: {} });
+  const b = beats(0);
+  for (let i = 0; i < 6; i++) b.stamp(node(), 300 + i * 150);
+  t("six seals stamped in turn thump three times, the first three", heard.length === 3 && heard[2] < 0.7, JSON.stringify(heard));
+  heard.length = 0;
+  const b2 = beats(1);
+  for (let i = 0; i < 4; i++) b2.stamp(node(), 300 + i * 150);
+  b2.stamp(node(), 1200, true);
+  t("with a new level still to stamp, the seals keep a thump back for it",
+    heard.length === 3 && Math.abs(heard[2] - 1.27) < 1e-9, JSON.stringify(heard));
+  t("each thump lands as its stamp meets the paper, 70 ms into the slam", Math.abs(heard[0] - 0.37) < 1e-9);
+  const glueSrc = main.slice(main.indexOf("function glue("), main.indexOf("\n", main.indexOf("function glue(")));
+  const glue = new Function(glueSrc + "\nreturn glue;")();
+  const line = glue(D.copy.belt.toNext({ step: 2, stripes: 2, nextKind: "stripe", nextAt: 5, sealed: 3, left: 2, outlined: 4 }));
+  t("the words under the belt never break between a stripe and its number", /stripe\xa03/.test(line) && /2\xa0more/.test(line), line);
+}
+
 /* ================= results ================= */
 console.log("\n" + passed + " passed, " + failed + " failed");
 if (failed) { console.log("\nfailures:\n  " + failures.join("\n  ")); process.exit(1); }
