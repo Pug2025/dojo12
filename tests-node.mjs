@@ -2967,6 +2967,35 @@ h2("review 2026-09-24: round");
     lines.every(l => typeof l === "string" && !/close|almost|nearly|!/i.test(l)), lines.join(" | "));
 }
 
+/* ================= review 2026-09-24: offline =================
+   The service worker precaches every file the two pages load and every image the kit
+   ships, so a phone with no signal draws the brush, the seal and the paper, not holes. */
+h2("review 2026-09-24: offline");
+{
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  const m = sw.match(/const FILES = \[([\s\S]*?)\];/);
+  const files = m ? (m[1].match(/'([^']+)'/g) || []).map(x => x.slice(1, -1)) : [];
+  const listed = new Set(files);
+  const need = new Set();
+  for (const page of ["index.html", "dashboard.html"]) {
+    const html = fs.readFileSync(path.join(ROOT, page), "utf8");
+    for (const [, u] of html.matchAll(/(?:src|href)="([^"]+)"/g)) if (!/^(https?:|#|data:)/.test(u)) need.add(u);
+  }
+  const walk = d => fs.readdirSync(path.join(ROOT, d)).flatMap(f => {
+    const q = d + "/" + f;
+    return fs.statSync(path.join(ROOT, q)).isDirectory() ? walk(q) : [q];
+  });
+  for (const f of walk("img")) need.add(f);
+  for (const f of walk("css").concat(walk("js"))) {
+    const src = fs.readFileSync(path.join(ROOT, f), "utf8");
+    for (const [, u] of src.matchAll(/(?:\.\.\/)?(img\/[a-z0-9-]+\.(?:webp|png))/g)) need.add(u);
+  }
+  const missing = [...need].filter(f => !listed.has(f));
+  t("the service worker lists every file the game loads", missing.length === 0, missing.join(", "));
+  const absent = files.filter(f => f !== "./" && !fs.existsSync(path.join(ROOT, f)));
+  t("every file the service worker lists exists", absent.length === 0, absent.join(", "));
+}
+
 /* ================= results ================= */
 console.log("\n" + passed + " passed, " + failed + " failed");
 if (failed) { console.log("\nfailures:\n  " + failures.join("\n  ")); process.exit(1); }
