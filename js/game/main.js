@@ -131,26 +131,30 @@ D.main = (function () {
     D.__rs = ro;
     D.run.start(root, { rs: ro, onDone: roundOneEnd, onLeave: intro });
   }
-  /* The end of a placement round. Before the last one it is the score and Next
-     round; after it, where the child starts (§13.3), and once, what coins and XP
-     are, with the numbers (2026-09-24). */
+  /* The end of a placement round, laid out like the end of any round: the score brushed
+     in, the halfway questions with their pencil squares. After the last one, where the
+     child starts (§13.3), the belt for the first time, and once, what coins and XP are,
+     with the numbers (2026-09-24). */
   function roundOneEnd(sum) {
     D.xp.noteRound(sum);
     u().clear(root);
-    const lines = u().el('div', { class: 'lines' });
-    const half = halfwayLine();
+    const beat = beats(0);
+    const parts = [
+      u().el('div', { class: 'titlebar' }, D.copy.roundOne.titleN(sum.roundNo || 1)),
+      scoreRow(sum.score, beat),
+    ];
     if (sum.placementContinues) {
-      if (half) lines.appendChild(u().el('div', { class: 't15' }, keep(half)));
+      parts.push(halfwayLine(beat, beat.t + 60));
     } else {
       const focus = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
-      lines.appendChild(u().el('div', { class: 't17' }, keep(focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen)));
-      lines.appendChild(u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest));
-      if (half) lines.appendChild(u().el('div', { class: 't15' }, keep(half)));
-      lines.appendChild(u().el('div', { class: 'row', style: { gap: '7px', alignItems: 'flex-start' } }, [
-        u().el('i', { class: 'coin', style: { marginTop: '3px' } }),
-        u().el('div', { class: 't15' }, D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins)),
+      parts.push(u().el('div', { class: 'start' }, [
+        u().el('div', { class: 't17' }, keep(focus.length ? D.copy.roundOne.start(focus) : D.copy.roundOne.allOpen)),
+        u().el('div', { class: 't15 dim' }, D.copy.roundOne.rest),
       ]));
-      lines.appendChild(u().el('div', { class: 't15' }, D.copy.roundOne.xp));
+      parts.push(halfwayLine(beat, beat.t + 60));
+      parts.push(beltPlate(D.belt.info()));
+      parts.push(ledger(D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins),
+                        D.copy.roundOne.xp, xpBefore(sum.xp, false), beat));
       // What is open now is what the child was just told; news starts from here.
       D.state.flags.tablesSeen = D.scheduler.tablesNow();
     }
@@ -158,34 +162,145 @@ D.main = (function () {
     again.addEventListener('click', sum.placementContinues ? startRoundOne : startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.roundOne.home);
     back.addEventListener('click', home);
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'titlebar' }, D.copy.roundOne.titleN(sum.roundNo || 1)),
-      scoreRow(sum.score, 't44'),
-      lines,
-      sum.placementContinues ? null : beltPlate(D.belt.info(), [], false),
-      u().el('div', { class: 'grow' }),
-      again, back,
-    ]));
+    root.appendChild(u().el('div', { class: 'screen sum' }, parts.concat([u().el('div', { class: 'grow' }), again, back])));
     D.save.commitNow();
   }
   // A question never breaks across two lines: "4 ×" at the end of one line and "4" on the
   // next read as two things (2026-09-24). The spaces around its sign stop the break.
   function keep(text) { return text ? String(text).replace(/ ([×÷+−=]) /g, '\u00a0$1\u00a0') : text; }
-  // The score with its word beside it, not at the far edge (review 2026-09-24).
-  function scoreRow(score, size) {
-    return u().el('div', { class: 'row scorerow' }, [
-      u().el('div', { class: size + ' num' }, D.copy.num(score)),
-      u().el('div', { class: 'label' }, D.copy.summary.points),
-    ]);
+
+  /* ---- the end of a round, laid out as a result (review 2026-09-24) ----
+     It was a big number, a list of grey lines and a blank lower half. Now a hand makes it,
+     in order: the score brushed in numeral by numeral, each new seal stamped in turn, a
+     lost seal lifted off its pencil square, the stripe tied onto the belt, a new level
+     stamped, and XP drawn along its line (ART.md, the motion table). beats() hands out the
+     moments. Each stamp thumps as it meets the paper, but only the first three: a long
+     list of seals is a row of stamps, not a drum roll. `reserve` keeps thumps back for
+     stamps still to come (a new level). With reduced motion the stamps and the pop stay
+     and the draw-ins go: home.css drops their animations. Nothing waits on any of it; the
+     buttons work from the first frame. */
+  function beats(reserve) {
+    let thumps = 0;
+    const b = {
+      t: 0,
+      // A seal or a level comes down at `ms`, with the slam and its thump. `last` is a
+      // stamp that may use the thumps kept back for it.
+      stamp(node, ms, last) {
+        node.classList.add('stampin');
+        node.style.animationDelay = Math.round(ms) + 'ms';
+        if (thumps < 3 - (last ? 0 : reserve || 0)) { thumps++; D.audio.thump(ms / 1000 + 0.07); }
+        b.t = Math.max(b.t, ms + 120);
+      },
+      // Anything else drawn in at `ms`, lasting `len`.
+      draw(node, ms, cls, len) {
+        node.classList.add(cls);
+        node.style.animationDelay = Math.round(ms) + 'ms';
+        b.t = Math.max(b.t, ms + (len || 0));
+      },
+    };
+    return b;
   }
+  function still() { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  // The score, brushed in numeral by numeral 40 ms apart (ART.md), its word beside it
+  // rather than at the far edge (review 2026-09-24).
+  function scoreRow(score, beat) {
+    const text = D.copy.num(score);
+    const num = u().el('div', { class: 'score num' }, [u().el('span', { class: 'sr' }, text)]);
+    Array.from(text).forEach((ch, i) => num.appendChild(
+      u().el('span', { class: 'ch', 'aria-hidden': 'true', style: { animationDelay: (i * 40) + 'ms' } }, ch)));
+    if (beat) beat.t = Math.max(beat.t, (text.length - 1) * 40 + 110);
+    return u().el('div', { class: 'row scorerow' }, [num, u().el('div', { class: 'label' }, D.copy.summary.points)]);
+  }
+  // A line said slowly is set in Mincho (ART.md: the name, belt names, the ceremony of a
+  // round's end). Numerals are never Mincho, so the numbers in it, and a question's
+  // signs, are set in the Gothic.
+  function ceremony(text, cls) {
+    const box = u().el('div', { class: 'mincho ' + (cls || '') });
+    const NUM = /([0-9](?:[0-9,.]*[0-9])?(?:\xa0[×÷+−=]\xa0[0-9]+)*)/;
+    String(keep(text)).split(NUM).forEach((part, i) => {
+      if (part) box.appendChild(i % 2 ? u().el('span', { class: 'nb' }, part) : document.createTextNode(part));
+    });
+    return box;
+  }
+  /* A copy line that names questions, set with each question's mark in front of it: its
+     seal, its pencil square, a seal lifting off. The words stay the copy's own: the line
+     is written with a placeholder for each question and split around them, so the words,
+     the commas and the "and" all come from copy.js. */
+  function markedLine(write, items, mark, cls) {
+    const line = u().el('div', { class: 'marked ' + (cls || 't15') });
+    const text = write(items.map((x, i) => '\x01' + i + '\x02'));
+    for (const part of text.split(/(\x01\d+\x02)/)) {
+      const m = /^\x01(\d+)\x02$/.exec(part);
+      if (!m) { if (part) line.appendChild(document.createTextNode(part)); continue; }
+      const i = Number(m[1]), x = items[i];
+      line.appendChild(u().el('span', { class: 'q' }, [mark(x, i), keep(D.facts.display(x.id, x.flip))]));
+    }
+    return line;
+  }
+  // The marks: one per meaning, as on the card and in the Grid (seal kit).
+  const marks = {
+    // Sealed this round: the ensō seal, each stamped in turn.
+    seal: (beat, at, big) => (x, i) => {
+      const n = u().el('i', { class: (big ? 'hanko' : 'hanko-sm') + ' mk', 'aria-hidden': 'true' });
+      beat.stamp(n, at + i * 150);
+      return n;
+    },
+    // Halfway: the pencil square where the seal will go.
+    pencil: (beat, at) => (x, i) => {
+      const n = u().el('i', { class: 'hanko-pencil-sm mk', 'aria-hidden': 'true' });
+      beat.draw(n, at + i * 40, 'pencilin', 200);
+      return n;
+    },
+    // A lost seal lifts off and leaves its pencil square, as it does on the card.
+    lift: (beat, at) => (x, i) => {
+      const seal = u().el('i', { class: 'hanko-sm' });
+      beat.draw(seal, at + i * 120, 'liftoff', 460);
+      return u().el('span', { class: 'mk lift', 'aria-hidden': 'true' }, [u().el('i', { class: 'hanko-pencil-sm' }), seal]);
+    },
+  };
   // "Halfway today: 2 × 3, 4 × 6." The day's questions that got halfway and still are,
-  // each written the way its card showed it (2026-09-24).
-  function halfwayLine() {
+  // each written the way its card showed it, eight named at most (2026-09-24), each with
+  // its pencil square.
+  function halfwayLine(beat, at) {
     const list = D.xp.halfwayToday();
     if (!list.length) return null;
-    const MAX = 8;
-    const names = list.slice(0, MAX).map(x => D.facts.display(x.id, x.flip));
-    return D.copy.summary.halfwayToday(names, Math.max(0, list.length - MAX));
+    const MAX = 8, more = Math.max(0, list.length - MAX);
+    return markedLine(names => D.copy.summary.halfwayToday(names, more), list.slice(0, MAX), marks.pencil(beat, at));
+  }
+  // The level, stamped: the blank stone with its number on it (seal kit), named for VoiceOver.
+  function levelStamp(n) {
+    const s = D.kit.level(n);
+    s.setAttribute('role', 'img');
+    s.setAttribute('aria-label', D.copy.home.level(n));
+    return s;
+  }
+  // XP is one ink line with the part earned toward the next level in red (ART.md). Given
+  // where it stood before the round, the red is drawn along from there.
+  function xpLine(lvl, before, beat, at) {
+    const pct = v => (Math.round(1000 * D.u.clamp(v / lvl.need, 0, 1)) / 10) + '%';
+    const fill = u().el('i', { style: { width: pct(lvl.into) } });
+    if (beat && typeof before === 'number' && before < lvl.into) {
+      fill.style.setProperty('--from', pct(before));
+      beat.draw(fill, at, 'xpgrow', 500);
+    }
+    return u().el('div', { class: 'xpline' }, [fill]);
+  }
+  // Where XP stood toward this level before the round: the start of the line if the
+  // round made a new level.
+  function xpBefore(gained, levelled) {
+    const lvl = D.xp.levelFor(D.state.progress.xp);
+    return levelled ? 0 : Math.max(0, lvl.into - (gained || 0));
+  }
+  /* What the round paid and what there is now, in one small ledger: the coin drawn beside
+     the coins, the XP line under the XP. */
+  function ledger(coinText, xpText, before, beat) {
+    const lvl = D.xp.levelFor(D.state.progress.xp);
+    return u().el('div', { class: 'ledger t15' }, [
+      u().el('div', { class: 'lrow' }, [u().el('i', { class: 'coin big' }), u().el('div', {}, coinText)]),
+      u().el('div', { class: 'lrow' }, [u().el('i', { class: 'lmark' }), u().el('div', {}, [
+        u().el('div', {}, xpText), xpLine(lvl, before, beat, beat ? beat.t + 60 : 0),
+      ])]),
+    ]);
   }
   /* Tables that opened, or left the two being worked on, since the child last looked,
      said once (2026-09-24). A save from before this starts from what it has now. */
@@ -217,31 +332,25 @@ D.main = (function () {
     const info = D.belt.info();
     const worn = D.shop.equipped('mark');
 
+    /* Home leads with the belt, drawn big, and the one sentence of what comes next under
+       it; then Play; then the rest of the numbers, smaller, in the order a kid scans them:
+       today, the tables being worked on, what is sealed and the best round, the coins
+       (review 2026-09-24: a dead band under the name, then seven lines of numbers). The
+       name is in Mincho with the level stamped beside it, as a name is signed and sealed. */
     // How it works, from a ? at the top right: a kid will not look in Settings (2026-09-24).
     const help = u().el('button', { class: 'helpbtn', type: 'button', 'aria-label': D.copy.home.helpLabel }, D.copy.home.help);
     help.addEventListener('click', () => howItWorks(home));
     const head = u().el('div', { class: 'home-head' }, [
-      u().el('div', { class: 'row', style: { gap: '9px', minWidth: '0' } }, [
+      u().el('div', { class: 'who' }, [
         worn ? D.fx.markGlyph(worn) : null,
         u().el('div', { class: 'home-name' }, D.state.profile.name),
+        levelStamp(lvl.level),
       ]),
-      u().el('div', { class: 'row', style: { gap: '12px', flex: 'none' } }, [
-        u().el('div', { class: 't17', style: { fontWeight: '700' } }, D.copy.home.level(lvl.level)),
-        help,
-      ]),
+      help,
     ]);
-    const xp = u().el('div', { class: 'xpline' }, [
-      u().el('i', { style: { width: Math.round(100 * lvl.into / lvl.need) + '%' } }),
-    ]);
-    const xpWords = u().el('div', { class: 't13 dim', style: { textAlign: 'right', marginTop: '-6px' } },
-                           D.copy.home.toLevel(lvl.need - lvl.into, lvl.level + 1));
-
-    const belt = beltPlate(info, [], true);
-    // No "You have sealed 0 questions.": the plate above already says what the first
-    // seal does, and a row of zeros on day one says nothing a kid needs (2026-09-24).
-    const counts = u().el('div', { class: 'sumline' }, [
-      info.sealed ? u().el('span', {}, D.copy.home.sealed(info.sealed)) : u().el('span'),
-      D.state.pbs.score ? u().el('span', { class: 'dim' }, D.copy.home.best(D.state.pbs.score)) : null,
+    const xp = u().el('div', { class: 'xp' }, [
+      xpLine(lvl),
+      u().el('div', { class: 't13 dim' }, D.copy.home.toLevel(lvl.need - lvl.into, lvl.level + 1)),
     ]);
 
     const news = tableNewsLine();
@@ -260,40 +369,64 @@ D.main = (function () {
       link(D.copy.home.settings, settings),
     ]);
 
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      head, xp, xpWords, recap,
-      u().el('div', { class: 'grow' }),
-      today ? u().el('div', { class: 't15', style: { fontWeight: '700' } }, today) : null,
-      belt, counts,
-      news ? u().el('div', { class: 't15' }, keep(news)) : null,
-      workLine ? u().el('div', { class: 't15' }, keep(workLine)) : null,
-      u().el('div', { class: 'col', style: { gap: '4px' } }, [
-        u().el('div', { class: 'row', style: { gap: '7px' } }, [
-          u().el('i', { class: 'coin' }), u().el('div', { class: 't15' }, D.copy.home.coins(p.coins)),
-        ]),
-        nudgeItem ? u().el('div', { class: 't13 dim' }, D.copy.home.nudge(nudgeItem.id, nudgeItem.price)) : null,
+    // No "You have sealed 0 questions.": the words under the belt already say what the
+    // first seal does, and a row of zeros on day one says nothing a kid needs. A black
+    // belt's words under it already say how many are sealed (2026-09-24).
+    const sealedLine = info.sealed && !info.black ? D.copy.home.sealed(info.sealed) : null;
+    const best = D.state.pbs.score ? D.copy.home.best(D.state.pbs.score) : null;
+    const rest = u().el('div', { class: 'rest t15' }, [
+      today ? u().el('div', {}, today) : null,
+      news ? u().el('div', {}, keep(news)) : null,
+      workLine ? u().el('div', {}, keep(workLine)) : null,
+      sealedLine || best ? u().el('div', { class: 'pair' }, [u().el('span', {}, sealedLine || ''), best ? u().el('span', { class: 'dim' }, best) : null]) : null,
+      u().el('div', { class: 'coins' }, [
+        u().el('i', { class: 'coin' }),
+        u().el('span', {}, D.copy.home.coins(p.coins)),
+        nudgeItem ? u().el('span', { class: 't13 dim' }, D.copy.home.nudge(nudgeItem.id, nudgeItem.price)) : null,
       ]),
+    ]);
+
+    root.appendChild(u().el('div', { class: 'screen home' }, [
+      head, xp, recap,
       u().el('div', { class: 'grow' }),
-      play, nav,
+      beltPlate(info),
+      play, rest,
+      u().el('div', { class: 'grow' }),
+      nav,
     ]));
     if (D.state.flags.clockFrozenUntil) {
       D.fx.toast(D.copy.settings.clockMoved(D.state.flags.clockFrozenUntil), 3000);
     }
   }
-  /* The plate under the belt. The bar and the words say the same thing: one cell for
-     each seal between the last stripe and the next, sealed ones solid and halfway
-     ones half filled, and the line says how many are still to come (D.belt.bar). */
-  function beltPlate(info, events, tall) {
+  /* The belt drawn as the belt it is (belt kit): the tied belt, its name, a row with a
+     place for each seal still between the last stripe and the next, and the one sentence
+     of what comes next. The row and the words say the same thing (D.belt.bar): a stamped
+     seal for each one sealed, the pencil square, which is the one mark for halfway, where
+     a halfway question could fill the place, and a bare place for the rest. On the end of
+     a round a stripe just tied wraps on, then the row and the words come (ART.md, Stripe
+     tied): opts.fresh is the stripes to tie, from opts.at in ms, on opts.beat. */
+  function beltPlate(info, opts) {
+    const o = opts || {};
+    const belt = D.kit.belt(info.belt, info.stripes, {});
+    const tapes = belt.querySelectorAll('.tape');
+    let after = 0;
+    (o.fresh || []).forEach((n, k) => {
+      const tape = tapes[n - 1];
+      if (!tape) return;
+      const at = (o.at || 0) + k * 300;
+      tape.classList.add('new');
+      tape.style.animationDelay = at + 'ms';
+      after = at + 420;
+      if (o.beat) o.beat.t = Math.max(o.beat.t, after);
+    });
     const bar = D.belt.bar(info);
-    const tied = events && events.length;
-    const cells = u().el('div', { class: 'sealbar' }, bar.cells.map(c => u().el('i', { class: c })));
-    return u().el('div', { class: 'plate' + (tall ? ' lift' : '') }, [
-      beltBand(info, tall, tied),
-      u().el('div', { class: tall ? 't22' : 't17', style: { fontWeight: '700' } }, D.copy.belt.now(info.belt, info.stripes)),
-      cells,
-      u().el('div', { class: 't13 dim' }, info.black ? D.copy.belt.filled(info.sealed)
-        : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left }))),
-    ]);
+    const row = info.black || info.nextKind === 'test' ? null
+      : u().el('div', { class: 'sealrow', 'aria-hidden': 'true' },
+               bar.cells.map(c => u().el('i', { class: c === 'sealed' ? 'cell-sealed' : c === 'half' ? 'cell-halfway' : 'open' })));
+    const under = u().el('div', { class: 'under' }, [row, u().el('div', { class: 'next' },
+      info.black ? D.copy.belt.filled(info.sealed) : D.copy.belt.toNext(Object.assign({}, info, { left: bar.left })))]);
+    if (after && o.beat) o.beat.draw(under, after, 'drawin', 160);
+    return u().el('div', { class: 'beltplate' }, [belt, ceremony(D.copy.belt.now(info.belt, info.stripes), 'beltname'), under]);
   }
   // The tables being worked on, each out of its whole 22, and when the next opens (2026-09-24).
   function workingLine() {
@@ -301,14 +434,6 @@ D.main = (function () {
     if (!keys.length) return null;
     const next = D.scheduler.nextUnopened();
     return D.copy.home.working(keys.map(k => D.belt.tableSeals(k)), next, next ? D.scheduler.nextOpening() : null);
-  }
-  // A belt drawn as a belt: two tips, the cloth, the black bar with its stripes.
-  // A stripe just tied slides on.
-  function beltBand(info, tall, tied) {
-    const bar = u().el('div', { class: 'bar' });
-    for (let i = 0; i < info.stripes; i++) bar.appendChild(u().el('i', { class: tied && i === info.stripes - 1 ? 'new' : '' }));
-    return u().el('div', { class: 'beltband b-' + info.belt + (tall ? ' tall' : '') },
-                  [u().el('div', { class: 'tip' }), u().el('div', { class: 'cloth' }), bar, u().el('div', { class: 'tip' })]);
   }
   function link(text, fn) {
     const b = u().el('button', { class: 'link', type: 'button' }, text);
@@ -343,7 +468,11 @@ D.main = (function () {
   /* ---- the end of a round ----
      One line leads, the most important thing that moved: a stripe or a belt, then
      questions sealed, then a new best, then the streak (2026-09-14). Every number says
-     what it is, and every question is written the way its card showed it (2026-09-24). */
+     what it is, and every question is written the way its card showed it (2026-09-24).
+     Laid out as a result (review 2026-09-24): the score brushed in and the lead line in
+     Mincho; a stripe or a belt puts the belt right under it with the new stripe tying on;
+     each seal stamped, the halfway questions pencilled, a lost seal lifted off; a new
+     level stamped beside its Shop line; coins and XP in one ledger over the buttons. */
   function summary(sum) {
     u().clear(root);
     const info = D.belt.info();
@@ -352,11 +481,14 @@ D.main = (function () {
     const scorePb = pbs.find(x => x.kind === 'score');
     const ev = events[events.length - 1];
     const flips = sum.flips || {};
+    const items = ids => ids.map(id => ({ id: id, flip: !!flips[id] }));
     const listed = ids => ids.map(id => D.facts.display(id, !!flips[id]));
+    const beat = beats(sum.levelUp ? 1 : 0);
 
     // The child's best time this round, if any: the biggest improvement.
     const pbFact = (sum.pbFacts || []).slice().sort((a, b) => (b.from - b.ms) - (a.from - a.ms))[0];
     const bestTimeLine = pbFact ? D.copy.summary.bestTime(pbFact.id, pbFact.ms, pbFact.from, !!flips[pbFact.id]) : null;
+    const bestLine = scorePb ? D.copy.summary.newBest(scorePb.delta) : D.state.pbs.score > sum.score ? D.copy.summary.best(D.state.pbs.score) : null;
 
     // One line leads: a stripe or belt, a seal, a new best round, the child's best
     // time, and never a streak below the best (§13.3).
@@ -373,47 +505,64 @@ D.main = (function () {
     else if (scorePb) lead = D.copy.summary.newBest(scorePb.delta);
     else if (bestTimeLine) lead = bestTimeLine;
     else if (sum.bestCombo >= D.cfg.COMBO_STEP) lead = D.copy.summary.streak(sum.bestCombo, D.state.pbs.combo);
+    const leadIsSeal = !leadIsBelt && sum.sealed.length > 0;
+
+    const parts = [scoreRow(sum.score, beat)];
+    let screen = null;
+    if (leadIsBelt) {
+      // The stripes this round tied on the belt the child has now, in the order they were tied.
+      const fresh = events.filter(e => e.kind === 'stripe' && e.belt === info.belt).map(e => e.stripes);
+      const tieAt = beat.t + 100, t0 = beat.t;
+      parts.push(ceremony(lead, 'lead big'));
+      parts.push(beltPlate(info, { fresh: fresh, at: tieAt, beat: beat }));
+      // The seals come while the stripe is still going on, down the page.
+      beat.t = t0 + 300;
+      setTimeout(() => { if (screen && screen.isConnected) D.audio.belt(); }, fresh.length ? tieAt : 0);
+    } else if (lead && !leadIsSeal) {
+      parts.push(ceremony(lead, 'lead'));
+    }
 
     const lines = u().el('div', { class: 'lines' });
-    const add = text => { if (text && text !== lead) lines.appendChild(u().el('div', { class: 't15' }, keep(text))); };
-    if (sum.sealed.length && leadIsBelt) add(D.copy.summary.sealed(listed(sum.sealed)));
-    add(halfwayLine());
-    if (sum.unsealed.length) add(D.copy.summary.unsealed(listed(sum.unsealed)));
+    const add = node => { if (node) lines.appendChild(node); };
+    const say = text => (text ? u().el('div', { class: 't15' }, keep(text)) : null);
+    if (sum.sealed.length) {
+      const sealed = markedLine(names => D.copy.summary.sealed(names), items(sum.sealed),
+                                marks.seal(beat, beat.t + 60, leadIsSeal), leadIsSeal ? 'lead sealed' : 't15');
+      if (leadIsSeal) parts.push(sealed); else add(sealed);
+    }
+    add(halfwayLine(beat, beat.t + 40));
+    if (sum.unsealed.length) add(markedLine(names => D.copy.summary.unsealed(names), items(sum.unsealed), marks.lift(beat, beat.t + 200)));
     // A question that lost its seal this round is not also listed as "got it back": under
     // "lost its seal" that read as the seal coming back, which takes another day. The card
     // said "Got it back." when it happened (2026-09-24).
     const wonBack = sum.gotBack.filter(id => sum.unsealed.indexOf(id) < 0);
-    if (wonBack.length) add(D.copy.summary.gotBack(listed(wonBack)));
-    add(bestTimeLine);
-    add(scorePb ? D.copy.summary.newBest(scorePb.delta) : D.state.pbs.score > sum.score ? D.copy.summary.best(D.state.pbs.score) : null);
-    if (sum.levelUp) add(D.copy.summary.levelUp(sum.levelUp, D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => it.id)));
-    add(tableNewsLine());
+    if (wonBack.length) add(say(D.copy.summary.gotBack(listed(wonBack))));
+    if (bestTimeLine !== lead) add(say(bestTimeLine));
+    if (bestLine !== lead) add(say(bestLine));
+    add(say(tableNewsLine()));
+    if (lines.childNodes.length) parts.push(lines);
+    if (!leadIsBelt) parts.push(beltPlate(info));
 
-    const beltBox = beltPlate(info, events, false);
-    if (events.length) { D.audio.belt(); D.fx.pop(beltBox); }
+    // A new level lands as a stamp beside what it put in the Shop (ART.md, New level).
+    if (sum.levelUp) {
+      const stamp = levelStamp(sum.levelUp);
+      beat.stamp(stamp, beat.t + 140, true);
+      parts.push(u().el('div', { class: 'levelup' }, [stamp, u().el('div', { class: 't15' },
+        D.copy.summary.levelUp(sum.levelUp, D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => it.id)))]));
+    }
 
     // What the round paid and what the child has now, in words (2026-09-24).
     const p = D.state.progress, lvl = D.xp.levelFor(p.xp);
-    const tail = u().el('div', { class: 'lines t15' }, [
-      u().el('div', { class: 'row', style: { gap: '7px', alignItems: 'flex-start' } }, [
-        u().el('i', { class: 'coin', style: { marginTop: '3px' } }),
-        u().el('span', {}, D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, events, p.coins)),
-      ]),
-      u().el('div', {}, D.copy.summary.xpLine(sum.xp || 0, lvl.need - lvl.into, lvl.level + 1)),
-    ]);
+    parts.push(ledger(D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, events, p.coins),
+                      D.copy.summary.xpLine(sum.xp || 0, lvl.need - lvl.into, lvl.level + 1),
+                      xpBefore(sum.xp, !!sum.levelUp), beat));
 
     const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.again);
     again.addEventListener('click', startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
-
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      scoreRow(sum.score, 't64'),
-      lead ? u().el('div', { class: leadIsBelt ? 't30' : 't22' }, keep(lead)) : null,
-      lines, beltBox, tail,
-      u().el('div', { class: 'grow' }),
-      again, back,
-    ]));
+    screen = u().el('div', { class: 'screen sum' }, parts.concat([u().el('div', { class: 'grow' }), again, back]));
+    root.appendChild(screen);
     D.save.commitNow();
   }
 
@@ -427,11 +576,14 @@ D.main = (function () {
       total: D.cfg.TEST_CARDS,
       title: D.copy.belt.testTitle,
       leftValue: () => D.copy.num(test.raw.score),
+      // The test judges fast at the fixed line, not the child's own (§13.3), so the gold
+      // mark is drawn at the fixed line. At the child's own it sat later than the test's
+      // own line for any child slower than the fixed line (round agent, 2026-09-24).
       ringInfo: () => {
         const c = test.raw.cards[test.raw.i];
         if (!c) return {};
         const ms = D.mastery.ringMs(c.id, c.ringKind);
-        return { goldAt: D.u.clamp(1 - D.mastery.threshold(c.id) / ms, 0, 1) };
+        return { goldAt: D.u.clamp(1 - D.mastery.fixedThreshold(c.id) / ms, 0.03, 0.97) };
       },
       provide: () => {
         const p = test.present();
@@ -440,10 +592,14 @@ D.main = (function () {
                  input: D.facts.get(p.card.id).input || 'number' };
       },
       answer: (v, rt) => {
+        const inTime = test.raw.inTime;
         const out = test.submit(v, rt);
-        return { correct: out.kind === 'correct', points: out.points, sealed: out.sealed,
-                 index: out.card ? test.raw.cards.indexOf(out.card) : -1,
-                 done: out.done, streak: test.raw.correct };
+        const index = out.card ? test.raw.cards.indexOf(out.card) : -1;
+        // Fast is what the test counts toward its twenty: right and inside the fixed line.
+        const fast = test.raw.inTime > inTime;
+        if (fast) redDot(index);
+        return { correct: out.kind === 'correct', fast: fast, points: out.points, sealed: out.sealed,
+                 index: index, done: out.done, streak: test.raw.correct };
       },
       timeout: () => {
         const out = test.timeout();
@@ -452,34 +608,55 @@ D.main = (function () {
       onDone: () => testResult(test.result()),
     });
   }
+  // A fast answer's dot is red, as in a round. cards.js paints an answered dot "done"
+  // right after answer() returns and does not read `fast` yet, so the red goes on just
+  // after it; once cards.js paints it itself this adds nothing.
+  function redDot(index) {
+    Promise.resolve().then(() => {
+      const pips = root.querySelector('.pips');
+      const dot = pips && pips.children[index];
+      if (dot) dot.classList.add('fast');
+    });
+  }
+  /* A pass is the moment ART.md gives it: the seal slammed onto the black belt's band,
+     with PLAN's screen shake and "Black belt!". A fail stays plain and kind: the count,
+     what it paid, and Home. */
   function testResult(res) {
     D.state.flags.testInProgress = null;
     D.save.commitNow();
     u().clear(root);
-    const lines = u().el('div', { class: 'lines' });
+    const beat = beats(0);
+    const parts = [u().el('div', { class: 'titlebar' }, D.copy.belt.testTitle), scoreRow(res.score, beat)];
+    let screen = null;
     if (res.passed) {
-      D.audio.belt();
-      lines.appendChild(u().el('div', { class: 't30' }, D.copy.belt.blackBelt));
-      lines.appendChild(beltBand(D.belt.info(), true));
-      lines.appendChild(backupButton());
+      parts.push(ceremony(D.copy.belt.blackBelt, 'lead big'));
+      const plate = beltPlate(D.belt.info());
+      // The belt kit's band_left: a clear stretch of the outer wrap left of the knot.
+      const seal = u().el('i', { class: 'hanko beltseal', 'aria-hidden': 'true' });
+      plate.querySelector('.belt').appendChild(seal);
+      const at = beat.t + 260;
+      beat.stamp(seal, at, true);
+      setTimeout(() => {
+        if (!screen || !screen.isConnected) return;
+        if (!still()) D.fx.shake(screen);
+        D.audio.belt();
+      }, at + 70);
+      parts.push(plate);
     } else {
-      lines.appendChild(u().el('div', { class: 't17' }, D.belttest.failLine(res)));
+      parts.push(u().el('div', { class: 'lead t22' }, D.belttest.failLine(res)));
     }
-    // The same two lines as the end of a round: what it paid, then what there is now.
+    // The same ledger as the end of a round: what it paid, then what there is now.
     const belts = res.belt || [];
     const answers = (res.coins || 0) - belts.reduce((n, e) => n + (e.coins || 0), 0);
     const lvl = D.xp.levelFor(D.state.progress.xp);
-    lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins)));
-    lines.appendChild(u().el('div', { class: 't15' }, D.copy.summary.xpLine(res.xp || 0, lvl.need - lvl.into, lvl.level + 1)));
+    parts.push(ledger(D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins),
+                      D.copy.summary.xpLine(res.xp || 0, lvl.need - lvl.into, lvl.level + 1),
+                      xpBefore(res.xp, false), beat));
+    if (res.passed) parts.push(backupButton());
     const back = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
-    root.appendChild(u().el('div', { class: 'screen' }, [
-      u().el('div', { class: 'titlebar' }, D.copy.belt.testTitle),
-      u().el('div', { class: 't44 num' }, D.copy.num(res.score)),
-      lines,
-      u().el('div', { class: 'grow' }),
-      back,
-    ]));
+    screen = u().el('div', { class: 'screen sum test' }, parts.concat([u().el('div', { class: 'grow' }), back]));
+    root.appendChild(screen);
   }
 
   /* ---- sending Dad a copy (PLAN §9.5) ----
