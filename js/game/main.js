@@ -207,7 +207,7 @@ D.main = (function () {
   function still() { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
   // "stripe 3", "level 3" and "12 more" stay on one line: "stripe" at the end of one line and
   // "3." on the next read as two things, like a question broken at its sign.
-  function glue(text) { return text ? String(text).replace(/(stripe|level|belt|[0-9]) ([0-9]|more)/g, '$1\xa0$2') : text; }
+  function glue(text) { return text ? String(text).replace(/(stripe|level|[0-9]) ([0-9]|more)/g, '$1\xa0$2') : text; }
   // The score, brushed in numeral by numeral 40 ms apart (ART.md), its word beside it
   // rather than at the far edge (review 2026-09-24).
   function scoreRow(score, beat) {
