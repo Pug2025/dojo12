@@ -426,6 +426,7 @@ D.copy = (function () {
       // day is done, only that (the time is on Home and in the book).
       round: (stage, target) => 'Round ' + stage + ' of ' + target,
       roundDone: 'Training done',
+      openBig: "Open today's painting",
       // The round that finishes the day, before its usual end.
       done: 'Training done.',
       doneWhen: (day, at) => dayName(day) + ', ' + clockTime(at),

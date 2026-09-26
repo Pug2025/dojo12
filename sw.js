@@ -1,5 +1,5 @@
 /* Dojo 12 service worker. BUILD is rewritten by deploy.sh on every deploy. */
-const BUILD = '20260926-101515';
+const BUILD = '20260926-102845';
 const CACHE = 'dojo12-' + BUILD;
 const FILES = [
   './', 'index.html', 'dashboard.html', 'manifest.webmanifest',

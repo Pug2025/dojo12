@@ -137,3 +137,16 @@ body:has(.scr-done) .toast, body:has(.pp-view) .toast { top: calc(24px + env(saf
 @media (prefers-reduced-motion: reduce) {
   .pp-new, .pp-after { animation: none; }
 }
+
+/* The painting at the end of a round opens big when tapped (2026-09-26), over the round's end:
+   a sheet of the child's paper laid over the whole screen, the painting at the size it has in
+   the book. It presses like the Home row's thumbnail. */
+.pp-open { display: block; padding: 0; border: 0; background: none; color: inherit; cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent; }
+.pp-open:active .pp-sheet { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.pp-layer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; overflow-y: auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  animation: pp-layer-in 140ms ease-out; }
+.pp-layer > .screen { min-height: 100%; }
+@keyframes pp-layer-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pp-layer { animation: none; } }

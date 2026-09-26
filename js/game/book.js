@@ -304,13 +304,51 @@ D.book = (function () {
     const width = short ? 84 : 102;
     const s = sheet({ day: t.day, target: t.target, stage: t.stage, width: width,
                       from: fresh ? t.stage - 1 : null, fadeAt: 260, seal: t.done ? 'still' : null });
+    // A tap opens it big over the round's end (Jamie, 2026-09-26: "I should be able to expand it").
+    const open = u().el('button', { class: 'pp-open', type: 'button', 'aria-label': D.copy.paint.openBig }, [s.el]);
+    open.addEventListener('click', expand);
     // As wide as the painting and its offset, so its line wraps under it rather than widening it.
     const fig = u().el('figure', { class: 'pp-fig' }, [
-      s.el,
+      open,
       u().el('figcaption', {}, t.done ? D.copy.paint.roundDone : D.copy.paint.round(t.stage, t.target)),
     ]);
     fig.style.width = (width + 2) + 'px';
     return fig;
+  }
+
+  /* ---- today's painting opened big over the end of a round. The round's end stays as it was
+     underneath, so closing this never stamps its seals or brushes its score in again. Finished,
+     it is the day's page, with Send to Dad. Back, or a tap anywhere but a button, closes it. ---- */
+  function expand() {
+    const t = D.daily.today();
+    const theme = (document.documentElement.getAttribute('data-theme')) || 'washi';
+    const layer = u().el('div', { class: 'pp-layer', 'data-theme': theme, role: 'dialog', 'aria-modal': 'true' });
+    const width = bigWidth(document.getElementById('app'));
+    const page = t.done ? D.daily.book().find(p => p.day === t.day) : null;
+    let s, words, send = null;
+    if (page) {
+      s = pageSheet(page, width, () => layer.isConnected);
+      const cap = u().el('div', { class: 'mincho pp-caption' });
+      s.ready.then(m => { if (m && m.caption) cap.textContent = m.caption; });
+      words = [cap, u().el('div', { class: 't15 dim' }, D.copy.paint.pageWhen(page.day, page.at))];
+      send = sendButton(page);
+    } else {
+      s = sheet({ day: t.day, target: t.target, stage: t.stage, width: width, seal: t.done ? 'still' : null });
+      words = [u().el('div', { class: 't17 pp-status' }, D.copy.paint.row(t.stage, t.target)),
+               u().el('div', { class: 't15 dim' }, D.copy.paint.how(t.target))];
+    }
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    const close = () => { layer.remove(); document.removeEventListener('keydown', onKey); };
+    const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.settings.back);
+    back.addEventListener('click', close);
+    layer.appendChild(u().el('div', { class: 'screen pp-view' }, [
+      u().el('div', { class: 'grow top' }), s.el, u().el('div', { class: 'pp-words' }, words),
+      u().el('div', { class: 'grow' }), send, back,
+    ]));
+    layer.addEventListener('click', e => { if (!(e.target.closest && e.target.closest('button'))) close(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(layer);
+    back.focus({ preventScroll: true });
   }
 
   /* ---- today's painting, opened big from Home. Finished, it is the day's page in the book. ---- */
