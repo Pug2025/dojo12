@@ -1,7 +1,8 @@
 /* Dojo 12 — the grid. One square per question, showing its seal: nothing, fast
-   once, or sealed. Only opened tables are drawn, so the screen is never a wall
-   of things the child cannot do yet (PLAN §2), and a line says why a row is
-   missing.
+   once, or sealed. Every table is drawn, 2 to 12 (Jamie, 2026-09-26: a times table
+   with 6 and 7 missing read as broken): a question that no open table covers yet and
+   was never asked is a faint square, its row number in pencil grey, and a tap says
+   which table it opens with.
 
    Drawn as a wall chart that fills the width (review 2026-09-24): bare paper for a
    question not asked yet, a thin wash of ink once it has been asked, the seal kit's
@@ -15,9 +16,16 @@ D.grid = (function () {
   const u = () => D.u;
   let op = 'mul';
 
-  function rows() {
-    return D.facts.TABLE_ORDER.filter(k => k !== 'sq' && D.scheduler.isOpen(k))
-      .map(Number).sort((a, b) => a - b);
+  function rows() { const out = []; for (let n = 2; n <= 12; n++) out.push(n); return out; }
+  function opened(a) { return D.scheduler.isOpen(String(a)); }
+  /* A question that no open table covers yet: the table it comes with, the first of its
+     tables to open (7 x 12 comes with the twelves), or null when one of them is open. */
+  function opensWith(id) {
+    const f = D.facts.get(id);
+    const keys = (f && f.tables) || [];
+    if (keys.some(k => D.scheduler.isOpen(k))) return null;
+    const order = D.facts.TABLE_ORDER;
+    return keys.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y))[0] || null;
   }
   function cols() { const out = []; for (let n = 2; n <= 12; n++) out.push(n); return out; }
   // Times: row times column. Divide: the row's number divides row times column,
@@ -38,7 +46,7 @@ D.grid = (function () {
 
   function render(root, onBack) {
     u().clear(root);
-    const keys = rows();
+    const keys = rows().some(opened) ? rows() : [];
     const mark = u().el('i', { class: 'chart-key c-na' });
     const words = u().el('span', {}, '');
     const detail = u().el('div', { class: 'chart-line', 'aria-live': 'polite' }, [mark, words]);
@@ -55,7 +63,6 @@ D.grid = (function () {
       u().el('div', { class: 'titlebar' }, D.copy.grid.title),
       seg, body, keys.length ? detail : null, legend(),
       op === 'div' ? u().el('div', { class: 't13 dim' }, D.copy.grid.divideNote) : null,
-      u().el('div', { class: 't13 dim' }, D.copy.grid.rowsNote),
       u().el('div', { class: 'grow' }),
       back,
     ]));
@@ -76,13 +83,14 @@ D.grid = (function () {
     t.appendChild(u().el('thead', {}, [head]));
     const tbody = u().el('tbody');
     for (const a of keys) {
-      const rowHead = u().el('th', { scope: 'row' }, (op === 'mul' ? '' : '÷ ') + a);
+      const rowHead = u().el('th', { scope: 'row', class: opened(a) ? '' : 'later' }, (op === 'mul' ? '' : '÷ ') + a);
       const row = u().el('tr', {}, [rowHead]);
       for (const b of across) {
         const id = cellFor(a, b);
         const rec = D.mastery.peek(id);
         const state = D.mastery.gridState(id);
-        const td = u().el('td', { class: chartClass(state) + (a === b ? ' c-sq' : '') });
+        const comes = state === 'unasked' ? opensWith(id) : null;
+        const td = u().el('td', { class: chartClass(state) + (comes ? ' c-later' : '') + (a === b ? ' c-sq' : '') });
         // The cell is named as the grid reads it, row times column: 7 × 8 in row 7.
         const flip = op === 'mul' && a > b;
         td.addEventListener('pointerdown', () => {
@@ -90,8 +98,9 @@ D.grid = (function () {
           td.classList.add('pick');
           rowHead.classList.add('pick');
           colHeads[b].classList.add('pick');
-          mark.className = 'chart-key ' + chartClass(state);
-          words.textContent = state === 'unasked' ? D.copy.grid.cellUnasked(id, flip)
+          mark.className = 'chart-key ' + chartClass(state) + (comes ? ' c-later' : '');
+          words.textContent = comes ? D.copy.grid.cellLater(id, flip, comes)
+            : state === 'unasked' ? D.copy.grid.cellUnasked(id, flip)
             : D.copy.grid.cell(id, flip, D.mastery.sealState(id), rec && rec.best);
           detail.classList.add('on');
         });
@@ -107,7 +116,7 @@ D.grid = (function () {
      squares' tint comes last, named the way Home names them. */
   function legend() {
     const box = u().el('div', { class: 'chart-legend' });
-    const items = [['c-na', 'unasked'], ['c-asked', 'none'], ['c-asked cell-halfway', 'fast'], ['c-asked cell-sealed', 'sealed']];
+    const items = [['c-na c-later', 'later'], ['c-na', 'unasked'], ['c-asked', 'none'], ['c-asked cell-halfway', 'fast'], ['c-asked cell-sealed', 'sealed']];
     for (const [cls, key] of items) {
       box.appendChild(u().el('span', {}, [u().el('i', { class: 'chart-key ' + cls }), D.copy.grid.legend[key]]));
     }
@@ -120,5 +129,5 @@ D.grid = (function () {
     return b;
   }
 
-  return { render, rows, cols, cellClass };
+  return { render, rows, cols, cellClass, opensWith };
 })();

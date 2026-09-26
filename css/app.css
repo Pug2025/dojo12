@@ -320,6 +320,9 @@ table.grid th { font-size: 13px; font-weight: 500; color: var(--ink2); padding: 
 table.grid td { width: 26px; height: 26px; padding: 0; background: transparent; border: 1px solid var(--rule); position: relative; }
 table.grid td::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; }
 table.grid td.na::after { display: none; }
+/* A question no open table covers yet (2026-09-26), as the child's Grid draws it. */
+table.grid td.later { border-style: dotted; border-color: var(--ink2); }
+table.grid th.later { opacity: 0.55; }
 table.grid td:not(.na):not(.s-fast):not(.s-sealed)::after { border: 1.5px solid var(--ink2); }
 table.grid td.s-fast::after { border: 1.5px solid var(--ink); background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
 table.grid td.s-sealed::after { background: var(--shu); box-shadow: inset 0 0 0 2px var(--shu), inset 0 0 0 3.5px var(--paper); }

@@ -458,14 +458,14 @@ D.copy = (function () {
       title: 'Grid',
       times: 'Times',
       divide: 'Divide',
-      legend: { none: 'Not sealed', fast: 'Halfway', sealed: 'Sealed', unasked: 'Not asked yet' },
+      legend: { none: 'Not sealed', fast: 'Halfway', sealed: 'Sealed', unasked: 'Not asked yet', later: 'Opens later' },
       empty: 'Play a round first.',
-      rowsNote: 'A row shows up when its table opens.',
       divideNote: 'Each row divides by its number. Each column is the answer.',
       cell: (id, flip, state, best) => factText(id, flip) + ': ' +
         (state === 'sealed' ? 'sealed' : state === 'fast' ? 'halfway' : 'not sealed yet') +
         (best ? '. Best time ' + secs(best) + '.' : '.'),
       cellUnasked: (id, flip) => factText(id, flip) + ': not asked yet.',
+      cellLater: (id, flip, key) => factText(id, flip) + ': opens with ' + tableName(key) + '.',
     },
 
     /* ---- the shop. Plain nouns. Nothing here changes how the game plays. ---- */

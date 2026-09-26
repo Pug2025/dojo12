@@ -118,23 +118,24 @@ D.dashboard = (function () {
     return plate(D.copy.dash.week, rows);
   }
 
+  // Every table, as the child's Grid draws it (2026-09-26): what no open table covers yet is faint.
   function gridPlate(op) {
-    const keys = D.facts.TABLE_ORDER.filter(k => k !== 'sq' && D.scheduler.isOpen(k))
-      .map(Number).sort((a, b) => a - b);
+    const keys = []; for (let n = 2; n <= 12; n++) keys.push(n);
     const label = op === 'mul' ? D.copy.dash.products : D.copy.dash.divisions;
-    if (!keys.length) return plate(label, [sub(D.copy.dash.noData)]);
+    if (!keys.some(a => D.scheduler.isOpen(String(a)))) return plate(label, [sub(D.copy.dash.noData)]);
     const t = u().el('table', { class: 'grid' });
     const head = u().el('tr', {}, [u().el('th', {}, op === 'mul' ? '×' : '÷')]);
     for (let n = 2; n <= 12; n++) head.appendChild(u().el('th', {}, String(n)));
     t.appendChild(head);
     for (const a of keys) {
-      const row = u().el('tr', {}, [u().el('th', {}, String(a))]);
+      const row = u().el('tr', {}, [u().el('th', { class: D.scheduler.isOpen(String(a)) ? '' : 'later' }, String(a))]);
       for (let b = 2; b <= 12; b++) {
         const id = op === 'mul' ? D.facts.mulId(a, b) : D.facts.divId(a * b, a);
         // Never asked is blank here too; the fallback drew it as "not sealed".
         const cls = D.grid ? D.grid.cellClass(id)
           : ({ unasked: 'na', none: '', halfway: 's-fast', sealed: 's-sealed' })[D.mastery.gridState(id)];
-        row.appendChild(u().el('td', { class: cls }));
+        const later = D.grid && D.mastery.gridState(id) === 'unasked' && D.grid.opensWith(id);
+        row.appendChild(u().el('td', { class: cls + (later ? ' later' : '') }));
       }
       t.appendChild(row);
     }

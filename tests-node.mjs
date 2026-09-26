@@ -2665,6 +2665,22 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
     D.mastery.gridState(div) !== "unasked" && D.grid.cellClass(D.facts.divId(4 * 6, 4)) !== "na", D.mastery.gridState(div));
 }
 {
+  // The Grid draws every table (Jamie, 2026-09-26); a question no open table covers says which table it opens with.
+  setTime(2026, 9, 9, 16, 0);
+  newState();
+  const open = D.facts.TABLE_ORDER.filter(k => D.scheduler.isOpen(k));
+  t("the Grid has every row from 2 to 12, open or not", JSON.stringify(D.grid.rows()) === JSON.stringify([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]));
+  const closedPair = ["7", "12"].every(k => !D.scheduler.isOpen(k));
+  t("7 x 12 opens with the twelves, the first of its two tables to open",
+    !closedPair || D.grid.opensWith(D.facts.mulId(7, 12)) === "12", "open: " + open.join(","));
+  t("a question an open table covers is never drawn as opening later",
+    D.grid.opensWith(D.facts.mulId(2, 7)) === null || !D.scheduler.isOpen("2"));
+  t("its words say which table it opens with",
+    D.copy.grid.cellLater(D.facts.mulId(7, 8), true, "8") === "8 × 7: opens with the eights." ||
+    D.copy.grid.cellLater(D.facts.mulId(7, 8), false, "8") === "7 × 8: opens with the eights.",
+    D.copy.grid.cellLater(D.facts.mulId(7, 8), false, "8"));
+}
+{
   // The streak rules How it works states, held in the engine: a quick wrong guess ends it
   // even when every Break it down step is right; a slower miss with every step right keeps
   // it; Show me loses it; it carries into the next round; going Home ends it.
