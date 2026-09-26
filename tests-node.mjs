@@ -2030,8 +2030,6 @@ h2("copy transcript");
   say("summary", beltNow.black ? D.copy.belt.filled(beltNow.sealed)
     : D.copy.belt.toNext(Object.assign({}, beltNow, { left: D.belt.bar(beltNow).left })));
   say("summary", D.copy.summary.coinsLine(sum.coinsAnswers, sum.coinsBonus, (sum.extra && sum.extra.belt) || [], D.state.progress.coins));
-  const lvlNow = D.xp.levelFor(D.state.progress.xp);
-  say("summary", D.copy.summary.xpLine(sum.xp, lvlNow.need - lvlNow.into, lvlNow.level + 1));
   const focusKeys = [D.state.focus.primary, D.state.focus.secondary].filter(Boolean);
   const nextKey = D.scheduler.nextUnopened();
   if (focusKeys.length) say("home", D.copy.home.working(focusKeys.map(k => D.belt.tableSeals(k)), nextKey, nextKey ? D.scheduler.nextOpening() : null));
@@ -2279,9 +2277,8 @@ h2("exploit review");
   answer(rs, true, 3900);
   t("a slow right answer pays the same coin as a fast one",
     D.state.progress.coins === c0 + 2 * D.cfg.COINS_PER_CORRECT, "coins " + (D.state.progress.coins - c0));
-  t("level 2 needs 125 XP and level 3 another 200",
-    D.xp.levelFor(124).level === 1 && D.xp.levelFor(125).level === 2 &&
-    D.xp.levelFor(324).level === 2 && D.xp.levelFor(325).level === 3);
+  t("right answers pay XP but never move the level (it counts days of training)",
+    D.state.progress.xp > 0 && D.xp.level() === 1, "xp " + D.state.progress.xp + ", level " + D.xp.level());
 }
 {
   // Beyond needs every table open as well as the purple belt.
@@ -2365,7 +2362,6 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
   const stripe = { kind: "stripe", coins: D.cfg.COINS_STRIPE }, belt = { kind: "belt", coins: D.cfg.COINS_BELT };
   const EXACT = [
     [D.copy.roundOne.coins(5, 9), "You got 5 coins, one for each right answer. You have 9. Spend them in the Shop."],
-    [D.copy.roundOne.xp, "XP comes from right answers. New levels open more of the Shop."],
     [D.copy.summary.coinsLine(4, 0, [], 13), "You got 4 coins. You have 13."],
     [D.copy.summary.coinsLine(5, 0, [stripe, stripe], 41), "You got 25 coins: 5 for right answers and 20 for the stripes. You have 41."],
     [D.copy.summary.coinsLine(5, 0, [stripe], 31), "You got 15 coins: 5 for right answers and 10 for the stripe. You have 31."],
@@ -2373,12 +2369,11 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
     [D.copy.summary.coinsLine(1, 0, [], 14), "You got 1 coin. You have 14."],
     [D.copy.summary.coinsLine(0, 0, [], 13), "You have 13 coins."],
     [D.copy.summary.coinsLine(0, 0, [stripe], 50), "You got 10 coins for the stripe. You have 50."],
-    [D.copy.summary.xpLine(35, 10, 2), "35 XP. 10 more for level 2."],
     [D.copy.summary.levelUp(2, ["theme:matcha", "skin:grid", "sound:wood", "mark:square"]),
       "Level 2. New in the Shop: Green tea paper, Grid card, Wood sound, Square mark."],
     [D.copy.home.coins(61), "61 coins"],
     [D.copy.home.nudge("skin:grain", 20), "Grain, a card pattern, is 20 in the Shop."],
-    [D.copy.home.toLevel(45, 2), "45 more XP for level 2"],
+    [D.copy.roundOne.level(8), "Finish 8 rounds in a day and your level goes up. New levels open more of the Shop."],
     [D.copy.shop.coins(16) + " · " + D.copy.shop.owned(0, 29), "16 coins · You own 0 of 29"],
     [D.copy.shop.shortRow(20, 16), "20 coins · 4 more coins to go"],
     [D.copy.shop.tooDear(65, 55), "You need 10 more coins."],
@@ -2716,8 +2711,9 @@ for (const f of ["js/game/grid.js", "js/game/belts.js"]) {
     /opens the black belt test\./.test(all) &&
     D.copy.belt.testRules.indexOf(c.TEST_CARDS + " questions") === 0 &&
     D.copy.belt.testRules.indexOf("Get " + c.TEST_PASS_CORRECT + " right, with " + c.TEST_PASS_FAST + " of them fast.") >= 0);
-  t("How it works says what points, coins and XP are for",
-    /Points are for beating your best round\./.test(all) && /Coins buy things in the Shop\./.test(all) && /XP/.test(all));
+  t("How it works says what points, coins and the level are for, and never says XP",
+    /Points are for beating your best round\./.test(all) && /Coins buy things in the Shop\./.test(all) &&
+    /Your level goes up by one on every day you finish your training/.test(all) && !/XP/.test(all));
   t("How it works says a miss takes a question back a step and the belt keeps its place",
     /A miss takes a question back a step/.test(all) && /Your belt keeps its place\./.test(all));
   t("How it works calls the best-time tick the small tick, which is light ink on the dark papers",
@@ -3174,6 +3170,33 @@ h2("the day's painting");
   D.state.gameDay = D.u.todayKey();
   const s = D.daily.today();
   t("and counts from there", s.rounds === 0 && s.target === 8 && !s.done && D.daily.noteRound().stage === 1);
+}
+{
+  // The level counts days of training (PLAN §15, 2026-09-26).
+  setTime(2026, 10, 5, 16, 0); newState();
+  const lv0 = D.xp.level();
+  for (let i = 0; i < 7; i++) D.daily.noteRound();
+  t("rounds short of the day's target never move the level", D.xp.level() === lv0, "level " + D.xp.level());
+  const done = D.daily.noteRound();
+  t("the round that finishes the day raises the level by one", done.justDone && D.xp.level() === lv0 + 1, "level " + D.xp.level());
+  for (let i = 0; i < 5; i++) D.daily.noteRound();
+  t("rounds after the day is done never raise it again", D.xp.level() === lv0 + 1, "level " + D.xp.level());
+  D.daily.setTarget(4); D.daily.setTarget(12);
+  t("changing the rounds a day after the day is done never raises or lowers it", D.xp.level() === lv0 + 1);
+  setTime(2026, 10, 6, 16, 0); D.save.touchDay();
+  for (let i = 0; i < 5; i++) D.daily.noteRound();
+  D.daily.setTarget(4);
+  t("For Dad lowering the rounds a day to today's count finishes the day and raises the level once",
+    D.daily.today().done && D.xp.level() === lv0 + 2, "level " + D.xp.level());
+  const old = D.save.fresh({ name: "T", slug: "t", theme: "dojo" });
+  delete old.daily; old.progress.xp = 900; old.progress.level = 4;
+  const m = D.save.migrate(JSON.parse(JSON.stringify(old)));
+  D.state = m;
+  t("a save from before keeps the level it had", D.xp.level() === 4);
+}
+{
+  const copySrc = fs.readFileSync(path.join(ROOT, "js/data/copy.js"), "utf8");
+  t("no line in the game says XP any more", !/\bXP\b/.test(copySrc.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")));
 }
 {
   // The composer: every round count from 4 to 12, on days in each season for two names.

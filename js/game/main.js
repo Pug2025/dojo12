@@ -166,7 +166,7 @@ D.main = (function () {
       parts.push(halfwayLine(beat));
       parts.push(beltPlate(D.belt.info()));
       parts.push(ledger(D.copy.roundOne.coins(sum.coinsAnswers || 0, D.state.progress.coins),
-                        D.copy.roundOne.xp, xpBefore(sum.xp, false), beat));
+                        D.copy.roundOne.level(D.daily.today().target)));
       // What is open now is what the child was just told; news starts from here.
       D.state.flags.tablesSeen = D.scheduler.tablesNow();
     }
@@ -294,32 +294,13 @@ D.main = (function () {
     s.setAttribute('aria-label', D.copy.home.level(n));
     return s;
   }
-  // XP is one ink line with the part earned toward the next level in red (ART.md). Given
-  // where it stood before the round, the red is drawn along from there.
-  function xpLine(lvl, before, beat, at) {
-    const pct = v => (Math.round(1000 * D.u.clamp(v / lvl.need, 0, 1)) / 10) + '%';
-    const fill = u().el('i', { style: { width: pct(lvl.into) } });
-    if (beat && typeof before === 'number' && before < lvl.into) {
-      fill.style.setProperty('--from', pct(before));
-      beat.draw(fill, at, 'xpgrow', 500);
-    }
-    return u().el('div', { class: 'xpline' }, [fill]);
-  }
-  // Where XP stood toward this level before the round: the start of the line if the
-  // round made a new level.
-  function xpBefore(gained, levelled) {
-    const lvl = D.xp.levelFor(D.state.progress.xp);
-    return levelled ? 0 : Math.max(0, lvl.into - (gained || 0));
-  }
   /* What the round paid and what there is now, in one small ledger: the coin drawn beside
-     the coins, the XP line under the XP. */
-  function ledger(coinText, xpText, before, beat) {
-    const lvl = D.xp.levelFor(D.state.progress.xp);
+     the coins, and at most one plain line under them. XP is no longer shown anywhere: the
+     level counts days of training (PLAN §15, 2026-09-26). */
+  function ledger(coinText, note) {
     return u().el('div', { class: 'ledger t15' }, [
       u().el('div', { class: 'lrow' }, [u().el('i', { class: 'coin big' }), u().el('div', {}, glue(coinText))]),
-      u().el('div', { class: 'lrow' }, [u().el('i', { class: 'lmark' }), u().el('div', {}, [
-        u().el('div', {}, glue(xpText)), xpLine(lvl, before, beat, beat ? beat.t + 60 : 0),
-      ])]),
+      note ? u().el('div', { class: 'lrow' }, [u().el('i', { class: 'lmark' }), u().el('div', { class: 'dim' }, glue(note))]) : null,
     ]);
   }
   /* Tables that opened, or left the two being worked on, since the child last looked,
@@ -357,12 +338,21 @@ D.main = (function () {
     u().clear(root);
     const t = D.daily.today();
     const page = D.daily.book().find(p => p.day === t.day) || { day: t.day, at: t.doneAt, rounds: t.target };
-    const s = D.book.sheet({ day: t.day, target: t.target, stage: t.stage, width: D.book.bigWidth(root),
+    // As big as the book shows it, or what a short phone has room for above the words, the
+    // level and the two buttons (about 330 points), so they never fall below the fold.
+    const room = typeof innerHeight === 'number' && innerHeight > 0 ? Math.floor((innerHeight - 356) * 0.75) : D.book.BIG;
+    const s = D.book.sheet({ day: t.day, target: t.target, stage: t.stage, width: Math.max(180, Math.min(D.book.bigWidth(root), room)),
                              from: t.stage - 1, fadeAt: 220, seal: 'wait' });
     const kept = D.book.keepDay(t.day);
+    // The day's training done is a level (PLAN §15, 2026-09-26): its stamp comes down after the
+    // date seal and the words, beside what it opened in the Shop.
+    const lvl = D.xp.level();
+    const stamp = levelStamp(lvl);
     const words = u().el('div', { class: 'pp-words' }, [
       ceremony(D.copy.paint.done, 'pp-done'),
       u().el('div', { class: 'pp-when' }, D.copy.paint.doneWhen(t.day, t.doneAt)),
+      u().el('div', { class: 'levelup pp-level' }, [stamp, u().el('div', { class: 't15' },
+        D.copy.summary.levelUp(lvl, D.cfg.SHOP.filter(it => it.level === lvl).map(it => it.id)))]),
     ]);
     words.style.visibility = 'hidden';
     const on = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.paint.on);
@@ -374,12 +364,14 @@ D.main = (function () {
       if (!screen || !screen.isConnected) return;
       words.style.visibility = '';
       words.classList.add('pp-after');
+      levelBeat.stamp(stamp, still() ? 0 : 320, true);
     };
+    const levelBeat = beats(0);
     s.ready.then(() => {
       if (!screen || !screen.isConnected) return;
       const seal = s.stamp();
       if (!seal) return say();
-      beats(0).stamp(seal, 0, true);
+      levelBeat.stamp(seal, 0, true);
       setTimeout(say, 280);
     }, say);
     screen = u().el('div', { class: 'screen scr-done' },
@@ -402,7 +394,7 @@ D.main = (function () {
     // next summary; unsettled, the plate read "Sealed 2 of 1" (replay 2026-09-14).
     const tied = D.belt.update();
     if (tied.length) p.pendingBelt = (p.pendingBelt || []).concat(tied);
-    const lvl = D.xp.levelFor(p.xp);
+    const level = D.xp.level();
     const info = D.belt.info();
     const worn = D.shop.equipped('mark');
 
@@ -418,13 +410,9 @@ D.main = (function () {
       u().el('div', { class: 'who' }, [
         worn ? D.fx.markGlyph(worn) : null,
         u().el('div', { class: 'home-name' }, D.state.profile.name),
-        levelStamp(lvl.level),
+        levelStamp(level),
       ]),
       help,
-    ]);
-    const xp = u().el('div', { class: 'xp' }, [
-      xpLine(lvl),
-      u().el('div', { class: 't13 dim' }, D.copy.home.toLevel(lvl.need - lvl.into, lvl.level + 1)),
     ]);
 
     const news = tableNewsLine();
@@ -468,7 +456,7 @@ D.main = (function () {
     ]);
 
     root.appendChild(u().el('div', { class: 'screen home' }, [
-      head, xp, recap,
+      head, recap,
       u().el('div', { class: 'grow top' }),
       beltPlate(info),
       play, painting, rest,
@@ -575,7 +563,7 @@ D.main = (function () {
     const flips = sum.flips || {};
     const items = ids => ids.map(id => ({ id: id, flip: !!flips[id] }));
     const listed = ids => ids.map(id => D.facts.display(id, !!flips[id]));
-    const beat = beats(sum.levelUp ? 1 : 0);
+    const beat = beats(0);
 
     // The child's best time this round, if any: the biggest improvement.
     const pbFact = (sum.pbFacts || []).slice().sort((a, b) => (b.from - b.ms) - (a.from - a.ms))[0];
@@ -641,19 +629,9 @@ D.main = (function () {
     if (lines.childNodes.length) parts.push(lines);
     if (!leadIsBelt) parts.push(beltPlate(info));
 
-    // A new level lands as a stamp beside what it put in the Shop (ART.md, New level).
-    if (sum.levelUp) {
-      const stamp = levelStamp(sum.levelUp);
-      beat.stamp(stamp, beat.t + 140, true);
-      parts.push(u().el('div', { class: 'levelup' }, [stamp, u().el('div', { class: 't15' },
-        D.copy.summary.levelUp(sum.levelUp, D.cfg.SHOP.filter(it => it.level === sum.levelUp).map(it => it.id)))]));
-    }
-
     // What the round paid and what the child has now, in words (2026-09-24).
-    const p = D.state.progress, lvl = D.xp.levelFor(p.xp);
-    parts.push(ledger(D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, events, p.coins),
-                      D.copy.summary.xpLine(sum.xp || 0, lvl.need - lvl.into, lvl.level + 1),
-                      xpBefore(sum.xp, !!sum.levelUp), beat));
+    const p = D.state.progress;
+    parts.push(ledger(D.copy.summary.coinsLine(sum.coinsAnswers || 0, sum.coinsBonus || 0, events, p.coins)));
 
     const again = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.again);
     again.addEventListener('click', startRun);
@@ -738,10 +716,7 @@ D.main = (function () {
     // The same ledger as the end of a round: what it paid, then what there is now.
     const belts = res.belt || [];
     const answers = (res.coins || 0) - belts.reduce((n, e) => n + (e.coins || 0), 0);
-    const lvl = D.xp.levelFor(D.state.progress.xp);
-    parts.push(ledger(D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins),
-                      D.copy.summary.xpLine(res.xp || 0, lvl.need - lvl.into, lvl.level + 1),
-                      xpBefore(res.xp, false), beat));
+    parts.push(ledger(D.copy.summary.coinsLine(answers, 0, belts, D.state.progress.coins)));
     const back = u().el('button', { class: 'btn ink wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
     screen = u().el('div', { class: 'screen sum test' + (res.passed ? '' : ' solo') },

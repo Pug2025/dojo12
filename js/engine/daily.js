@@ -31,9 +31,12 @@ D.daily = (function () {
   }
   function blank() { return { target: D.cfg.DAY_ROUNDS, day: null, rounds: 0, doneAt: null, book: [] }; }
   function isDone(d) { return d.doneAt != null; }
+  // The day is done: its page goes in the book and the level goes up by one, once a day
+  // (PLAN §15, 2026-09-26: the level counts days of training).
   function finish(d) {
     d.doneAt = D.u.now();
     if (!d.book.some(p => p.day === d.day)) d.book.push({ day: d.day, at: d.doneAt, rounds: d.target });
+    if (D.xp && D.xp.levelUp) D.xp.levelUp();
   }
 
   // Where today stands: the painting's date, how many rounds are in, and whether it is done.

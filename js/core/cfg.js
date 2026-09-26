@@ -107,7 +107,6 @@ D.cfg = {
   /* ---- XP, levels, coins (PLAN §7.4, rework 2026-09-10) ---- */
   XP_PER_CORRECT: 10,       // x table weight, and the only source of XP
   XP_FULL_PER_DAY: 60,      // answers after this pay half. Never mentioned in copy.
-  LEVEL_BASE: 50, LEVEL_STEP: 75,     // level n -> n+1 needs BASE + STEP x n: 125, 200, 275... (ten-card rounds)
   COINS_PER_CORRECT: 1,     // every unaided right answer, fast or slow
   COINS_STRIPE: 10, COINS_BELT: 50,
   GHOST_MIN_ATTEMPTS: 3, GHOST_BEAT_MS: 100,   // "Your best time" on any answer this much faster, fast or not (§13.3)

@@ -32,7 +32,7 @@ D.roundone = (function () {
       xpGained: 0, coinsGained: 0, fastNew: [], sealedIds: [], unsealed: [], gotBack: [], missed: [], rts: [],
       fastestFact: null, cardOvertime: false, finished: false, tryoutDone: false, cut: false,
       coinsAnswers: 0, coinsBonus: 0, pbFacts: [], carryComebacks: [], carryRetries: [],
-      levelAtStart: D.xp.levelFor(D.state.progress.xp).level,
+      levelAtStart: D.xp.level(),
     };
     r.bestCombo = r.combo;
     if (half && !o.resume) { Object.assign(tr.state, half.tryout || {}); r.tryoutDone = !!half.tryoutDone; }
@@ -228,15 +228,14 @@ D.roundone = (function () {
                   cards: sum.cards, medianRt: sum.medianRt, roundOne: true });
     while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
     const extra = { pbs: [], belt: [] };
-    const levelBefore = typeof ro.raw.levelAtStart === 'number' ? ro.raw.levelAtStart : D.xp.levelFor(s.progress.xp).level;
-    if (sum.counted) D.xp.creditDay(sum.day);
+        if (sum.counted) D.xp.creditDay(sum.day);
     // Placement rounds set no personal best: they are longer or shorter than a real
     // round and were setting records a real round could never beat (audit 2026-09-14).
     D.scheduler.ensureProgression();
     extra.belt = D.belt.update();
     sum.coinsBelt = extra.belt.reduce((n, e) => n + e.coins, 0);
     sum.coins += sum.coinsBelt;
-    sum.levelUp = D.xp.levelFor(s.progress.xp).level > levelBefore ? D.xp.levelFor(s.progress.xp).level : 0;
+    sum.levelUp = 0;   // the level moves only when a day's training is done (D.daily, 2026-09-26)
     s.progress.carryCombo = sum.combo;
     s.progress.fastToday = (s.progress.fastToday || 0) + sum.fastNew.length;
     s.progress.sealedToday = (s.progress.sealedToday || 0) + sum.sealed.length;

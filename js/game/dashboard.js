@@ -31,7 +31,7 @@ D.dashboard = (function () {
     const kids = [
       u().el('div', { class: 'fr-dash-head' }, [
         u().el('div', { class: 'home-name' }, s.profile.name || D.copy.dash.title),
-        u().el('div', { class: 'fr-dash-level' }, D.copy.dash.level(D.xp.levelFor(s.progress.xp).level)),
+        u().el('div', { class: 'fr-dash-level' }, D.copy.dash.level(Math.max(1, (s.progress.level | 0) || 1))),
       ]),
       trainingPlate(s), checksPlate(s), beltPlate(s), workingPlate(s), weekPlate(s),
       gridPlate('mul'), gridPlate('div'),

@@ -155,7 +155,7 @@ D.copy = (function () {
   const CHECK_NAMES = {
     thin: 'Questions with more counted days than answers',
     ahead: "Days dated after the phone's own day",
-    xp: 'XP above what the answers could have paid',
+    xp: 'More paid than the right answers could earn',
     runs: 'More rounds in a day than a day holds',
     counts: 'More right answers than answers',
     belts: 'A black belt with no passed test on record',
@@ -202,7 +202,7 @@ D.copy = (function () {
         ['The seal', "The first red time on a question puts it halfway. A red time on another day seals it, and a sealed question comes back now and then to check. A miss takes a question back a step, and so does getting slow at a sealed one. Your belt keeps its place."],
         ['Your belt', 'Every question you seal moves your belt. Four stripes on each belt, then the next colour: white, blue, purple, brown, black. The fourth stripe on brown opens the black belt test.'],
         ['The streak', 'Three right in a row and your points count 1.5 times, six makes it 2 times and nine makes it 3. The streak carries into the next round. Going Home ends it, and so does a quick wrong guess, even if you break it down after. After any other miss, Break it down with every step right keeps it. Show me loses it.'],
-        ['Points, coins and XP', 'Points are for beating your best round. Fast answers and a streak score more. Coins buy things in the Shop. Every right answer pays one, but not after Break it down or Show me. Right answers also give XP, and new levels put more in the Shop.'],
+        ['Points, coins and your level', 'Points are for beating your best round. Fast answers and a streak score more. Coins buy things in the Shop. Every right answer pays one, but not after Break it down or Show me. Your level goes up by one on every day you finish your training, and new levels put more in the Shop.'],
       ],
     },
 
@@ -224,7 +224,7 @@ D.copy = (function () {
       coins: (got, have) => (got ? 'You got ' + count(got, 'coin', 'coins') + ', one for each right answer.'
         : 'You get a coin for each right answer.') + (have ? ' You have ' + num(have) + '.' : '') + ' Spend them in the Shop.',
       // "New levels", not "each new level": level 11 and the levels after 12 add nothing.
-      xp: 'XP comes from right answers. New levels open more of the Shop.',
+      level: target => 'Finish ' + target + ' rounds in a day and your level goes up. New levels open more of the Shop.',
       play: 'Next round',
       home: 'Home',
     },
@@ -303,9 +303,6 @@ D.copy = (function () {
       unsealed: list => (list.length > 1 ? andList(list) + ' lost their seals.' : list[0] + ' lost its seal.') +
         ' Your belt keeps its place.',
       gotBack: list => (list.length > 1 ? 'Got them back: ' : 'Got it back: ') + list.join(', ') + '.',
-      xpLine: (gained, more, next) => gained
-        ? num(gained) + ' XP. ' + num(more) + ' more for level ' + next + '.'
-        : num(more) + ' more XP for level ' + next + '.',
       levelUp: (n, ids) => 'Level ' + n + '.' + (ids && ids.length ? ' New in the Shop: ' + ids.map(itemName).join(', ') + '.' : ''),
       bestTime: (id, ms, from, flip) => factText(id, flip) + ' in ' + secs(ms) + ', your best. Was ' + secs(from) + '.',
       // What this round paid, from where, then what the child has. Each source is named
@@ -379,8 +376,6 @@ D.copy = (function () {
     /* ---- home ---- */
     home: {
       level: n => 'Level ' + n,
-      // What is left to the next level, like the belt plate (2026-09-24): "80 / 125 XP" read as a score.
-      toLevel: (more, next) => num(more) + ' more XP for level ' + next,
       coins: n => count(n, 'coin', 'coins'),
       // "You have sealed": the belt's count keeps every question ever sealed, so the Grid
       // can show fewer stamped today than this (§13.3).

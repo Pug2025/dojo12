@@ -28,7 +28,7 @@ D.shop = (function () {
   function items() { return D.cfg.SHOP; }
   function owned(id) { return D.state.cosmetics.owned.indexOf(id) >= 0; }
   function equipped(kind) { return D.state.cosmetics.equipped[kind] || null; }
-  function available(item) { return D.xp.levelFor(D.state.progress.xp).level >= item.level; }
+  function available(item) { return D.xp.level() >= item.level; }
   function afford(item) { return D.state.progress.coins >= item.price; }
 
   function buy(item) {
@@ -73,7 +73,7 @@ D.shop = (function () {
     apply();
     // Home's nudge stands down once the Shop has been seen with these coins.
     D.state.flags.shopSeenCoins = D.state.progress.coins;
-    D.state.flags.shopSeenLevel = D.xp.levelFor(D.state.progress.xp).level;
+    D.state.flags.shopSeenLevel = D.xp.level();
     const list = u().el('div', { class: 'shop-list' });
     const groups = {};
     for (const item of items()) {
@@ -251,7 +251,7 @@ D.shop = (function () {
 
   // The cheapest thing the child could buy now and has not seen the Shop with, for Home.
   function nudge() {
-    const lvl = D.xp.levelFor(D.state.progress.xp).level;
+    const lvl = D.xp.level();
     const seenCoins = D.state.flags.shopSeenCoins || 0, seenLevel = D.state.flags.shopSeenLevel || 1;
     const can = items().filter(it => !owned(it.id) && available(it) && afford(it)).sort((a, b) => a.price - b.price);
     if (!can.length) return null;

@@ -36,7 +36,7 @@ D.runstate = (function () {
       pbFacts: [], coinsAnswers: 0, coinsBonus: 0,
       carryComebacks: [], carryRetries: [],
       // XP lands card by card, so the level at the start is what a level-up is judged against.
-      levelAtStart: D.xp.levelFor(D.state.progress.xp).level,
+      levelAtStart: D.xp.level(),
     };
     r.bestCombo = 0;                        // the round's own longest streak, not the one carried in
     // A run that was interrupted comes back exactly where it was (PLAN §7.2).
@@ -593,8 +593,7 @@ D.runstate = (function () {
                   cards: sum.cards, medianRt: sum.medianRt });
     while (s.runs.length > cfg.RUNS_KEPT) s.runs.shift();
     const extra = { pbs: [], belt: [] };
-    const levelBefore = typeof sum.levelAtStart === 'number' ? sum.levelAtStart : D.xp.levelFor(s.progress.xp).level;
-    if (sum.counted) {
+        if (sum.counted) {
       D.xp.creditDay(sum.day);
       extra.pbs = D.xp.checkPbs(sum);
     }
@@ -608,7 +607,7 @@ D.runstate = (function () {
     s.progress.pendingBelt = [];
     sum.coinsBelt = extra.belt.reduce((n, e) => n + e.coins, 0);
     sum.coins += sum.coinsBelt;
-    sum.levelUp = D.xp.levelFor(s.progress.xp).level > levelBefore ? D.xp.levelFor(s.progress.xp).level : 0;
+    sum.levelUp = 0;   // the level moves only when a day's training is done (D.daily, 2026-09-26)
     // What carries into the next round (§13.3): the streak, and the misses that had
     // no room to come back in this one.
     s.progress.carryCombo = sum.combo;

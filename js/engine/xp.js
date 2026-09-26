@@ -1,27 +1,26 @@
-/* Dojo 12 engine — XP, levels and coins (PLAN §7.4, rework 2026-09-10). Headless
-   and pure: every award goes through here, so there is one place to test that
-   nothing is paid without a correct typed answer.
-   XP is per correct unaided answer, table-weighted, and nothing else pays it. The
-   first sixty of a day pay full, the rest pay half, and the game never says a word
-   about it. Coins come one per correct unaided answer, fast or slow, plus the
-   bonus card and the belt, so a slow child who is right earns about what a fast
-   one does. Levels decide what the shop stocks; coins decide what the child can
-   buy. */
+/* Dojo 12 engine — the level, coins and the hidden XP (PLAN §7.4, rework 2026-09-10; the
+   level by days, 2026-09-26). Headless and pure: every award goes through here, so there is one
+   place to test that nothing is paid without a correct typed answer.
+   The level is one for every day of training finished: it goes up only when a day's painting is
+   done (D.daily), so it cannot be ground out in one sitting, and the belt stays the one rank that
+   says how much a child knows. Levels decide what the shop stocks; coins decide what the child
+   can buy. Coins come one per correct unaided answer, fast or slow, plus the bonus card and the
+   belt, so a slow child who is right earns about what a fast one does.
+   XP is still counted, per correct unaided answer, table-weighted, the first sixty of a day in
+   full and the rest at half, but no screen shows it: the reward tests and What Dad sees' save
+   check measure with it. */
 "use strict";
 D.xp = (function () {
   const cfg = D.cfg;
 
-  function needed(level) { return cfg.LEVEL_BASE + cfg.LEVEL_STEP * level; }
-  function levelFor(totalXp) {
-    let level = 1, spent = 0;
-    while (totalXp >= spent + needed(level)) { spent += needed(level); level++; }
-    return { level: level, into: totalXp - spent, need: needed(level) };
-  }
+  // The level now, 1 at the start. A save from before 2026-09-26 keeps the level its XP had
+  // reached, since that was stored as it grew.
+  function level() { return Math.max(1, (D.state.progress.level | 0) || 1); }
+  // A day's training is done: one level more (D.daily calls this once a day).
+  function levelUp() { D.state.progress.level = level() + 1; return D.state.progress.level; }
 
   function addXp(n) {
-    const p = D.state.progress;
-    p.xp += n;
-    p.level = levelFor(p.xp).level;
+    D.state.progress.xp += n;
     return n;
   }
   function addCoins(n) {
@@ -126,6 +125,6 @@ D.xp = (function () {
     return out;
   }
 
-  return { needed, levelFor, addXp, addCoins, spendCoins, answerXp, creditDay, checkPbs,
+  return { level, levelUp, addXp, addCoins, spendCoins, answerXp, creditDay, checkPbs,
            noteWeekFastest, noteRound, halfwayToday };
 })();

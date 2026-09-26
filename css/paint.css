@@ -150,3 +150,10 @@ body:has(.scr-done) .toast, body:has(.pp-view) .toast { top: calc(24px + env(saf
 .pp-layer > .screen { min-height: 100%; }
 @keyframes pp-layer-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .pp-layer { animation: none; } }
+
+/* Training done's level (2026-09-26): the stamp beside what it opened, as at the end of a round,
+   so the screen keeps its buttons on a 667-point phone. */
+.scr-done .pp-level { display: flex; align-items: center; gap: 12px; margin-top: 6px; text-align: left; }
+.scr-done .pp-level .hanko-level { width: 48px; height: 48px; flex: none; }
+.scr-done .pp-level .hanko-level > b { font-size: 29px; }
+.scr-done .pp-level .hanko-level.two > b { font-size: 22px; }
