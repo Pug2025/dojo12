@@ -29,7 +29,7 @@ const ENGINE = [
   "js/core/save.js", "js/data/copy.js", "js/engine/scripts.js", "js/engine/diagnose.js",
   "js/engine/xp.js", "js/engine/belt.js", "js/engine/scheduler.js", "js/engine/runstate.js",
   "js/engine/tryout.js", "js/engine/roundone.js", "js/engine/belttest.js", "js/engine/beyond.js",
-  "js/engine/share.js", "js/game/recap.js",
+  "js/engine/share.js", "js/engine/daily.js", "js/game/recap.js",
 ];
 for (const f of ENGINE) {
   try { vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f }); }
@@ -740,8 +740,10 @@ h2("copy gate");
   t("copy says nothing on a miss", missHits.length === 0, missHits.join(", "));
 }
 {
-  // No sentence-shaped string anywhere but copy.js.
-  const ALLOW = new Set(["js/data/copy.js"]);
+  // No sentence-shaped string anywhere but copy.js. The paintings' captions are the one exception:
+  // the composer builds them with the painting, in a worker where copy.js is not loaded, so every
+  // caption of two years is put through the same checks below (PLAN §10.1, 2026-09-26).
+  const ALLOW = new Set(["js/data/copy.js", "js/paint/scenes.js"]);
   const files = [];
   (function walk(dir) {
     for (const name of fs.readdirSync(dir)) {
@@ -760,6 +762,19 @@ h2("copy gate");
     }
   }
   t("no player-facing sentence lives outside copy.js", offenders.length === 0, offenders.slice(0, 5).join(" | "));
+}
+{
+  // The paintings' captions, every one of two years for both children, under the copy rules.
+  for (const f of ["js/paint/brush.js", "js/paint/scenes.js"]) vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f });
+  const caps = new Set();
+  const start = Date.UTC(2026, 8, 25);
+  for (const nm of ["Sam", "Alex"]) for (let i = 0; i < 730; i++) {
+    const iso = new Date(start + i * 86400000).toISOString().slice(0, 10);
+    caps.add(D.paintScenes.forDay(iso, nm).caption);
+  }
+  const all = Array.from(caps);
+  const bad = all.filter(c => /[!—]/.test(c) || /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(c) || !/^[A-Z]/.test(c) || /\.$/.test(c));
+  t("every painting caption keeps the copy rules (" + all.length + " captions)", bad.length === 0, bad.join(" | "));
 }
 {
   // Every copy key the code reaches for exists.
@@ -3049,6 +3064,346 @@ h2("review 2026-09-24: home and the end of a round");
   const glue = new Function(glueSrc + "\nreturn glue;")();
   const line = glue(D.copy.belt.toNext({ step: 2, stripes: 2, nextKind: "stripe", nextAt: 5, sealed: 3, left: 2, outlined: 4 }));
   t("the words under the belt never break between a stripe and its number", /stripe\xa03/.test(line) && /2\xa0more/.test(line), line);
+}
+
+/* ================= the day's painting (PLAN §15, 2026-09-25 and 2026-09-26) =================
+   A day's training is a set number of finished rounds on the game day. Each one paints the next
+   part of that day's painting, the one that reaches the target finishes it and puts the day in the
+   book, once. The composer splits every painting into as many parts as there are rounds, 4 to 12;
+   the worker paints them off the main thread; the finished page is kept on the phone, by child and
+   date, and sent to Dad from a tap. The names here are made up. */
+h2("the day's painting");
+{
+  setTime(2026, 9, 26, 16, 0); newState();
+  const day1 = D.u.gameDay();
+  let s = D.daily.today();
+  t("a new day's painting starts at no rounds, eight to go",
+    s.day === day1 && s.rounds === 0 && s.stage === 0 && s.target === 8 && s.left === 8 && s.done === false && s.doneAt === null,
+    JSON.stringify(s));
+  const three = [D.daily.noteRound(), D.daily.noteRound(), D.daily.noteRound()];
+  s = D.daily.today();
+  t("each finished round is counted and paints the next part",
+    s.rounds === 3 && s.stage === 3 && s.left === 5 && three.every((o, i) => o.painted && !o.justDone && o.stage === i + 1 && o.target === 8),
+    JSON.stringify(three));
+  setTime(2026, 9, 27, 2, 0);
+  D.save.touchDay();
+  t("after midnight, before the game day turns, the count goes on", D.daily.today().day === day1 && D.daily.today().rounds === 3);
+  setTime(2026, 9, 27, 7, 30);
+  t("the game day turns in the morning", D.save.touchDay() === true);
+  s = D.daily.today();
+  t("a new game day starts a new count", s.day === D.u.gameDay() && s.day !== day1 && s.rounds === 0 && s.stage === 0 && !s.done, JSON.stringify(s));
+  t("a day left short leaves no page", D.daily.book().length === 0);
+
+  const day2 = D.u.gameDay();
+  let at8 = null;
+  const outs = [];
+  for (let i = 1; i <= 12; i++) { advanceHours(0.25); if (i === 8) at8 = D.u.now(); outs.push(D.daily.noteRound()); }
+  s = D.daily.today();
+  t("the round that reaches the target finishes the day, and no other",
+    outs.filter(o => o.justDone).length === 1 && outs[7].justDone && outs[7].stage === 8, outs.map(o => +o.justDone).join(""));
+  t("rounds after the day is done are counted and paint nothing more",
+    outs.slice(8).every(o => !o.painted && !o.justDone && o.stage === 8) && s.rounds === 12, JSON.stringify(outs.slice(8)));
+  t("the day says it is done, and when", s.done && s.doneAt === at8 && s.stage === 8 && s.left === 0, JSON.stringify(s));
+  let book = D.daily.book();
+  t("a finished day puts one page in the book",
+    book.length === 1 && book[0].day === day2 && book[0].at === at8 && book[0].rounds === 8, JSON.stringify(book));
+
+  setTime(2026, 9, 28, 16, 0); D.save.touchDay();
+  const day3 = D.u.gameDay();
+  for (let i = 0; i < 8; i++) D.daily.noteRound();
+  book = D.daily.book();
+  t("each finished day has its own page, newest first",
+    book.length === 2 && book[0].day === day3 && book[1].day === day2, JSON.stringify(book.map(p => p.day)));
+
+  setTime(2026, 9, 29, 16, 0); D.save.touchDay();
+  const day4 = D.u.gameDay();
+  for (let i = 0; i < 5; i++) D.daily.noteRound();
+  const lowered = D.daily.setTarget(4);
+  book = D.daily.book();
+  t("lowering the rounds a day below today's rounds finishes today then and there",
+    lowered === 4 && D.daily.today().done && book.length === 3 && book[0].day === day4 && book[0].rounds === 4, JSON.stringify(book[0]));
+  const raised = D.daily.setTarget(12);
+  s = D.daily.today();
+  t("raising it again removes no page and leaves the day done, its painting finished",
+    raised === 12 && D.daily.book().length === 3 && s.done && s.stage === 12 && s.left === 0, JSON.stringify(s));
+  const again = D.daily.noteRound();
+  t("so the next round finishes nothing a second time", !again.painted && !again.justDone && D.daily.book().length === 3, JSON.stringify(again));
+
+  setTime(2026, 9, 30, 16, 0); D.save.touchDay();
+  D.daily.setTarget(8);
+  for (let i = 0; i < 6; i++) D.daily.noteRound();
+  D.daily.setTarget(6);
+  t("lowering it to exactly today's rounds finishes today too", D.daily.today().done && D.daily.book()[0].day === D.u.gameDay());
+
+  setTime(2026, 10, 1, 16, 0); D.save.touchDay();
+  const day6 = D.u.gameDay();
+  D.daily.setTarget(8);
+  for (let i = 0; i < 5; i++) D.daily.noteRound();
+  D.daily.setTarget(10);
+  const mid = D.daily.today();
+  let fin = -1;
+  for (let i = 0; i < 5; i++) if (D.daily.noteRound().justDone) fin = i;
+  t("raising it before the day is done moves the finish line",
+    !mid.done && mid.left === 5 && fin === 4 && D.daily.book()[0].day === day6 && D.daily.book()[0].rounds === 10, JSON.stringify(mid));
+  t("the rounds a day stay between 4 and 12", D.daily.setTarget(1) === 4 && D.daily.setTarget(99) === 12 && D.daily.setTarget("x") === 8);
+  t("What Dad sees counts the days done in a week",
+    D.daily.doneInWeek("2026-09-27") === 1 && D.daily.doneInWeek("2026-10-01") === 4,
+    D.daily.doneInWeek("2026-09-27") + " / " + D.daily.doneInWeek("2026-10-01"));
+  setTime(2026, 9, 26, 16, 0); D.save.touchDay();
+  t("winding the clock back never reopens an earlier day", D.daily.today().day === day6 && D.daily.today().done);
+  D.state.daily = null;
+  s = D.daily.today();
+  t("a save whose count was lost starts it again rather than failing", s.rounds === 0 && s.target === 8 && Array.isArray(D.state.daily.book));
+}
+{
+  const old = D.save.fresh({ name: "T", slug: "t", theme: "dojo" });
+  delete old.daily;
+  const m = D.save.migrate(JSON.parse(JSON.stringify(old)));
+  t("an old save gets the day's painting when it loads",
+    JSON.stringify(m.daily) === JSON.stringify({ target: 8, day: old.gameDay, rounds: 0, doneAt: null, book: [] }), JSON.stringify(m.daily));
+  const played = JSON.parse(JSON.stringify(old));
+  played.progress.runsToday = 3;
+  const mp = D.save.migrate(played);
+  t("and the rounds it played that day before the update count toward the painting",
+    mp.daily.day === old.gameDay && mp.daily.rounds === 3, JSON.stringify(mp.daily));
+  const v2 = JSON.parse(JSON.stringify(old));
+  v2.version = 2;
+  const m2 = D.save.migrate(v2);
+  t("so does one from before the rework", m2.version === 3 && m2.daily && m2.daily.target === 8 && Array.isArray(m2.daily.book));
+  D.state = m;
+  D.state.gameDay = D.u.todayKey();
+  const s = D.daily.today();
+  t("and counts from there", s.rounds === 0 && s.target === 8 && !s.done && D.daily.noteRound().stage === 1);
+}
+{
+  // The composer: every round count from 4 to 12, on days in each season for two names.
+  if (!D.paintScenes) for (const f of ["js/paint/brush.js", "js/paint/scenes.js"]) vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), "utf8"), { filename: f });
+  const S = D.paintScenes;
+  const days = [["2026-09-26", "Sam"], ["2026-12-15", "Alex"], ["2027-03-01", "Sam"], ["2027-07-04", "Alex"]];
+  const wrong = { count: [], adds: [], last: [], same: [], again: [] };
+  let least = Infinity;
+  for (const [iso, nm] of days) {
+    const base = S.forDay(iso, nm);
+    if (JSON.stringify(S.forDay(iso, nm)) !== JSON.stringify(base)) wrong.again.push(iso);
+    const ops = JSON.stringify(base.ops), seal = JSON.stringify(base.seal);
+    const { added } = S._dev.inkMap(base.ops);
+    for (let r = 4; r <= 12; r++) {
+      const sc = S.forDay(iso, nm, { rounds: r }), st = sc.stages, tag = iso + " " + nm + " " + r;
+      if (st.length !== r) wrong.count.push(tag + ": " + st.length);
+      let prev = 0;
+      for (const e of st) {
+        let ink = 0;
+        for (let k = prev; k < e; k++) ink += added[k];
+        if (!(e > prev) || !(ink > 0)) wrong.adds.push(tag);
+        least = Math.min(least, ink);
+        prev = e;
+      }
+      if (st[st.length - 1] !== sc.ops.length) wrong.last.push(tag);
+      if (JSON.stringify(sc.ops) !== ops || JSON.stringify(sc.seal) !== seal || sc.caption !== base.caption) wrong.same.push(tag);
+    }
+  }
+  t("every round count from 4 to 12 splits the painting into as many parts as rounds", wrong.count.length === 0, wrong.count.join(", "));
+  t("each part adds strokes and ink", wrong.adds.length === 0, wrong.adds.join(", ") + " least ink " + Math.round(least));
+  t("the last part is the whole painting", wrong.last.length === 0, wrong.last.join(", "));
+  t("a day's painting and its seal are the same whatever the rounds a day; only its parts differ", wrong.same.length === 0, wrong.same.join(", "));
+  t("the same date and name compose the same painting", wrong.again.length === 0, wrong.again.join(", "));
+  // a wider sweep through the split alone: a year of days, a month apart, the names in turn
+  const sweep = [];
+  for (let i = 0; i < 12; i++) {
+    const nm = i % 2 ? "Alex" : "Sam";
+    const iso = new Date(Date.UTC(2026, 9, 3) + i * 30 * 86400000).toISOString().slice(0, 10);
+    const sc = S.forDay(iso, nm);
+    const { added } = S._dev.inkMap(sc.ops);
+    for (let r = 4; r <= 12; r++) {
+      const st = S._dev.stagesFor(sc.ops, added, r);
+      if (st.length !== r || st[st.length - 1] !== sc.ops.length || st.some((e, k) => e <= (k ? st[k - 1] : 0))) sweep.push(iso + " " + nm + " " + r);
+    }
+  }
+  t("over a year of days, every round count from 4 to 12 splits cleanly", sweep.length === 0, sweep.join(", "));
+}
+{
+  // The painter and the worker load, and name only files that exist; the service worker holds them.
+  const paintSrc = fs.readFileSync(path.join(ROOT, "js/paint/painter.js"), "utf8");
+  const workerSrc = fs.readFileSync(path.join(ROOT, "js/paint/worker.js"), "utf8");
+  const base = (paintSrc.match(/const BASE = '([^']+)'/) || [])[1];
+  const imports = [...workerSrc.matchAll(/importScripts\(([^)]*)\)/g)].flatMap(m => stringLiterals(m[1]));
+  const lost = imports.filter(f => !fs.existsSync(path.join(ROOT, "js/paint", f)));
+  t("the worker imports the brush and the scenes, and both exist",
+    imports.includes("brush.js") && imports.includes("scenes.js") && lost.length === 0, imports.join(", ") + (lost.length ? " missing " + lost.join(", ") : ""));
+  const named = [...new Set(stringLiterals(paintSrc).filter(x => /\.(js|webp|png)$/.test(x)))].map(x => (x.includes("/") ? x : base + x));
+  const absent = named.filter(f => !fs.existsSync(path.join(ROOT, f)));
+  t("every file the painter names exists",
+    base === "js/paint/" && named.includes("js/paint/worker.js") && named.includes("img/paper-washi.webp") && absent.length === 0,
+    named.join(", ") + (absent.length ? " missing " + absent.join(", ") : ""));
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  const listed = new Set(((sw.match(/const FILES = \[([\s\S]*?)\];/) || [])[1] || "").match(/'([^']+)'/g).map(x => x.slice(1, -1)));
+  const unlisted = ["js/paint/worker.js"].concat(imports.map(f => "js/paint/" + f)).filter(f => !listed.has(f));
+  t("the service worker holds the worker and every script it imports", unlisted.length === 0, unlisted.join(", "));
+  vm.runInThisContext(paintSrc, { filename: "js/paint/painter.js" });
+  t("the painter loads with its whole contract",
+    ["paint", "toCanvas", "inkColor", "picture", "keep", "kept", "prepareSend", "sendNow"].every(k => typeof D.painter[k] === "function"));
+}
+{
+  // The worker, run as the browser runs it: its own self and D, importScripts, messages in and out.
+  // (In this realm rather than a vm context of its own, where every Math call is ten times slower.)
+  const WD = {}, replies = [];
+  const self = { postMessage: m => replies.push(m) };
+  const importScripts = (...names) => { for (const n of names) new Function("D", fs.readFileSync(path.join(ROOT, "js/paint", n), "utf8"))(WD); };
+  new Function("self", "importScripts", "D", fs.readFileSync(path.join(ROOT, "js/paint/worker.js"), "utf8"))(self, importScripts, WD);
+  let composed = 0;
+  const forDay = WD.paintScenes.forDay;
+  WD.paintScenes.forDay = function () { composed++; return forDay.apply(this, arguments); };
+  let id = 0;
+  const ask = (date, stage, ink, name) => { replies.length = 0; self.onmessage({ data: { id: ++id, date, name: name || "Sam", rounds: 8, stage, ink: ink || "#1A1611" } }); return replies[0]; };
+  const same = (a, b, step) => {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = step ? 3 : 0; i < a.length; i += step || 1) if (a[i] !== b[i]) return false;
+    return true;
+  };
+  const inked = px => { for (let i = 3; i < px.length; i += 4) if (px[i] > 0) return true; return false; };
+  // the same stage painted from a clean sheet, here in the test's own copy of the brush
+  const fresh = (date, stage) => {
+    const sc = D.paintScenes.forDay(date, "Sam", { rounds: 8 });
+    return D.paintBrush.rgba(D.paintScenes.paint(sc, stage ? sc.stages[stage - 1] : 0), sc.w, sc.h, { mask: true, ink: "#1A1611" });
+  };
+  const A = "2026-11-06", B = "2026-11-07", C = "2026-11-13";   // three light paintings, to keep the gate quick
+  const r3 = ask(A, 3);
+  t("the worker paints a stage: 600 x 800, the ink colour with its density in alpha, the parts and the seed",
+    r3.ok && r3.id === id && r3.w === 600 && r3.h === 800 && r3.px.length === 600 * 800 * 4 && r3.stages === 8 &&
+    r3.px[0] === 0x1A && r3.px[1] === 0x16 && r3.px[2] === 0x11 && inked(r3.px) && typeof r3.seed === "number" && r3.seal && r3.seal.size > 0 && !!r3.caption,
+    JSON.stringify({ ok: r3.ok, w: r3.w, h: r3.h, stages: r3.stages, seed: r3.seed, seal: r3.seal, error: r3.error }));
+  const r5 = ask(A, 5);
+  t("the next round paints on the sheet it holds, and gives the painting a clean sheet would", composed === 1 && same(r5.px, fresh(A, 5)), "composed " + composed);
+  const r2 = ask(A, 2);
+  t("an earlier stage starts the sheet again and gives the same painting", same(r2.px, fresh(A, 2)));
+  ask(B, 8);
+  const back = ask(A, 3);
+  t("it holds two sheets: painting another day keeps the one the next round paints on", composed === 2 && back.ok, "composed " + composed);
+  ask(C, 1);
+  ask(B, 2);
+  t("and lets the oldest go when a third comes", composed === 4, "composed " + composed);
+  const light = ask(A, 3, "#F4F0E6");
+  t("the ink takes the colour asked for, the same density", light.px[0] === 0xF4 && light.px[1] === 0xF0 && light.px[2] === 0xE6 && same(light.px, back.px, 4));
+  const before = composed, spaced = ask(A, 4, null, "  SAM ");
+  t("a name written another way, as the composer reads it the same, shares the sheet", composed === before && spaced.ok && same(spaced.px, fresh(A, 4)), "composed " + (composed - before));
+  const badDay = ask("someday", 3);
+  t("a bad date answers with an error, not silence", badDay && badDay.ok === false && badDay.id === id && /date/.test(badDay.error), JSON.stringify(badDay));
+  // without a worker (node here, an old browser) the painter paints the same on the main thread
+  const main5 = await D.painter.paint(A, "Sam", 8, 5, "#1A1611");
+  t("the painter without a worker paints what the worker paints", main5.stages === 8 && main5.seed === r5.seed && same(main5.px, r5.px));
+  const noRounds = await D.painter.paint(A, "Sam", undefined, 8, "#1A1611");
+  t("left out, the rounds a day are the game's own", noRounds.stages === D.cfg.DAY_ROUNDS);
+  let why = "";
+  try { await D.painter.picture(A, "Sam", 8); } catch (e) { why = e.message; }
+  t("the picture needs a page, and says so in node", /no page/.test(why), why);
+}
+{
+  // Once the page has loaded, today's painting is painted ahead in the worker as it stands, so the
+  // next round's end paints only its own part. A stand-in Worker records what it is asked.
+  const posted = [];
+  let onLoad = null;
+  const had = { Worker: globalThis.Worker, add: globalThis.addEventListener, painter: D.painter, timer: globalThis.setTimeout };
+  globalThis.Worker = function (url) { this.postMessage = m => posted.push({ url: url, m: m }); };
+  globalThis.addEventListener = (type, fn) => { if (type === "load") onLoad = fn; };
+  vm.runInThisContext(fs.readFileSync(path.join(ROOT, "js/paint/painter.js"), "utf8"), { filename: "js/paint/painter.js" });
+  const loaded = () => { globalThis.setTimeout = fn => { fn(); return 0; }; try { if (onLoad) onLoad(); } finally { globalThis.setTimeout = had.timer; } };
+  D.state = null;
+  loaded();
+  t("with no child yet, nothing is painted ahead", posted.length === 0);
+  setTime(2026, 9, 26, 16, 0); newState("Sam");
+  D.daily.noteRound(); D.daily.noteRound();
+  loaded();
+  const m = (posted[0] || {}).m || {};
+  t("once the page has loaded, today's painting is painted ahead in the worker, as it stands",
+    posted.length === 1 && posted[0].url === "js/paint/worker.js" && m.date === D.u.gameDay() && m.name === "Sam" && m.rounds === 8 && m.stage === 2,
+    JSON.stringify(posted.map(p => p.m)));
+  if (had.Worker === undefined) delete globalThis.Worker; else globalThis.Worker = had.Worker;
+  if (had.add === undefined) delete globalThis.addEventListener; else globalThis.addEventListener = had.add;
+  D.painter = had.painter;
+}
+{
+  // The book on the phone: Cache Storage, a cache of its own, one page per child and date.
+  const hadLocation = "location" in globalThis, oldLocation = globalThis.location;
+  const navWas = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const store = new Map();
+  const fakeCaches = {
+    open: async name => {
+      if (!store.has(name)) store.set(name, new Map());
+      const c = store.get(name);
+      return { put: async (k, r) => { c.set(String(k), r); }, match: async k => (c.has(String(k)) ? c.get(String(k)).clone() : undefined) };
+    },
+  };
+  const bytes = async b => new Uint8Array(await b.arrayBuffer()).join(",");
+  const jpg = n => new Blob([new Uint8Array([0xFF, 0xD8, 0xFF, n, n + 1, n + 2])], { type: "image/jpeg" });
+  globalThis.caches = fakeCaches;
+  globalThis.location = { href: "https://example.test/dojo12/index.html?from=home#top" };
+  newState();
+  D.state.profile.slug = "sam";
+  const first = jpg(1);
+  t("keep stores the finished page", (await D.painter.keep("2026-09-26", first)) === true);
+  const keys = store.has("d12-book") ? [...store.get("d12-book").keys()] : [];
+  t("the book has a cache of its own, which the service worker never clears",
+    store.size === 1 && store.has("d12-book") && ![...store.keys()].some(k => k.indexOf("dojo12-") === 0), [...store.keys()].join(", "));
+  t("a page is kept at the game's own address, by the child and the date, as a path and never a query",
+    keys.length === 1 && keys[0] === "https://example.test/dojo12/book/sam/2026-09-26.jpg", keys.join(", "));
+  const read = await D.painter.kept("2026-09-26");
+  t("kept reads the same page back", read && (await bytes(read)) === (await bytes(first)));
+  t("a day with no page reads back null", (await D.painter.kept("2026-09-27")) === null);
+  D.state.profile.slug = "alex";
+  t("another child on the same phone has no page for that day", (await D.painter.kept("2026-09-26")) === null);
+  await D.painter.keep("2026-09-26", jpg(7));
+  D.state.profile.slug = "sam";
+  t("and keeping theirs leaves the first child's page as it was", (await bytes(await D.painter.kept("2026-09-26"))) === (await bytes(first)));
+  const soft = [];
+  for (const [label, c] of [["no Cache Storage", undefined], ["caches throws", { open: () => { throw new Error("SecurityError"); } }],
+                            ["open rejects", { open: () => Promise.reject(new Error("denied")) }],
+                            ["a full disk", { open: async () => ({ put: async () => { throw new Error("QuotaExceededError"); }, match: async () => { throw new Error("gone"); } }) }]]) {
+    globalThis.caches = c;
+    const k = await D.painter.keep("2026-09-26", jpg(3)), r = await D.painter.kept("2026-09-26");
+    if (k !== false || r !== null) soft.push(label + ": " + k + " / " + r);
+  }
+  t("keep and kept fail soft, to false and null, when the phone cannot store", soft.length === 0, soft.join("; "));
+  globalThis.caches = fakeCaches;
+
+  // Send to Dad: the file is ready before the tap, and the tap shares at once.
+  const shared = [];
+  const phone = o => Object.defineProperty(globalThis, "navigator", { value: o, configurable: true, writable: true });
+  const share = d => { shared.push(d); return Promise.reject(new Error("AbortError")); };   // the child closes the sheet
+  phone({ canShare: d => !!(d && d.files && d.files.every(f => f.type === "image/jpeg")), share: share });
+  const words = "Sam trained today, 26 September";
+  const ok = await D.painter.prepareSend("2026-09-26", "Sam", 8, words);
+  const tapped = D.painter.sendNow();
+  const one = shared[0] || {};
+  t("prepareSend readies the kept page, and the phone can share it", ok === true);
+  t("sendNow opens the share sheet before it returns, with the page and the words",
+    tapped === true && shared.length === 1 && one.files && one.files.length === 1 && one.files[0].name === "sam-2026-09-26.jpg" &&
+    one.files[0].type === "image/jpeg" && one.text === words, JSON.stringify({ n: shared.length, name: one.files && one.files[0].name, text: one.text }));
+  t("the file is the page kept for that day", one.files && (await bytes(one.files[0])) === (await bytes(first)));
+  t("closing the sheet and tapping again shares again", D.painter.sendNow() === true && shared.length === 2);
+  shared.length = 0;
+  phone({ share: share });
+  const wordsOnly = await D.painter.prepareSend("2026-09-26", "Sam", 8, words);
+  t("a phone that cannot share files shares the words alone",
+    wordsOnly === true && D.painter.sendNow() === true && shared.length === 1 && !shared[0].files && shared[0].text === words, JSON.stringify(shared[0]));
+  shared.length = 0;
+  phone({ canShare: () => true, share: share });
+  const noPage = await D.painter.prepareSend("2026-10-02", "Sam", 8, words);
+  t("with no page kept and none to be made, the words still go",
+    noPage === true && D.painter.sendNow() === true && shared.length === 1 && !shared[0].files && shared[0].text === words, JSON.stringify(shared[0]));
+  shared.length = 0;
+  phone({});
+  t("a phone with no share sheet gets false from both", (await D.painter.prepareSend("2026-09-26", "Sam", 8, words)) === false && D.painter.sendNow() === false && shared.length === 0);
+  phone({ canShare: () => true, share: share });
+  const pending = D.painter.prepareSend("2026-09-26", "Sam", 8, words);
+  t("a tap while the page is still being readied shares nothing old", D.painter.sendNow() === false && shared.length === 0);
+  const firstCall = D.painter.prepareSend("2026-09-26", "Sam", 8, "one"), lastCall = D.painter.prepareSend("2026-09-26", "Sam", 8, "two");
+  const answers = await Promise.all([pending, firstCall, lastCall]);
+  D.painter.sendNow();
+  t("readied twice, the last words win and every call gets its answer", answers.every(a => a === true) && shared.length === 1 && shared[0].text === "two", JSON.stringify(answers));
+
+  delete globalThis.caches;
+  if (hadLocation) globalThis.location = oldLocation; else delete globalThis.location;
+  if (navWas) Object.defineProperty(globalThis, "navigator", navWas); else delete globalThis.navigator;
 }
 
 /* ================= results ================= */

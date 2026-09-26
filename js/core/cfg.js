@@ -30,6 +30,7 @@ D.cfg = {
   FAST_WRONG_W: 0.25,
   ROLLOVER_HOUR: 4,         // local hour a new game-day may first credit
   ROLLOVER_MIN_MS: 6 * 3600 * 1000,
+  DAY_ROUNDS: 8,             // rounds a day for the day's painting, until For Dad changes it (PLAN §15, 2026-09-25)
 
   /* ---- run composition (PLAN §6.5) ---- */
   RUN_CARDS: 5,            // five questions a round (Jamie, 2026-09-14: "max 5 questions before something happens")

@@ -137,9 +137,16 @@ D.main = (function () {
   /* The end of a placement round, laid out like the end of any round: the score brushed
      in, the halfway questions with their pencil squares. After the last one, where the
      child starts (§13.3), the belt for the first time, and once, what coins and XP are,
-     with the numbers (2026-09-24). */
+     with the numbers (2026-09-24). Rounds 1 and 2 count toward the day's painting like
+     any round (PLAN §15, 2026-09-26). */
   function roundOneEnd(sum) {
     D.xp.noteRound(sum);
+    const day = D.daily.noteRound();
+    D.save.commitNow();
+    if (day.justDone) return trainingDone(() => roundOneScreen(sum, day));
+    roundOneScreen(sum, day);
+  }
+  function roundOneScreen(sum, day) {
     u().clear(root);
     const beat = beats(0);
     const parts = [
@@ -167,6 +174,7 @@ D.main = (function () {
     again.addEventListener('click', sum.placementContinues ? startRoundOne : startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.roundOne.home);
     back.addEventListener('click', home);
+    hangPainting(parts, day);
     root.appendChild(u().el('div', { class: 'screen sum' + (sum.placementContinues ? ' solo' : '') },
                             parts.concat([u().el('div', { class: 'grow' }), again, back])));
     D.save.commitNow();
@@ -325,6 +333,60 @@ D.main = (function () {
     return null;
   }
 
+  /* ---- the day's painting at the end of a round (PLAN §15, 2026-09-26) ----
+     The round's reward hangs at the top right beside the score, with this round's part fading
+     in, and the score and the lines under it run down its left side and on under it, so the
+     buttons keep their place. The block runs from the score to the belt. `day` is what
+     D.daily.noteRound() said for this round. */
+  function hangPainting(parts, day) {
+    const has = (n, cls) => !!(n && n.classList && n.classList.contains(cls));
+    const at = parts.findIndex(n => has(n, 'scorerow'));
+    if (at < 0) return parts;
+    let end = parts.findIndex((n, i) => i > at && has(n, 'beltplate'));
+    if (end < 0) end = parts.length;
+    parts.splice(at, end - at, u().el('div', { class: 'pp-top' }, [D.book.roundFigure(day)].concat(parts.slice(at, end))));
+    return parts;
+  }
+  /* ---- Training done (PLAN §15, 2026-09-26) ----
+     The round that finishes the day opens this before its usual end: the day's painting at
+     the size Jamie judged, its last part painting in, then the date seal slammed down as a seal
+     is (ART.md, Sealed: the thump lands with it), then the words and the time, Send to Dad, and
+     the way on to the round's end. The page is kept on the phone as a picture as the day
+     finishes, and Send to Dad is readied from it. The way on works from the first frame. */
+  function trainingDone(next) {
+    u().clear(root);
+    const t = D.daily.today();
+    const page = D.daily.book().find(p => p.day === t.day) || { day: t.day, at: t.doneAt, rounds: t.target };
+    const s = D.book.sheet({ day: t.day, target: t.target, stage: t.stage, width: D.book.bigWidth(root),
+                             from: t.stage - 1, fadeAt: 220, seal: 'wait' });
+    const kept = D.book.keepDay(t.day);
+    const words = u().el('div', { class: 'pp-words' }, [
+      ceremony(D.copy.paint.done, 'pp-done'),
+      u().el('div', { class: 'pp-when' }, D.copy.paint.doneWhen(t.day, t.doneAt)),
+    ]);
+    words.style.visibility = 'hidden';
+    const on = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.paint.on);
+    on.addEventListener('click', next);
+    // If this phone cannot send the picture, the way on becomes the ink block.
+    const send = D.book.sendButton(page, { first: kept, onHide: () => on.classList.add('ink') });
+    let screen = null;
+    const say = () => {
+      if (!screen || !screen.isConnected) return;
+      words.style.visibility = '';
+      words.classList.add('pp-after');
+    };
+    s.ready.then(() => {
+      if (!screen || !screen.isConnected) return;
+      const seal = s.stamp();
+      if (!seal) return say();
+      beats(0).stamp(seal, 0, true);
+      setTimeout(say, 280);
+    }, say);
+    screen = u().el('div', { class: 'screen scr-done' },
+                    [u().el('div', { class: 'grow top' }), s.el, words, u().el('div', { class: 'grow' }), send, on]);
+    root.appendChild(screen);
+  }
+
   /* ---- home ---- */
   function home() {
     if (pendingReload && !busy()) {
@@ -367,16 +429,22 @@ D.main = (function () {
 
     const news = tableNewsLine();
     const workLine = workingLine();
-    const today = D.copy.home.today(p.runsToday || 0, D.xp.halfwayToday().length, D.scheduler.sealablePool().length);
+    // The day's rounds are counted once, on the painting's row under Play: "Today: 3 rounds."
+    // counted a round left after its fourth card, which the painting does not, and the two
+    // numbers disagreed (PLAN §15, 2026-09-26).
+    const today = D.copy.home.today(0, D.xp.halfwayToday().length, D.scheduler.sealablePool().length);
     const nudgeItem = D.shop.nudge();
     const recap = D.recap.plate(home);
 
     const waiting = D.state.inRun && !D.state.inRun.finished;
     const play = u().el('button', { class: 'btn ink wide', type: 'button' }, waiting ? D.copy.home.carryOn : D.copy.home.play);
     play.addEventListener('click', startRun);
+    // Today's painting as it stands, and the day's rounds; it opens the painting big.
+    const painting = D.book.homeRow(() => D.book.today(root, home));
     const nav = u().el('div', { class: 'navrow' }, [
       link(D.copy.home.grid, () => D.grid.render(root, home)),
       link(D.copy.home.belt, () => D.belts.render(root, home, startTest)),
+      link(D.copy.home.book, () => D.book.render(root, home)),
       link(D.copy.home.shop, () => D.shop.render(root, home)),
       link(D.copy.home.settings, settings),
     ]);
@@ -403,7 +471,7 @@ D.main = (function () {
       head, xp, recap,
       u().el('div', { class: 'grow top' }),
       beltPlate(info),
-      play, rest,
+      play, painting, rest,
       u().el('div', { class: 'grow' }),
       nav,
     ]));
@@ -477,10 +545,15 @@ D.main = (function () {
     D.run.start(root, { rs: rs, onDone: afterRun, onLeave: home });
   }
   // The week's recap waits on Home now; it no longer comes between the last card and
-  // the score (2026-09-24).
+  // the score (2026-09-24). A round that reaches its end counts once toward the day's
+  // painting, a resumed one too (it ends once); the round that finishes the day opens
+  // Training done first (PLAN §15, 2026-09-26).
   function afterRun(sum) {
     D.xp.noteRound(sum);
-    summary(sum);
+    const day = D.daily.noteRound();
+    D.save.commitNow();
+    if (day.justDone) return trainingDone(() => summary(sum, day));
+    summary(sum, day);
   }
 
   /* ---- the end of a round ----
@@ -490,8 +563,9 @@ D.main = (function () {
      Laid out as a result (review 2026-09-24): the score brushed in and the lead line in
      Mincho; a stripe or a belt puts the belt right under it with the new stripe tying on;
      each seal stamped, the halfway questions pencilled, a lost seal lifted off; a new
-     level stamped beside its Shop line; coins and XP in one ledger over the buttons. */
-  function summary(sum) {
+     level stamped beside its Shop line; coins and XP in one ledger over the buttons. The
+     day's painting hangs beside the score with the round's part fading in (hangPainting). */
+  function summary(sum, day) {
     u().clear(root);
     const info = D.belt.info();
     const events = (sum.extra && sum.extra.belt) || [];
@@ -585,6 +659,7 @@ D.main = (function () {
     again.addEventListener('click', startRun);
     const back = u().el('button', { class: 'btn wide', type: 'button' }, D.copy.summary.home);
     back.addEventListener('click', home);
+    hangPainting(parts, day);
     screen = u().el('div', { class: 'screen sum' }, parts.concat([u().el('div', { class: 'grow' }), again, back]));
     root.appendChild(screen);
     D.save.commitNow();
@@ -770,16 +845,43 @@ D.main = (function () {
   function forDad() {
     u().clear(root);
     const F = D.frame;
-    // A row and the slot it opens into; the row says whether it is open.
-    const opener = (label, fill, cls) => {
+    // A row and the slot it opens into; the row says whether it is open. `more` is the
+    // row's value and note, for a row that shows what it is set to.
+    const opener = (label, fill, cls, more) => {
       const slot = u().el('div', { class: 'fr-slot' });
-      const b = F.row(label, { cls: cls, end: F.glyph('open') });
+      const b = F.row(label, Object.assign({ cls: cls, end: F.glyph('open') }, more));
       b.setAttribute('aria-expanded', 'false');
       b.addEventListener('click', () => {
-        if (slot.firstChild) u().clear(slot); else fill(slot);
+        if (slot.firstChild) u().clear(slot); else fill(slot, b);
         b.setAttribute('aria-expanded', String(!!slot.firstChild));
       });
       return u().el('div', { class: 'fr-item' }, [b, slot]);
+    };
+    /* The rounds that finish a day's painting, 4 to 12 (PLAN §15, 2026-09-25): fewer and more,
+       saved at once. Set below the rounds already played today, it finishes today's painting
+       then and there (D.daily.setTarget), and its page is kept as the day's are. */
+    const roundsADay = (slot, row) => {
+      const n = u().el('span', { class: 'pp-step-n' });
+      const less = u().el('button', { class: 'key', type: 'button', 'aria-label': D.copy.paint.fewer }, D.copy.paint.minus);
+      const more = u().el('button', { class: 'key', type: 'button', 'aria-label': D.copy.paint.more }, D.copy.paint.plus);
+      const show = target => {
+        n.textContent = String(target);
+        const value = row.querySelector('.fr-value');
+        if (value) value.textContent = String(target);
+        less.disabled = target <= D.daily.MIN;
+        more.disabled = target >= D.daily.MAX;
+      };
+      const step = by => {
+        const was = D.daily.today();
+        const target = D.daily.setTarget(was.target + by);
+        D.save.commitNow();
+        if (!was.done && D.daily.today().done) D.book.keepDay(was.day);
+        show(target);
+      };
+      less.addEventListener('click', () => step(-1));
+      more.addEventListener('click', () => step(1));
+      show(D.daily.today().target);
+      slot.appendChild(u().el('div', { class: 'pp-stepper' }, [less, n, more]));
     };
     const rename = slot => {
       const field = u().el('input', { class: 'field', type: 'text', autocomplete: 'off',
@@ -814,6 +916,8 @@ D.main = (function () {
     };
     const list = u().el('div', { class: 'fr-list' }, [
       F.row(D.copy.forDad.dashboard, { end: F.glyph('go'), onClick: () => D.dashboard.render(root, { onBack: forDad }) }),
+      opener(D.copy.paint.target, roundsADay, null,
+             { value: String(D.daily.today().target), note: D.copy.paint.targetNote }),
       opener(D.copy.forDad.restore, toggleRestore),
       opener(D.copy.forDad.changeName, rename),
     ]);

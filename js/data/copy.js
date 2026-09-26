@@ -46,6 +46,18 @@ D.copy = (function () {
   }
 
   const num = n => D.u.commas(n);
+  /* The day and the time, the way a person writes them in Canada: "Saturday 26 September"
+     and "4:12 p.m." (the day's painting, PLAN §15, 2026-09-26). */
+  const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function dayName(dayKey) {
+    return WEEKDAYS[new Date(dayKey + 'T12:00:00').getDay()] + ' ' + D.u.longDate(dayKey);
+  }
+  function clockTime(ms) {
+    const t = new Date(ms), h = t.getHours();
+    return (h % 12 || 12) + ':' + String(t.getMinutes()).padStart(2, '0') + (h < 12 ? ' a.m.' : ' p.m.');
+  }
+  // A sentence that ends on "p.m." takes no second period.
+  function stop(s) { return /\.$/.test(s) ? s : s + '.'; }
   // Commas in the whole part only, so 0.0045 never becomes 0.0,045.
   function numx(n) {
     const t = String(n), i = t.indexOf('.');
@@ -153,7 +165,7 @@ D.copy = (function () {
 
   return {
     word, plural, cap, count, andList, tableName, tableNameCap, tableNameLong, tableExample, tableLabel, beltName,
-    factText, factEquation, num, secs, step, label, itemName,
+    factText, factEquation, num, secs, step, label, itemName, dayName, clockTime,
 
     /* ---- install and first launch ---- */
     install: {
@@ -396,9 +408,53 @@ D.copy = (function () {
       nudge: (id, price) => (NAMES[id] || id) + ', ' + (KIND_A[kindOf(id)] || 'a thing') + ', is ' + num(price) + ' in the Shop.',
       play: 'Play',
       carryOn: 'Keep going',
-      grid: 'Grid', belt: 'Belt', shop: 'Shop', settings: 'Settings',
+      grid: 'Grid', belt: 'Belt', book: 'Book', shop: 'Shop', settings: 'Settings',
       help: '?',
       helpLabel: 'How it works',
+    },
+
+    /* ---- the day's painting (PLAN §15, 2026-09-25 and 2026-09-26). Each finished round
+       paints the next part; the round that finishes the day puts the date seal on, and the
+       painting goes in the book. A day not finished leaves no page and takes nothing away,
+       so nothing here counts down or warns. Jamie's word for the day's rounds is training. ---- */
+    paint: {
+      // Home, the row under Play. It carries the day's round count, so Home's "Today:" line
+      // leaves its own count out when this row is there.
+      row: (stage, target) => "Today's painting: " + stage + ' of ' + target + ' rounds.',
+      rowDone: at => stop('Training done at ' + clockTime(at)),
+      // The end of a round, under the painting: which round of the day it was, and once the
+      // day is done, only that (the time is on Home and in the book).
+      round: (stage, target) => 'Round ' + stage + ' of ' + target,
+      roundDone: 'Training done',
+      // The round that finishes the day, before its usual end.
+      done: 'Training done.',
+      doneWhen: (day, at) => dayName(day) + ', ' + clockTime(at),
+      on: 'See your points',
+      // Send to Dad: the picture goes with this line, into Messages.
+      send: 'Send to Dad',
+      sendText: (name, day, at) => name + ' finished training at ' + clockTime(at) + ' on ' + dayName(day) + '.',
+      // The share sheet did not open: the picture is readied again.
+      sendWait: 'Still making the picture. Tap again in a moment.',
+      // Today's painting, opened from Home before it is finished.
+      how: target => 'Each round you finish paints the next part. Finish ' + target + ' rounds today and it goes in your book.',
+      // The book: one page for each day finished, newest first.
+      title: 'Book',
+      empty: target => 'Finish ' + target + " rounds in a day and that day's painting goes in here.",
+      pageDate: day => D.u.longDate(day),
+      pageWhen: (day, at) => dayName(day) + '. ' + stop('Training done at ' + clockTime(at)),
+      // For Dad
+      target: 'Rounds a day',
+      targetNote: "Rounds that finish a day's painting. The same number on both phones is fairest.",
+      fewer: 'Fewer rounds',
+      more: 'More rounds',
+      minus: '−',
+      plus: '+',
+      // What Dad sees
+      dash: 'Training',
+      dashToday: 'Today',
+      dashRounds: (when, rounds, target) => when + ': ' + rounds + ' of ' + target + ' rounds.',
+      dashDone: (when, at) => stop(when + ': done at ' + clockTime(at)),
+      dashWeek: 'Days finished this week',
     },
 
     /* ---- the grid ---- */

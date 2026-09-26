@@ -1,16 +1,18 @@
 /* Dojo 12 service worker. BUILD is rewritten by deploy.sh on every deploy. */
-const BUILD = '20260925-100950';
+const BUILD = '20260926-101515';
 const CACHE = 'dojo12-' + BUILD;
 const FILES = [
   './', 'index.html', 'dashboard.html', 'manifest.webmanifest',
-  'css/app.css', 'css/themes.css', 'css/kit.css', 'css/frame.css', 'css/home.css', 'css/screens.css',
+  'css/app.css', 'css/themes.css', 'css/kit.css', 'css/frame.css', 'css/home.css', 'css/screens.css', 'css/paint.css',
   'js/core/util.js', 'js/core/cfg.js', 'js/core/save.js', 'js/core/install.js', 'js/data/copy.js',
   'js/engine/facts.js', 'js/engine/mastery.js', 'js/engine/scripts.js', 'js/engine/diagnose.js', 'js/engine/xp.js',
   'js/engine/belt.js', 'js/engine/scheduler.js', 'js/engine/runstate.js', 'js/engine/tryout.js', 'js/engine/roundone.js',
   'js/engine/belttest.js', 'js/engine/beyond.js', 'js/engine/share.js', 'js/game/audio.js', 'js/game/fx.js',
   'js/game/keypad.js', 'js/game/run.js', 'js/game/cards.js', 'js/game/grid.js', 'js/game/belts.js',
   'js/game/shop.js', 'js/game/recap.js', 'js/game/dashboard.js', 'js/game/main.js', 'js/game/kit.js',
-  'js/game/frame.js',
+  'js/game/frame.js', 'js/engine/daily.js', 'js/game/book.js',
+  // the painting of the day (PLAN §15, 2026-09-26): the painter, and the worker with the brush and the scenes it loads
+  'js/paint/painter.js', 'js/paint/worker.js', 'js/paint/brush.js', 'js/paint/scenes.js',
   'icons/enso-180.png', 'icons/enso-192.png', 'icons/enso-512.png',
   // the image kit (ART.md Assets), painted in art/kit/
   'img/belt-black.webp', 'img/belt-blue.webp', 'img/belt-brown.webp', 'img/belt-purple.webp',

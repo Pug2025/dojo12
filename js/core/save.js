@@ -38,6 +38,7 @@ D.save = (function () {
       placement: null,   // tables round 1 never reached, tried by scouts in the next rounds
       cosmetics: { owned: [], equipped: {} },
       inRun: null,
+      daily: { target: cfg.DAY_ROUNDS, day: null, rounds: 0, doneAt: null, book: [] },   // D.daily
       restores: [],
       stepStats: {},   // famId -> {ok, tries}: the tie-break when two rescue scripts cost the same
       flags: { tryoutDone: false, firstRescueShown: false, lastRecapWeek: null,
@@ -92,7 +93,11 @@ D.save = (function () {
     let v = s.version || cfg.VERSION;
     while (MIGRATIONS[v + 1]) { s = MIGRATIONS[v + 1](s); v = s.version; }
     const t = fresh(s.profile);
+    const hadDaily = s.daily !== undefined;
     for (const k of Object.keys(t)) if (s[k] === undefined) s[k] = t[k];
+    // A save from before the day's painting (2026-09-26): the rounds already played on its game day
+    // count toward that day's painting, so a child who played before the update loses nothing.
+    if (!hadDaily && s.gameDay && s.progress) { s.daily.day = s.gameDay; s.daily.rounds = Math.max(0, s.progress.runsToday | 0); }
     for (const k of Object.keys(t.progress)) if (s.progress[k] === undefined) s.progress[k] = t.progress[k];
     for (const k of Object.keys(t.flags)) if (s.flags[k] === undefined) s.flags[k] = t.flags[k];
     return s;

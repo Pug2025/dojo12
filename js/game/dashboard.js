@@ -33,7 +33,7 @@ D.dashboard = (function () {
         u().el('div', { class: 'home-name' }, s.profile.name || D.copy.dash.title),
         u().el('div', { class: 'fr-dash-level' }, D.copy.dash.level(D.xp.levelFor(s.progress.xp).level)),
       ]),
-      checksPlate(s), beltPlate(s), workingPlate(s), weekPlate(s),
+      trainingPlate(s), checksPlate(s), beltPlate(s), workingPlate(s), weekPlate(s),
       gridPlate('mul'), gridPlate('div'),
     ];
     const tests = testsPlate(s);
@@ -44,6 +44,27 @@ D.dashboard = (function () {
       kids.push(back);
     }
     root.appendChild(u().el('div', { class: 'screen fr-dash' }, kids));
+  }
+
+  /* The day's training first, since it is what the screens wait on (PLAN §15, 2026-09-25):
+     the save's game day, its rounds of the rounds a day or when it was done, and on how many
+     days of that week it was done. Read straight from the save, as everything here is: the
+     link opens on a phone that never loads D.daily, and this page never changes the save. A
+     save from an earlier day names that day instead of today. */
+  function trainingPlate(s) {
+    const d = s.daily;
+    if (!d || typeof d !== 'object') return null;
+    const day = D.u.gameDay(), target = d.target || D.cfg.DAY_ROUNDS;
+    const now = d.day === day;
+    const rounds = now ? d.rounds || 0 : 0;
+    const when = day === D.u.todayKey() ? D.copy.paint.dashToday : D.u.longDate(day);
+    const wk = D.u.weekKey(day);
+    const days = (Array.isArray(d.book) ? d.book : []).filter(p => p && p.day && D.u.weekKey(p.day) === wk).length;
+    return plate(D.copy.paint.dash, [
+      line(now && d.doneAt ? D.copy.paint.dashDone(when, d.doneAt) : D.copy.paint.dashRounds(when, Math.min(rounds, target), target)),
+      stat(D.copy.paint.dashWeek, days),
+      stat(D.copy.paint.target, target),
+    ]);
   }
 
   /* The save check and the phone clock together, each line saying what it checked
